@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Loader2, Check } from "lucide-react";
 import api, { getErrorMessage, tokenStorage } from "@/lib/api";
+import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
 
 interface RegisterResponse {
@@ -55,6 +56,10 @@ export default function RegisterForm({ inviteToken }: Props) {
       });
 
       tokenStorage.set(data.access_token);
+      
+      // Update auth store with the newly fetched user
+      useAuthStore.getState().setUser(data.user as any);
+      
       router.push("/library");
     } catch (err) {
       setError(getErrorMessage(err));

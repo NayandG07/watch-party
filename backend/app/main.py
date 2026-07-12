@@ -19,7 +19,7 @@ import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import health
+from app.api import auth, collections, health, invites, libraries, movies, users
 from app.core.config import get_settings
 from app.core.exceptions import WatchPartyError, watchparty_exception_handler, unhandled_exception_handler
 from app.core.log_config import configure_logging
@@ -80,6 +80,16 @@ def create_app() -> FastAPI:
     # Subsequent phases add: auth, users, libraries, collections, movies,
     # rooms, sync (WebSocket), chat, storage.
     app.include_router(health.router)
+    
+    # Phase 3: Auth & Users
+    app.include_router(auth.router, prefix="/api")
+    app.include_router(invites.router, prefix="/api")
+    app.include_router(users.router, prefix="/api")
+
+    # Phase 4: Library, Collections & Movies
+    app.include_router(libraries.router, prefix="/api")
+    app.include_router(collections.router, prefix="/api")
+    app.include_router(movies.router, prefix="/api")
 
     return app
 

@@ -15,6 +15,8 @@ Manual overrides are also supported (stored in the same field).
 
 from __future__ import annotations
 
+import uuid
+
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import BigInteger, Boolean, Float, ForeignKey, Integer, String, Text
@@ -26,7 +28,6 @@ from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from app.models.enums import Visibility
 
 if TYPE_CHECKING:
-    import uuid
 
     from app.models.collection import Collection
     from app.models.hls_key import HLSKey

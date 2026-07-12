@@ -15,6 +15,8 @@ There is no public chat, no cross-room history.
 
 from __future__ import annotations
 
+import uuid
+
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -27,7 +29,6 @@ from app.db.base import Base, UUIDPrimaryKeyMixin
 from app.models.enums import MessageType
 
 if TYPE_CHECKING:
-    import uuid
 
     from app.models.room import Room
     from app.models.user import User

@@ -10,6 +10,8 @@ Default visibility is always private.
 
 from __future__ import annotations
 
+import uuid
+
 from typing import TYPE_CHECKING
 
 from sqlalchemy import ForeignKey, Integer, String, Text
@@ -21,7 +23,6 @@ from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from app.models.enums import Visibility
 
 if TYPE_CHECKING:
-    import uuid
 
     from app.models.library import Library
     from app.models.movie import Movie

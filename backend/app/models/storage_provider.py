@@ -13,6 +13,8 @@ only the StorageProvider ABC implementation changes.
 
 from __future__ import annotations
 
+import uuid
+
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, ForeignKey, String, Text
@@ -24,7 +26,6 @@ from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from app.models.enums import StorageProviderType
 
 if TYPE_CHECKING:
-    import uuid
 
     from app.models.library import Library
     from app.models.user import User

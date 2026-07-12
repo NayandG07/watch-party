@@ -13,14 +13,14 @@ import sys
 
 from sqlalchemy import select
 
-from app.core.security import get_password_hash
-from app.db.session import async_session_maker
+from app.core.security import hash_password
+from app.db.session import AsyncSessionLocal
 from app.models.enums import UserRole
 from app.models.user import User
 
 
 async def create_admin(username: str, email: str, password: str) -> None:
-    async with async_session_maker() as session:
+    async with AsyncSessionLocal() as session:
         # Check if any super_admin already exists
         stmt = select(User).where(User.role == UserRole.SUPER_ADMIN)
         result = await session.execute(stmt)
@@ -35,7 +35,7 @@ async def create_admin(username: str, email: str, password: str) -> None:
             print("Error: Username or email is already taken by another account.")
             sys.exit(1)
 
-        hashed_password = get_password_hash(password)
+        hashed_password = hash_password(password)
         
         admin = User(
             username=username,

@@ -1,67 +1,42 @@
-import type { Metadata } from "next";
-import { Film, Grid3X3, Search } from "lucide-react";
+"use client";
 
-export const metadata: Metadata = {
-  title: "Library",
-};
+import { useEffect, useState } from "react";
+import { Grid3X3, Search, Loader2 } from "lucide-react";
+import api from "@/lib/api";
+import MovieCard from "@/components/media/MovieCard";
+import type { Collection, Movie } from "@/types";
 
-// Placeholder skeleton card for loading state demo
-function MovieCard({ index }: { index: number }) {
-  const colors = [
-    "from-brand-800 to-brand-950",
-    "from-purple-900 to-indigo-950",
-    "from-pink-900 to-brand-950",
-    "from-indigo-800 to-purple-950",
-    "from-violet-800 to-brand-950",
-    "from-fuchsia-900 to-brand-950",
-  ];
-  const color = colors[index % colors.length];
-
-  return (
-    <article className="card-hover group cursor-pointer overflow-hidden">
-      {/* Poster */}
-      <div className={`aspect-[2/3] bg-gradient-to-b ${color} relative flex items-end`}>
-        {/* Overlay gradient */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-        {/* Play button on hover */}
-        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 scale-90 group-hover:scale-100">
-          <div className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center shadow-lg">
-            <svg className="w-6 h-6 text-white ml-0.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M8 5v14l11-7z" />
-            </svg>
-          </div>
-        </div>
-        {/* Film icon placeholder */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-20 group-hover:opacity-0 transition-opacity">
-          <Film className="w-12 h-12 text-white" />
-        </div>
-      </div>
-      {/* Info */}
-      <div className="p-3">
-        <div className="h-4 w-3/4 skeleton rounded mb-1.5" />
-        <div className="h-3 w-1/2 skeleton rounded" />
-      </div>
-    </article>
-  );
-}
-
-function CollectionSection({ title, count }: { title: string; count: number }) {
-  return (
-    <section className="mb-10 animate-fade-in">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="section-title">{title}</h2>
-        <button className="btn-ghost text-xs py-1.5 px-3">See all</button>
-      </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
-        {Array.from({ length: count }, (_, i) => (
-          <MovieCard key={i} index={i} />
-        ))}
-      </div>
-    </section>
-  );
+interface CollectionWithMovies extends Collection {
+  movies: Movie[];
 }
 
 export default function LibraryPage() {
+  const [collections, setCollections] = useState<CollectionWithMovies[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const { data: cols } = await api.get<Collection[]>("/api/collections");
+        
+        // Fetch movies for each collection (in a real app, this might be a single aggregated endpoint)
+        const collectionsWithMovies = await Promise.all(
+          cols.map(async (col) => {
+            const { data: movies } = await api.get<Movie[]>(`/api/movies?collection_id=${col.id}`);
+            return { ...col, movies };
+          })
+        );
+        
+        setCollections(collectionsWithMovies);
+      } catch (error) {
+        console.error("Failed to load library:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadData();
+  }, []);
+
   return (
     <div className="animate-fade-in">
       {/* Page header */}
@@ -88,10 +63,36 @@ export default function LibraryPage() {
         </div>
       </header>
 
-      {/* Placeholder collections */}
-      <CollectionSection title="Recently Added" count={6} />
-      <CollectionSection title="Action & Adventure" count={5} />
-      <CollectionSection title="Drama" count={4} />
+      {isLoading ? (
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-brand-500" />
+        </div>
+      ) : collections.length === 0 ? (
+        <div className="text-center py-20 text-content-secondary">
+          <p>No collections found in your library.</p>
+        </div>
+      ) : (
+        collections.map((collection) => (
+          <section key={collection.id} className="mb-10 animate-fade-in">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="section-title">{collection.name}</h2>
+              {collection.movies.length > 6 && (
+                <button className="btn-ghost text-xs py-1.5 px-3">See all</button>
+              )}
+            </div>
+            
+            {collection.movies.length === 0 ? (
+              <p className="text-sm text-content-muted italic">This collection is empty.</p>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
+                {collection.movies.slice(0, 6).map((movie, index) => (
+                  <MovieCard key={movie.id} movie={movie} index={index} />
+                ))}
+              </div>
+            )}
+          </section>
+        ))
+      )}
     </div>
   );
 }

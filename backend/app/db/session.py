@@ -32,11 +32,15 @@ settings = get_settings()
 # pool_size=5, max_overflow=5: generous for ≤ 8 concurrent users.
 
 engine = create_async_engine(
-    settings.database_url,
+    str(settings.database_url),
     echo=settings.is_development and settings.log_level == "DEBUG",
+    future=True,
     pool_pre_ping=True,
     pool_size=5,
     max_overflow=5,
+    connect_args={
+        "statement_cache_size": 0,  # Required for PgBouncer/Supabase pooler
+    },
     pool_recycle=3600,  # recycle connections every hour
 )
 

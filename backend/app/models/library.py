@@ -10,6 +10,8 @@ Default visibility is always private.
 
 from __future__ import annotations
 
+import uuid
+
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, ForeignKey, String, Text
@@ -19,7 +21,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
-    import uuid
 
     from app.models.collection import Collection
     from app.models.permission import Permission

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import api, { getErrorMessage, tokenStorage } from "@/lib/api";
+import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
 
 interface LoginResponse {
@@ -38,6 +39,10 @@ export default function LoginForm() {
       });
 
       tokenStorage.set(data.access_token);
+      
+      // Update auth store with the newly fetched user
+      useAuthStore.getState().setUser(data.user as any);
+      
       router.push("/library");
       router.refresh();
     } catch (err) {

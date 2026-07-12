@@ -16,6 +16,8 @@ The IV (Initialization Vector) is stored as a 32-character hex string
 
 from __future__ import annotations
 
+import uuid
+
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -26,7 +28,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
-    import uuid
 
     from app.models.movie import Movie
 

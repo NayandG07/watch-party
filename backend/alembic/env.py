@@ -31,8 +31,13 @@ settings = get_settings()
 
 # Override sqlalchemy.url from pydantic-settings (reads .env)
 # asyncpg URL must be converted to sync format for offline mode
-_async_url = settings.database_url
-_sync_url = _async_url.replace("postgresql+asyncpg://", "postgresql://")
+_async_url = str(settings.database_url)
+if "?" in _async_url:
+    _async_url += "&prepared_statement_cache_size=0"
+else:
+    _async_url += "?prepared_statement_cache_size=0"
+
+_sync_url = str(settings.database_url).replace("postgresql+asyncpg://", "postgresql://")
 
 if alembic_config.config_file_name is not None:
     fileConfig(alembic_config.config_file_name)
@@ -81,6 +86,10 @@ async def run_async_migrations() -> None:
         config_section,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args={
+            "prepared_statement_cache_size": 0,
+            "statement_cache_size": 0,
+        },
     )
 
     async with connectable.connect() as connection:

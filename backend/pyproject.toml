@@ -15,7 +15,7 @@ dependencies = [
     # Database (async PostgreSQL via Supabase)
     "sqlalchemy[asyncio]>=2.0.0,<3.0",
     "alembic>=1.13.0,<2.0",
-    "asyncpg>=0.29.0,<0.30",
+    "asyncpg>=0.29.0,<0.31",
     # Validation & settings
     "pydantic>=2.8.0,<3.0",
     "pydantic-settings>=2.4.0,<3.0",
