@@ -1,0 +1,53 @@
+# ═══════════════════════════════════════════════════════════════
+#  Watch Party — Docker Compose (Development)
+#
+#  Services:
+#    backend  — FastAPI + uvicorn (hot-reload enabled)
+#
+#  Database: Supabase (hosted PostgreSQL) — NOT in Docker.
+#  Set DATABASE_URL in docker/.env to point to your Supabase project.
+#
+#  Usage:
+#    cp docker/.env.example docker/.env   # fill in your values
+#    docker compose -f docker/docker-compose.yml up
+# ═══════════════════════════════════════════════════════════════
+
+services:
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      target: runtime          # Use the runtime stage from multi-stage build
+    image: watchparty-backend:dev
+    container_name: watchparty-backend-dev
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    env_file:
+      - .env
+    environment:
+      ENVIRONMENT: development
+      LOG_FORMAT: pretty
+    volumes:
+      # Mount source for hot-reload during development
+      - ../backend/app:/app/app:ro
+    # Override CMD for hot-reload in development
+    command:
+      [
+        "python", "-m", "uvicorn", "app.main:app",
+        "--host", "0.0.0.0", "--port", "8000",
+        "--reload", "--reload-dir", "/app/app"
+      ]
+    restart: unless-stopped
+    networks:
+      - watchparty-dev
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 15s
+      retries: 3
+
+networks:
+  watchparty-dev:
+    driver: bridge
+    name: watchparty-dev

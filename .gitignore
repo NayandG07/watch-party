@@ -1,0 +1,68 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+*.egg
+*.egg-info/
+dist/
+build/
+wheels/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment files (NEVER commit these)
+.env
+.env.local
+.env.*.local
+docker/.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Node
+node_modules/
+.next/
+.nuxt/
+out/
+
+# Test coverage
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Alembic (keep versions, ignore pycache)
+alembic/__pycache__/
+
+# PySide6 build artifacts
+uploader/dist/
+uploader/build/
+uploader/*.spec
+
+# FFmpeg temp files
+*.tmp
+tmp/
+processing/
+
+# Thumbnails / temp media
+*.ts
+*.m3u8
+*.key

@@ -1,0 +1,203 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── CSS Variables ─────────────────────────────────────────── */
+:root {
+  --font-inter: 'Inter', system-ui, sans-serif;
+
+  /* Brand */
+  --color-brand:    #7c2ff7;
+  --color-brand-glow: rgba(124, 47, 247, 0.35);
+
+  /* Surfaces */
+  --color-surface-base:     #08080e;
+  --color-surface-default:  #0f0f1a;
+  --color-surface-elevated: #161624;
+  --color-surface-overlay:  #1e1e30;
+  --color-border:           rgba(255, 255, 255, 0.07);
+
+  /* Content */
+  --color-text-primary:   #f2f2ff;
+  --color-text-secondary: #9898b8;
+  --color-text-muted:     #5a5a7a;
+}
+
+/* ── Base resets ───────────────────────────────────────────── */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    font-family: var(--font-inter);
+    background-color: var(--color-surface-base);
+    color: var(--color-text-primary);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-surface-default);
+    min-height: 100dvh;
+    overflow-x: hidden;
+  }
+
+  /* Focus styles — visible for keyboard users, hidden for mouse */
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--color-surface-base);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  /* Selection color */
+  ::selection {
+    background-color: rgba(124, 47, 247, 0.4);
+    color: #f2f2ff;
+  }
+}
+
+/* ── Component layer ───────────────────────────────────────── */
+@layer components {
+  /* ── Buttons ─────────────────────────────────────────────── */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5
+           text-sm font-semibold transition-all duration-200 ease-out select-none cursor-pointer;
+  }
+
+  .btn:focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+
+  .btn-primary {
+    @apply btn bg-gradient-brand text-white shadow-brand
+           hover:opacity-90 hover:shadow-glow active:scale-95;
+  }
+
+  .btn-secondary {
+    @apply btn text-content-primary border
+           hover:bg-surface-overlay active:scale-95;
+    background-color: var(--color-surface-elevated);
+    border-color: var(--color-border);
+  }
+
+  .btn-ghost {
+    @apply btn text-content-secondary hover:text-content-primary hover:bg-surface-elevated
+           active:scale-95;
+  }
+
+  .btn-danger {
+    @apply btn text-danger border hover:bg-danger/20 active:scale-95;
+    background-color: rgb(239 68 68 / 0.1);
+    border-color: rgb(239 68 68 / 0.2);
+  }
+
+  /* ── Cards ───────────────────────────────────────────────── */
+  .card {
+    @apply rounded-2xl shadow-card transition-all duration-300;
+    background-color: var(--color-surface-elevated);
+    border: 1px solid var(--color-border);
+  }
+
+  .card-hover {
+    @apply card hover:shadow-card-hover hover:-translate-y-0.5;
+  }
+
+  /* ── Input ───────────────────────────────────────────────── */
+  .input {
+    @apply w-full rounded-xl px-4 py-3 text-sm text-content-primary
+           placeholder:text-content-muted transition-all duration-200
+           focus:outline-none focus:ring-1 focus:ring-brand-500/30 focus:border-brand-500;
+    background-color: var(--color-surface-overlay);
+    border: 1px solid var(--color-border);
+  }
+
+  /* ── Badge ───────────────────────────────────────────────── */
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+
+  .badge-brand {
+    @apply badge text-brand-300;
+    background-color: rgb(124 47 247 / 0.15);
+    border: 1px solid rgb(124 47 247 / 0.2);
+  }
+
+  .badge-success {
+    @apply badge text-success;
+    background-color: rgb(34 197 94 / 0.1);
+    border: 1px solid rgb(34 197 94 / 0.2);
+  }
+
+  /* ── Skeleton loader ─────────────────────────────────────── */
+  .skeleton {
+    @apply rounded-lg animate-shimmer bg-[length:200%_100%];
+    background: linear-gradient(
+      90deg,
+      var(--color-surface-elevated) 0%,
+      var(--color-surface-overlay) 50%,
+      var(--color-surface-elevated) 100%
+    );
+  }
+
+  /* ── Glass panel ─────────────────────────────────────────── */
+  .glass {
+    @apply backdrop-blur-xl rounded-2xl;
+    background-color: rgba(22, 22, 36, 0.6);
+    border: 1px solid var(--color-border);
+  }
+
+  /* ── Section title ───────────────────────────────────────── */
+  .section-title {
+    @apply text-xl font-bold text-content-primary tracking-tight;
+  }
+
+  /* ── Divider ─────────────────────────────────────────────── */
+  .divider {
+    @apply h-px w-full my-6;
+    background-color: var(--color-border);
+  }
+}
+
+/* ── Utility layer ─────────────────────────────────────────── */
+@layer utilities {
+  .text-gradient {
+    @apply bg-gradient-brand bg-clip-text text-transparent;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .animate-in {
+    @apply animate-fade-in;
+  }
+}
