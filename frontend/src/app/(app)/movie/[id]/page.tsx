@@ -20,7 +20,7 @@ export default function MoviePage() {
       try {
         const { data } = await api.get<Movie>(`/api/movies/${id}`);
         setMovie(data);
-      } catch (err) {
+      } catch {
         setError("Failed to load movie details");
       } finally {
         setIsLoading(false);
@@ -55,6 +55,7 @@ export default function MoviePage() {
       {/* Hero Backdrop */}
       <div className="relative w-full aspect-video md:aspect-[21/9] max-h-[70vh] bg-surface-raised sm:rounded-3xl overflow-hidden shadow-2xl">
         {movie.backdrop_url ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
           <img 
             src={movie.backdrop_url} 
             alt={movie.title} 
@@ -134,7 +135,7 @@ export default function MoviePage() {
               {/* For now, just a placeholder or description if available */}
               {/* Note: backend schema has `description` but the frontend Movie interface didn't include it. 
                   We should update the Movie interface to include description, but for now we'll just check if it exists via casting. */}
-              {(movie as any).description || "No synopsis available for this title."}
+              {(movie as unknown as Record<string, string>).description || "No synopsis available for this title."}
             </p>
           </section>
         </div>

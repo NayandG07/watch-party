@@ -27,6 +27,7 @@ export default function MovieCard({ movie, index }: MovieCardProps) {
         {/* Poster */}
         <div className={`aspect-[2/3] bg-gradient-to-b ${color} relative flex items-end overflow-hidden`}>
           {movie.poster_url ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
             <img 
               src={movie.poster_url} 
               alt={movie.title}

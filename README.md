@@ -2,7 +2,7 @@
 
 > A private, synchronized watch-party platform for a small trusted group.
 
-Watch movies together in perfect sync — Netflix browsing feel, YouTube player quality, Watch2Gether synchronization — with complete privacy.
+Watch movies together in perfect sync - Netflix browsing feel, YouTube player quality, Watch2Gether synchronization - with complete privacy.
 
 ---
 

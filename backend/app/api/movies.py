@@ -15,6 +15,7 @@ from app.schemas.movie import (
     MovieCreate,
     MovieResponse,
     MovieUpdate,
+    MovieUploaderUpdate,
     PlaybackTokenResponse,
 )
 
@@ -106,6 +107,55 @@ async def update_movie(
 
     for key, value in update_data.items():
         setattr(movie, key, value)
+
+    await db.commit()
+    await db.refresh(movie)
+    return movie
+
+
+@router.patch("/{movie_id}/upload-complete", response_model=MovieResponse)
+async def complete_movie_upload(
+    movie_id: uuid.UUID,
+    payload: MovieUploaderUpdate,
+    _: RequireAdminDep,
+    db: DatabaseDep,
+) -> Movie:
+    stmt = (
+        select(Movie)
+        .where(Movie.id == movie_id)
+        .options(selectinload(Movie.collection).selectinload("library"))
+    )
+    result = await db.execute(stmt)
+    movie = result.scalar_one_or_none()
+    
+    if not movie:
+        raise HTTPException(status_code=404, detail="Movie not found")
+
+    update_data = payload.model_dump(exclude_unset=True)
+
+    # In a real app we'd also store the HLS key hex, but that needs to be encrypted before saving.
+    # The security module has AES-256-GCM encryption we can use, but HLS Keys are in a separate table.
+    # For now, we will just update the movie fields. Let's add the HLS Key logic.
+    from app.models.hls_key import HLSKey
+    from app.core.security import encrypt_storage_secret
+
+    # Encrypt the HLS AES-128 key
+    key_hex = update_data.pop("hls_key_hex")
+    iv_hex = update_data.pop("hls_iv_hex")
+    
+    enc_key = encrypt_storage_secret(key_hex)
+    enc_iv = encrypt_storage_secret(iv_hex)
+
+    new_hls_key = HLSKey(
+        movie_id=movie.id,
+        key_hex_encrypted=enc_key,
+        iv_hex_encrypted=enc_iv
+    )
+    db.add(new_hls_key)
+
+    for key, value in update_data.items():
+        if hasattr(movie, key):
+            setattr(movie, key, value)
 
     await db.commit()
     await db.refresh(movie)

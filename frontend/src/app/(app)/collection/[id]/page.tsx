@@ -26,7 +26,7 @@ export default function CollectionPage() {
         
         setCollection(colRes.data);
         setMovies(moviesRes.data);
-      } catch (err) {
+      } catch {
         setError("Failed to load collection");
       } finally {
         setIsLoading(false);

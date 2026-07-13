@@ -41,7 +41,7 @@ export default function LoginForm() {
       tokenStorage.set(data.access_token);
       
       // Update auth store with the newly fetched user
-      useAuthStore.getState().setUser(data.user as any);
+      useAuthStore.getState().setUser(data.user as unknown as import("@/stores/authStore").User);
       
       router.push("/library");
       router.refresh();
