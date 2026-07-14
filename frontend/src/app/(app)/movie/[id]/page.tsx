@@ -13,6 +13,7 @@ export default function MoviePage() {
   
   const [movie, setMovie] = useState<Movie | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -30,6 +31,21 @@ export default function MoviePage() {
       loadData();
     }
   }, [id]);
+
+  const handleCreateRoom = async () => {
+    if (!movie) return;
+    setIsCreatingRoom(true);
+    try {
+      const { data } = await api.post("/api/rooms", {
+        name: `${movie.title} Party`,
+        movie_id: movie.id,
+      });
+      router.push(`/room/${data.id}`);
+    } catch {
+      setError("Failed to create room");
+      setIsCreatingRoom(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -107,10 +123,15 @@ export default function MoviePage() {
             
             <div className="flex flex-wrap gap-4">
               <button 
-                onClick={() => router.push(`/room/new?movie=${movie.id}`)}
+                onClick={handleCreateRoom}
+                disabled={isCreatingRoom}
                 className="btn-primary h-12 px-6 sm:px-8 shadow-lg shadow-brand-500/25 group"
               >
-                <Users className="w-5 h-5 mr-2" />
+                {isCreatingRoom ? (
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                ) : (
+                  <Users className="w-5 h-5 mr-2" />
+                )}
                 Host Party
               </button>
               

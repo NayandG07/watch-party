@@ -61,6 +61,41 @@ async def create_invite(
         "max_uses": invite.max_uses,
         "use_count": invite.use_count,
         "is_revoked": invite.is_revoked,
-        "is_valid": invite.is_valid,
         "created_at": invite.created_at,
     }
+
+
+@router.get("", response_model=list[InviteResponse])
+async def list_invites(
+    admin_info: RequireAdminDep,
+    db: DatabaseDep,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> list[dict]:
+    from sqlalchemy import select
+    
+    stmt = select(Invite).options(selectinload(Invite.inviter)).order_by(Invite.created_at.desc())
+    result = await db.execute(stmt)
+    invites = result.scalars().all()
+    
+    response = []
+    for invite in invites:
+        if invite.room_id:
+            invite_url = f"{settings.frontend_url}/rooms/{invite.room_id}?invite={invite.token}"
+        else:
+            invite_url = f"{settings.frontend_url}/register?token={invite.token}"
+            
+        response.append({
+            "id": invite.id,
+            "token": invite.token,
+            "invite_url": invite_url,
+            "room_id": invite.room_id,
+            "inviter": invite.inviter,
+            "expires_at": invite.expires_at,
+            "max_uses": invite.max_uses,
+            "use_count": invite.use_count,
+            "is_revoked": invite.is_revoked,
+            "is_valid": invite.is_valid,
+            "created_at": invite.created_at,
+        })
+        
+    return response

@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     # ── Server ───────────────────────────────────────────────────────────────
     host: str = "0.0.0.0"
     port: int = 8000
+    frontend_url: str = "http://localhost:3000"
 
     # ── Database (Supabase PostgreSQL) ────────────────────────────────────────
     # Must use postgresql+asyncpg:// scheme for async operation

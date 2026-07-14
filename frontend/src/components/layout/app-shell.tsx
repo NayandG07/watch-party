@@ -13,8 +13,8 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { tokenStorage } from "@/lib/api";
 import { useRouter } from "next/navigation";
+import { useAuthStore } from "@/stores/authStore";
 
 interface NavItem {
   href: string;
@@ -56,9 +56,10 @@ function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
 
 function Sidebar({ onClose }: { onClose?: () => void }) {
   const router = useRouter();
+  const { user, logout } = useAuthStore();
 
-  function handleLogout() {
-    tokenStorage.clear();
+  async function handleLogout() {
+    await logout();
     router.push("/login");
   }
 
@@ -88,24 +89,28 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
 
         <div className="divider !my-4" />
 
-        {/* Admin section — visible to admins only in Phase 3 */}
-        {ADMIN_NAV_ITEMS.map((item) => (
+        {/* Admin section */}
+        {user?.role === "super_admin" && ADMIN_NAV_ITEMS.map((item) => (
           <NavLink key={item.href} item={item} onClick={onClose} />
         ))}
       </nav>
 
       {/* User section */}
       <div className="border-t border-surface-border pt-4">
-        <div className="flex items-center gap-3 px-3 py-2 mb-2">
-          {/* Avatar */}
-          <div className="w-8 h-8 rounded-full bg-brand-800 flex items-center justify-center shrink-0">
-            <span className="text-xs font-bold text-brand-200">U</span>
+        {user && (
+          <div className="flex items-center gap-3 px-3 py-2 mb-2">
+            {/* Avatar */}
+            <div className="w-8 h-8 rounded-full bg-brand-800 flex items-center justify-center shrink-0">
+              <span className="text-xs font-bold text-brand-200">
+                {user.username.charAt(0).toUpperCase()}
+              </span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-content-primary truncate">{user.username}</p>
+              <p className="text-xs text-content-muted truncate">{user.role}</p>
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-content-primary truncate">User</p>
-            <p className="text-xs text-content-muted truncate">Member</p>
-          </div>
-        </div>
+        )}
         <button
           onClick={handleLogout}
           className="btn-ghost w-full justify-start gap-3 text-sm py-2.5 text-content-muted hover:text-danger hover:bg-danger/5"

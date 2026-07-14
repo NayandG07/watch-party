@@ -113,6 +113,21 @@ async def get_room(
         raise HTTPException(status_code=404, detail="Room not found")
     return room
 
+@router.get("", response_model=list[RoomResponse])
+async def list_rooms(
+    current_user_id: CurrentUserIdDep,
+    db: DatabaseDep,
+) -> list[Room]:
+    stmt = (
+        select(Room)
+        .join(RoomMember)
+        .where(RoomMember.user_id == uuid.UUID(current_user_id))
+        .options(selectinload(Room.creator), selectinload(Room.movie))
+        .order_by(Room.created_at.desc())
+    )
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
+
 @router.patch("/{room_id}", response_model=RoomResponse)
 async def update_room(
     room_id: uuid.UUID,

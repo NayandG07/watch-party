@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Response
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -101,12 +101,12 @@ async def list_my_granted_permissions(
     return list(result.scalars().all())
 
 
-@router.delete("/{permission_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{permission_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
 async def revoke_permission(
     permission_id: uuid.UUID,
     user_role_pair: CurrentUserRoleDep,
     db: DatabaseDep,
-) -> None:
+):
     perm = await db.get(Permission, permission_id)
     if not perm:
         raise HTTPException(status_code=404, detail="Permission not found")
