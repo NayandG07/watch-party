@@ -5,25 +5,39 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.core.dependencies import CurrentUserIdDep, DatabaseDep, RequireAdminDep
+from app.core.dependencies import CurrentUserRoleDep, DatabaseDep, RequireAdminDep
 from app.models.collection import Collection
+from app.models.library import Library
 from app.schemas.library import CollectionCreate, CollectionResponse, CollectionUpdate
+from app.services.permission import PermissionService
 
 router = APIRouter(prefix="/collections", tags=["collections"])
 
 
 @router.get("", response_model=list[CollectionResponse])
 async def list_collections(
-    current_user_id: CurrentUserIdDep,
+    user_role_pair: CurrentUserRoleDep,
     db: DatabaseDep,
     library_id: uuid.UUID | None = Query(None, description="Filter by library ID"),
 ) -> list[Collection]:
-    stmt = select(Collection).order_by(Collection.sort_order.asc(), Collection.created_at.desc())
+    user_id, user_role = user_role_pair
+    stmt = (
+        select(Collection)
+        .options(selectinload(Collection.library))
+        .order_by(Collection.sort_order.asc(), Collection.created_at.desc())
+    )
     if library_id:
         stmt = stmt.where(Collection.library_id == library_id)
         
     result = await db.execute(stmt)
-    return list(result.scalars().all())
+    all_collections = list(result.scalars().all())
+
+    visible = []
+    for col in all_collections:
+        library = col.library
+        if await PermissionService.can_view_collection(col, library, user_id, user_role, db):
+            visible.append(col)
+    return visible
 
 
 @router.post("", response_model=CollectionResponse, status_code=status.HTTP_201_CREATED)
@@ -48,12 +62,23 @@ async def create_collection(
 @router.get("/{collection_id}", response_model=CollectionResponse)
 async def get_collection(
     collection_id: uuid.UUID,
-    current_user_id: CurrentUserIdDep,
+    user_role_pair: CurrentUserRoleDep,
     db: DatabaseDep,
 ) -> Collection:
-    collection = await db.get(Collection, collection_id)
+    user_id, user_role = user_role_pair
+    stmt = (
+        select(Collection)
+        .where(Collection.id == collection_id)
+        .options(selectinload(Collection.library))
+    )
+    result = await db.execute(stmt)
+    collection = result.scalar_one_or_none()
     if not collection:
         raise HTTPException(status_code=404, detail="Collection not found")
+
+    if not await PermissionService.can_view_collection(collection, collection.library, user_id, user_role, db):
+        raise HTTPException(status_code=403, detail="Access denied")
+
     return collection
 
 

@@ -5,27 +5,35 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.core.dependencies import CurrentUserIdDep, DatabaseDep, RequireAdminDep
+from app.core.dependencies import CurrentUserIdDep, CurrentUserRoleDep, DatabaseDep, RequireAdminDep
 from app.models.library import Library
 from app.models.user import User
 from app.schemas.library import LibraryCreate, LibraryResponse, LibraryUpdate
+from app.services.permission import PermissionService
 
 router = APIRouter(prefix="/libraries", tags=["libraries"])
 
 
 @router.get("", response_model=list[LibraryResponse])
 async def list_libraries(
-    current_user_id: CurrentUserIdDep,
+    user_role_pair: CurrentUserRoleDep,
     db: DatabaseDep,
 ) -> list[Library]:
-    # For now, return all libraries. (Granular permissions in Phase 8)
+    user_id, user_role = user_role_pair
     stmt = (
         select(Library)
         .options(selectinload(Library.owner), selectinload(Library.storage_provider))
         .order_by(Library.created_at.desc())
     )
     result = await db.execute(stmt)
-    return list(result.scalars().all())
+    all_libraries = list(result.scalars().all())
+
+    # Filter by permission
+    visible = []
+    for lib in all_libraries:
+        if await PermissionService.can_view_library(lib, user_id, user_role, db):
+            visible.append(lib)
+    return visible
 
 
 @router.post("", response_model=LibraryResponse, status_code=status.HTTP_201_CREATED)
@@ -59,9 +67,10 @@ async def create_library(
 @router.get("/{library_id}", response_model=LibraryResponse)
 async def get_library(
     library_id: uuid.UUID,
-    current_user_id: CurrentUserIdDep,
+    user_role_pair: CurrentUserRoleDep,
     db: DatabaseDep,
 ) -> Library:
+    user_id, user_role = user_role_pair
     stmt = (
         select(Library)
         .where(Library.id == library_id)
@@ -72,6 +81,9 @@ async def get_library(
     
     if not library:
         raise HTTPException(status_code=404, detail="Library not found")
+
+    if not await PermissionService.can_view_library(library, user_id, user_role, db):
+        raise HTTPException(status_code=403, detail="Access denied")
         
     return library
 

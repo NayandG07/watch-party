@@ -5,7 +5,7 @@ import Hls from "hls.js";
 import { Loader2 } from "lucide-react";
 import api from "@/lib/api";
 import PlayerControls from "./PlayerControls";
-import { useSyncedPlayer } from "@/hooks/useSyncedPlayer";
+import { ChatMessageData, useSyncedPlayer } from "@/hooks/useSyncedPlayer";
 
 interface VideoPlayerProps {
   movieId: string;
@@ -13,9 +13,17 @@ interface VideoPlayerProps {
   roomId?: string;
   wsToken?: string;
   isHost?: boolean;
+  onChatMessage?: (msg: ChatMessageData) => void;
+  onMemberUpdate?: (count: number, userIds: string[]) => void;
+  playerRef?: React.MutableRefObject<{ 
+    sendChatMessage: (c: string, t?: "text" | "emoji_reaction" | "timestamp_share", r?: number) => void;
+    seek: (time: number) => void;
+  } | null>;
 }
 
-export default function VideoPlayer({ movieId, roomId, wsToken, isHost = false }: VideoPlayerProps) {
+export default function VideoPlayer({ 
+  movieId, roomId, wsToken, isHost = false, onChatMessage, onMemberUpdate, playerRef 
+}: VideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -41,8 +49,19 @@ export default function VideoPlayer({ movieId, roomId, wsToken, isHost = false }
     wsToken: wsToken ?? null,
     videoRef,
     isHost,
+    onChatMessage,
+    onMemberUpdate,
   });
   const syncEnabled = !!roomId && !!wsToken;
+
+  useEffect(() => {
+    if (playerRef) {
+      playerRef.current = { 
+        sendChatMessage: sync.sendChatMessage,
+        seek: sync.seek
+      };
+    }
+  }, [playerRef, sync.sendChatMessage, sync.seek]);
 
   useEffect(() => {
     let mounted = true;
@@ -292,6 +311,10 @@ export default function VideoPlayer({ movieId, roomId, wsToken, isHost = false }
         isFullscreen={isFullscreen}
         onFullscreenToggle={toggleFullscreen}
         isVisible={showControls || !isPlaying}
+        onShareTimestamp={() => {
+          const timeStr = new Date(currentTime * 1000).toISOString().substr(11, 8).replace(/^00:/, '');
+          sync.sendChatMessage(timeStr, "timestamp_share", currentTime);
+        }}
       />
     </div>
   );

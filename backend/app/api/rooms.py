@@ -41,10 +41,18 @@ from sqlalchemy.orm import selectinload
 
 from app.core.dependencies import CurrentUserIdDep, DatabaseDep
 from app.core.security import create_ws_token, decode_ws_token
-from app.models.enums import RoomState
+from app.models.chat_message import ChatMessage
+from app.models.enums import MessageType, RoomState
 from app.models.room import Room
 from app.models.room_member import RoomMember
-from app.schemas.room import RoomCreate, RoomResponse, WSTokenResponse
+from app.models.user import User
+from app.schemas.room import (
+    ChatMessageResponse,
+    RoomCreate,
+    RoomResponse,
+    RoomUpdate,
+    WSTokenResponse,
+)
 from app.services.room_manager import RoomState_Live, room_manager
 
 logger = structlog.get_logger()
@@ -105,7 +113,61 @@ async def get_room(
         raise HTTPException(status_code=404, detail="Room not found")
     return room
 
+@router.patch("/{room_id}", response_model=RoomResponse)
+async def update_room(
+    room_id: uuid.UUID,
+    payload: RoomUpdate,
+    current_user_id: CurrentUserIdDep,
+    db: DatabaseDep,
+) -> Room:
+    stmt = (
+        select(Room)
+        .where(Room.id == room_id)
+        .options(selectinload(Room.creator), selectinload(Room.movie))
+    )
+    result = await db.execute(stmt)
+    room = result.scalar_one_or_none()
+    
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+        
+    if str(room.creator_id) != current_user_id:
+        raise HTTPException(status_code=403, detail="Only host can update room")
+        
+    update_data = payload.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(room, key, value)
+        
+    await db.commit()
+    await db.refresh(room)
+    return room
 
+
+@router.get("/{room_id}/chat", response_model=list[ChatMessageResponse])
+async def get_room_chat(
+    room_id: uuid.UUID,
+    current_user_id: CurrentUserIdDep,
+    db: DatabaseDep,
+) -> list[ChatMessage]:
+    """Fetch the latest chat history for a room."""
+    # Ensure user has access (for now, any authenticated user can view if they can guess the ID,
+    # but could be restricted to room members in a more strict model).
+    room = await db.get(Room, room_id)
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+        
+    if room.is_locked and str(room.creator_id) != current_user_id:
+        raise HTTPException(status_code=403, detail="Room is locked")
+
+    stmt = (
+        select(ChatMessage)
+        .where(ChatMessage.room_id == room_id)
+        .options(selectinload(ChatMessage.user))
+        .order_by(ChatMessage.created_at.asc())
+        .limit(100)
+    )
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
 @router.get("/{room_id}/ws-token", response_model=WSTokenResponse)
 async def get_ws_token(
     room_id: uuid.UUID,
@@ -224,6 +286,49 @@ async def room_websocket(
                 await room_manager.broadcast(
                     str(room_id),
                     _make_state_msg(live, room_manager.member_count(str(room_id))),
+                )
+                
+            elif msg_type == "CHAT_MESSAGE":
+                content = data.get("content")
+                if not content:
+                    continue
+
+                m_type = data.get("message_type", MessageType.TEXT.value)
+                try:
+                    enum_type = MessageType(m_type)
+                except ValueError:
+                    enum_type = MessageType.TEXT
+                    
+                timestamp_ref = data.get("timestamp_reference")
+
+                new_msg = ChatMessage(
+                    room_id=room_id,
+                    user_id=uuid.UUID(user_id),
+                    content=str(content),
+                    message_type=enum_type,
+                    timestamp_reference=float(timestamp_ref) if timestamp_ref is not None else None,
+                )
+                db.add(new_msg)
+                await db.commit()
+                
+                # Fetch user for broadcast
+                user = await db.get(User, uuid.UUID(user_id))
+                username = user.username if user else "Unknown"
+                
+                await room_manager.broadcast(
+                    str(room_id),
+                    {
+                        "type": "CHAT_MESSAGE",
+                        "id": str(new_msg.id),
+                        "content": new_msg.content,
+                        "message_type": new_msg.message_type.value,
+                        "timestamp_reference": new_msg.timestamp_reference,
+                        "created_at": new_msg.created_at.isoformat() if new_msg.created_at else datetime.now(timezone.utc).isoformat(),
+                        "user": {
+                            "id": user_id,
+                            "username": username,
+                        }
+                    }
                 )
 
     except WebSocketDisconnect:

@@ -1,5 +1,5 @@
 import React from "react";
-import { Play, Pause, Volume2, VolumeX, Maximize, Minimize, Settings, Subtitles } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, Maximize, Minimize, Settings, Subtitles, Share } from "lucide-react";
 import { formatDuration } from "@/lib/utils";
 
 interface PlayerControlsProps {
@@ -19,6 +19,8 @@ interface PlayerControlsProps {
   onFullscreenToggle: () => void;
   
   isVisible: boolean;
+  
+  onShareTimestamp?: () => void;
 }
 
 export default function PlayerControls({
@@ -33,7 +35,8 @@ export default function PlayerControls({
   onSeek,
   isFullscreen,
   onFullscreenToggle,
-  isVisible
+  isVisible,
+  onShareTimestamp
 }: PlayerControlsProps) {
   
   const handleSeekChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -131,6 +134,17 @@ export default function PlayerControls({
           <button className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors text-white/80 hover:text-white">
             <Settings className="w-5 h-5" />
           </button>
+          
+          {/* Share Timestamp */}
+          {onShareTimestamp && (
+            <button 
+              onClick={onShareTimestamp}
+              title="Share current timestamp"
+              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors text-white/80 hover:text-white"
+            >
+              <Share className="w-5 h-5" />
+            </button>
+          )}
 
           {/* Fullscreen */}
           <button 

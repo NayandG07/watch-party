@@ -7,9 +7,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.config import Settings, get_settings
-from app.core.dependencies import CurrentUserIdDep, DatabaseDep, RequireAdminDep
+from app.core.dependencies import CurrentUserRoleDep, DatabaseDep, RequireAdminDep
 from app.core.security import create_hls_key_token
+from app.models.collection import Collection
 from app.models.movie import Movie
+from app.services.permission import PermissionService
 from app.schemas.movie import (
     MovieBrief,
     MovieCreate,
@@ -24,16 +26,34 @@ router = APIRouter(prefix="/movies", tags=["movies"])
 
 @router.get("", response_model=list[MovieBrief])
 async def list_movies(
-    current_user_id: CurrentUserIdDep,
+    user_role_pair: CurrentUserRoleDep,
     db: DatabaseDep,
     collection_id: uuid.UUID | None = Query(None, description="Filter by collection ID"),
 ) -> list[Movie]:
-    stmt = select(Movie).order_by(Movie.created_at.desc())
+    user_id, user_role = user_role_pair
+    stmt = (
+        select(Movie)
+        .options(selectinload(Movie.collection).selectinload(Collection.library))
+        .order_by(Movie.created_at.desc())
+    )
     if collection_id:
         stmt = stmt.where(Movie.collection_id == collection_id)
         
     result = await db.execute(stmt)
-    return list(result.scalars().all())
+    all_movies = list(result.scalars().all())
+
+    visible = []
+    for m in all_movies:
+        if await PermissionService.can_view_movie(
+            movie=m,
+            collection=m.collection,
+            library=m.collection.library,
+            user_id=user_id,
+            user_role=user_role,
+            db=db,
+        ):
+            visible.append(m)
+    return visible
 
 
 @router.post("", response_model=MovieResponse, status_code=status.HTTP_201_CREATED)
@@ -66,19 +86,31 @@ async def create_movie(
 @router.get("/{movie_id}", response_model=MovieResponse)
 async def get_movie(
     movie_id: uuid.UUID,
-    current_user_id: CurrentUserIdDep,
+    user_role_pair: CurrentUserRoleDep,
     db: DatabaseDep,
 ) -> Movie:
+    user_id, user_role = user_role_pair
     stmt = (
         select(Movie)
         .where(Movie.id == movie_id)
-        .options(selectinload(Movie.collection).selectinload("library"))
+        .options(selectinload(Movie.collection).selectinload(Collection.library))
     )
     result = await db.execute(stmt)
     movie = result.scalar_one_or_none()
     
     if not movie:
         raise HTTPException(status_code=404, detail="Movie not found")
+
+    if not await PermissionService.can_view_movie(
+        movie=movie,
+        collection=movie.collection,
+        library=movie.collection.library,
+        user_id=user_id,
+        user_role=user_role,
+        db=db,
+    ):
+        raise HTTPException(status_code=403, detail="Access denied")
+
     return movie
 
 
@@ -179,24 +211,40 @@ async def delete_movie(
 @router.get("/{movie_id}/hls-key-token", response_model=PlaybackTokenResponse)
 async def get_hls_key_token(
     movie_id: uuid.UUID,
-    current_user_id: CurrentUserIdDep,
+    user_role_pair: CurrentUserRoleDep,
     db: DatabaseDep,
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> PlaybackTokenResponse:
-    # 1. Fetch movie
-    movie = await db.get(Movie, movie_id)
+    user_id, user_role = user_role_pair
+
+    # 1. Fetch movie with full hierarchy
+    stmt = (
+        select(Movie)
+        .where(Movie.id == movie_id)
+        .options(selectinload(Movie.collection).selectinload(Collection.library))
+    )
+    result = await db.execute(stmt)
+    movie = result.scalar_one_or_none()
     if not movie:
         raise HTTPException(status_code=404, detail="Movie not found")
 
-    # 2. Check basic permissions (basic validation for Phase 4)
-    # Advanced permission checking is handled in Phase 8
+    # 2. Enforce permission check
+    if not await PermissionService.can_play_movie(
+        movie=movie,
+        collection=movie.collection,
+        library=movie.collection.library,
+        user_id=user_id,
+        user_role=user_role,
+        db=db,
+    ):
+        raise HTTPException(status_code=403, detail="Access denied")
 
     # 3. Ensure movie is processed and uploaded
     if not movie.is_processed or not movie.is_uploaded or not movie.hls_master_path:
         raise HTTPException(status_code=400, detail="Movie is not fully processed yet")
 
     # 4. Create signed token for HLS key access
-    token = create_hls_key_token(movie_id=str(movie.id), user_id=current_user_id)
+    token = create_hls_key_token(movie_id=str(movie.id), user_id=user_id)
     
     # Expires in the same time as the access token
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
