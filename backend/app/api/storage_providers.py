@@ -19,8 +19,10 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
+import json as _json
+
 from app.core.dependencies import DatabaseDep, RequireLevel2Dep
-from app.core.security import encrypt_secret
+from app.core.security import decrypt_secret, encrypt_secret
 from app.models.enums import StorageProviderType
 from app.models.storage_provider import StorageProvider
 
@@ -69,6 +71,57 @@ async def list_storage_providers(
     return list(result.scalars().all())
 
 
+class StorageProviderCredentialsResponse(BaseModel):
+    """Decrypted credentials for a storage provider (uploader use only)."""
+    key_id: str
+    application_key: str
+    bucket_name: str
+    endpoint_url: str | None
+
+
+@router.get("/{provider_id}/credentials", response_model=StorageProviderCredentialsResponse)
+async def get_storage_provider_credentials(
+    provider_id: uuid.UUID,
+    user_role_pair: RequireLevel2Dep,
+    db: DatabaseDep,
+) -> StorageProviderCredentialsResponse:
+    """Return decrypted storage credentials for the uploader script.
+
+    Only the owner (level2+) or a super_admin may call this endpoint.
+    The raw key_id and application_key are decrypted on the fly and
+    returned once — they are never stored in plaintext.
+    """
+    user_id, role = user_role_pair
+
+    provider = await db.get(StorageProvider, provider_id)
+    if not provider:
+        raise HTTPException(status_code=404, detail="Storage provider not found")
+
+    # Owners and super_admins are allowed; everyone else is denied.
+    if role != "super_admin" and str(provider.owner_id) != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this storage provider",
+        )
+
+    try:
+        credentials_json = decrypt_secret(provider.credentials_encrypted)
+        creds = _json.loads(credentials_json)
+    except (ValueError, KeyError) as exc:
+        logger.error("credentials_decryption_failed", provider_id=str(provider_id), error=str(exc))
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to decrypt storage credentials. Contact your administrator.",
+        ) from exc
+
+    return StorageProviderCredentialsResponse(
+        key_id=creds["key_id"],
+        application_key=creds["application_key"],
+        bucket_name=provider.bucket_name,
+        endpoint_url=provider.endpoint_url,
+    )
+
+
 @router.post("", response_model=StorageProviderResponse, status_code=status.HTTP_201_CREATED)
 async def create_storage_provider(
     payload: StorageProviderCreate,
@@ -77,8 +130,7 @@ async def create_storage_provider(
 ) -> StorageProvider:
     user_id, _ = user_role_pair
 
-    import json
-    credentials_json = json.dumps({
+    credentials_json = _json.dumps({
         "key_id": payload.credentials.key_id,
         "application_key": payload.credentials.application_key,
     })

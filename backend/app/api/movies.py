@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.config import Settings, get_settings
-from app.core.dependencies import CurrentUserRoleDep, DatabaseDep, RequireAdminDep
+from app.core.dependencies import CurrentUserRoleDep, DatabaseDep, RequireAdminDep, RequireLevel2Dep
 from app.core.security import create_hls_key_token
 from app.models.collection import Collection
 from app.models.movie import Movie
@@ -59,7 +59,7 @@ async def list_movies(
 @router.post("", response_model=MovieResponse, status_code=status.HTTP_201_CREATED)
 async def create_movie(
     payload: MovieCreate,
-    _: RequireAdminDep,
+    _: RequireLevel2Dep,
     db: DatabaseDep,
 ) -> Movie:
     new_movie = Movie(

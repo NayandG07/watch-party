@@ -69,7 +69,7 @@ export default function LandingPage() {
           </div>
           <h3 className="text-xl font-bold text-content-primary mb-3">Sync Playback</h3>
           <p className="text-content-secondary leading-relaxed">
-            Pause, play, and seek perfectly in sync with everyone in the room. No more counting down "3, 2, 1, play".
+            Pause, play, and seek perfectly in sync with everyone in the room. No more counting down &ldquo;3, 2, 1, play&rdquo;.
           </p>
         </div>
 

@@ -198,7 +198,7 @@ export default function VideoPlayer({
     }
   };
 
-  const toggleFullscreen = () => {
+  const toggleFullscreen = useCallback(() => {
     if (!containerRef.current) return;
     
     if (!document.fullscreenElement) {
@@ -208,7 +208,7 @@ export default function VideoPlayer({
     } else {
       document.exitFullscreen();
     }
-  };
+  }, [containerRef]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
