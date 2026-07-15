@@ -32,7 +32,7 @@ export default function RoomsPage() {
       try {
         const { data } = await api.get<Room[]>("/api/rooms");
         setRooms(data);
-      } catch (err) {
+      } catch {
         setError("Failed to load rooms");
       } finally {
         setIsLoading(false);
@@ -66,7 +66,7 @@ export default function RoomsPage() {
           <Tv2 className="w-16 h-16 mx-auto mb-4 text-brand-500/50" />
           <h3 className="text-xl font-medium text-content-primary mb-2">No Rooms Yet</h3>
           <p className="text-sm max-w-sm mx-auto mb-6">
-            You haven't joined or created any watch parties yet. Browse the library and host a party to get started!
+            You haven&apos;t joined or created any watch parties yet. Browse the library and host a party to get started!
           </p>
           <Link href="/library" className="btn-primary inline-flex">
             Browse Library

@@ -247,7 +247,7 @@ export default function VideoPlayer({
     
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [togglePlay, toggleFullscreen]);
 
   if (error) {
     return (

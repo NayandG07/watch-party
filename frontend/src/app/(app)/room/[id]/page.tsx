@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Users, MessageSquare, Share2, Loader2, Lock, Unlock, PlayCircle } from "lucide-react";
 import api from "@/lib/api";
 import VideoPlayer from "@/components/player/VideoPlayer";
@@ -24,6 +24,7 @@ interface RoomData {
 export default function RoomPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const currentUser = useAuthStore((s) => s.user);
 
   const [room, setRoom] = useState<RoomData | null>(null);
@@ -41,8 +42,22 @@ export default function RoomPage() {
 
   useEffect(() => {
     if (!id) return;
+    
     async function loadRoom() {
       try {
+        // If there's an invite token, try to join first
+        const inviteToken = searchParams.get("invite");
+        if (inviteToken) {
+          try {
+            await api.post(`/api/rooms/${id}/join`, { invite_token: inviteToken });
+            // Clean up the URL so the token isn't sitting there
+            router.replace(`/room/${id}`);
+          } catch (joinErr) {
+            console.error("Failed to join with invite:", joinErr);
+            // We don't fail immediately, we'll see if they already had access
+          }
+        }
+
         const [roomRes, tokenRes, chatRes] = await Promise.all([
           api.get<RoomData>(`/api/rooms/${id}`),
           api.get<{ ws_token: string }>(`/api/rooms/${id}/ws-token`),
@@ -58,7 +73,7 @@ export default function RoomPage() {
       }
     }
     loadRoom();
-  }, [id]);
+  }, [id, searchParams, router]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });

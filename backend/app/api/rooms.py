@@ -53,7 +53,12 @@ from app.schemas.room import (
     RoomUpdate,
     WSTokenResponse,
 )
+from pydantic import BaseModel
 from app.services.room_manager import RoomState_Live, room_manager
+
+class JoinRoomRequest(BaseModel):
+    invite_token: str
+
 
 logger = structlog.get_logger()
 router = APIRouter(prefix="/rooms", tags=["rooms"])
@@ -111,6 +116,14 @@ async def get_room(
     room = result.scalar_one_or_none()
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
+        
+    # Check if user is a member
+    is_member = await db.scalar(
+        select(RoomMember).where(RoomMember.room_id == room_id, RoomMember.user_id == uuid.UUID(current_user_id))
+    )
+    if not is_member:
+        raise HTTPException(status_code=403, detail="You are not a member of this room")
+        
     return room
 
 @router.get("", response_model=list[RoomResponse])
@@ -127,6 +140,58 @@ async def list_rooms(
     )
     result = await db.execute(stmt)
     return list(result.scalars().all())
+
+@router.post("/{room_id}/join")
+async def join_room(
+    room_id: uuid.UUID,
+    payload: JoinRoomRequest,
+    current_user_id: CurrentUserIdDep,
+    db: DatabaseDep,
+) -> dict:
+    from app.core.security import decode_invite_token
+    from app.models.invite import Invite
+    from datetime import datetime, timezone
+
+    room = await db.get(Room, room_id)
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    try:
+        claims = decode_invite_token(payload.invite_token)
+    except JWTError:
+        raise HTTPException(status_code=400, detail="Invalid or expired invite token")
+
+    token_room_id = claims.get("room_id")
+    if token_room_id and token_room_id != str(room_id):
+        raise HTTPException(status_code=400, detail="Invite token is for a different room")
+
+    # Check invite in db
+    stmt = select(Invite).where(Invite.token == payload.invite_token)
+    result = await db.execute(stmt)
+    invite = result.scalar_one_or_none()
+    
+    if not invite or invite.is_revoked:
+        raise HTTPException(status_code=400, detail="Invite is invalid or revoked")
+    
+    if invite.expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Invite has expired")
+        
+    if invite.use_count >= invite.max_uses:
+        raise HTTPException(status_code=400, detail="Invite maximum uses reached")
+
+    # Check if already member
+    user_uuid = uuid.UUID(current_user_id)
+    is_member = await db.scalar(
+        select(RoomMember).where(RoomMember.room_id == room_id, RoomMember.user_id == user_uuid)
+    )
+    
+    if not is_member:
+        member = RoomMember(room_id=room_id, user_id=user_uuid, is_host=False)
+        db.add(member)
+        invite.use_count += 1
+        await db.commit()
+
+    return {"status": "joined"}
 
 @router.patch("/{room_id}", response_model=RoomResponse)
 async def update_room(
@@ -165,12 +230,17 @@ async def get_room_chat(
     db: DatabaseDep,
 ) -> list[ChatMessage]:
     """Fetch the latest chat history for a room."""
-    # Ensure user has access (for now, any authenticated user can view if they can guess the ID,
-    # but could be restricted to room members in a more strict model).
     room = await db.get(Room, room_id)
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
-        
+
+    # Ensure user is member
+    is_member = await db.scalar(
+        select(RoomMember).where(RoomMember.room_id == room_id, RoomMember.user_id == uuid.UUID(current_user_id))
+    )
+    if not is_member:
+        raise HTTPException(status_code=403, detail="You are not a member of this room")
+
     if room.is_locked and str(room.creator_id) != current_user_id:
         raise HTTPException(status_code=403, detail="Room is locked")
 
@@ -193,6 +263,12 @@ async def get_ws_token(
     room = await db.get(Room, room_id)
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
+
+    is_member = await db.scalar(
+        select(RoomMember).where(RoomMember.room_id == room_id, RoomMember.user_id == uuid.UUID(current_user_id))
+    )
+    if not is_member:
+        raise HTTPException(status_code=403, detail="You are not a member of this room")
 
     token = create_ws_token(user_id=current_user_id, room_id=str(room_id))
     return WSTokenResponse(ws_token=token)
