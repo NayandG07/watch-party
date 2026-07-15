@@ -34,8 +34,13 @@ class UserLogin(WatchPartyModel):
 
 
 class UserRegister(WatchPartyModel):
-    """New account creation via POST /api/auth/register (requires invite token)."""
-    invite_token: str
+    """New account creation via POST /api/auth/register.
+    
+    invite_token is optional. When provided, the corresponding invite record
+    is validated and its use_count is incremented. When omitted, the user is
+    created as a Level 1 member without any invite restriction.
+    """
+    invite_token: str | None = None
     username: str = Field(..., min_length=3, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")
     email: EmailStr
     password: str = Field(..., min_length=8, max_length=128)

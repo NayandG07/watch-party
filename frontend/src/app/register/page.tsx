@@ -13,29 +13,7 @@ interface RegisterPageProps {
 }
 
 export default function RegisterPage({ searchParams }: RegisterPageProps) {
-  const token = searchParams.token;
-
-  // No token → show a helpful message instead of a broken form
-  if (!token) {
-    return (
-      <main className="min-h-dvh flex items-center justify-center bg-surface-base">
-        <div className="glass p-10 max-w-sm text-center animate-fade-in">
-          <div className="w-12 h-12 rounded-full bg-warning/10 border border-warning/20 flex items-center justify-center mx-auto mb-5">
-            <svg className="w-6 h-6 text-warning" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3m0 3h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-            </svg>
-          </div>
-          <h1 className="text-xl font-bold text-content-primary mb-2">Invite Required</h1>
-          <p className="text-sm text-content-secondary mb-6">
-            Watch Party is a private platform. You need a valid invite link to create an account.
-          </p>
-          <Link href="/login" className="btn-secondary text-sm">
-            Back to Sign In
-          </Link>
-        </div>
-      </main>
-    );
-  }
+  const token = searchParams.token ?? null;
 
   return (
     <main className="min-h-dvh flex items-center justify-center bg-surface-base relative overflow-hidden">

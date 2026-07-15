@@ -29,7 +29,7 @@ const NAV_ITEMS: NavItem[] = [
 
 const ADMIN_NAV_ITEMS: NavItem[] = [
   { href: "/admin/users", label: "Users", icon: Users },
-  { href: "/admin/settings", label: "Settings", icon: Settings },
+  { href: "/admin/settings/storage", label: "Storage", icon: Settings },
 ];
 
 function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {

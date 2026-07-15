@@ -50,6 +50,7 @@ from app.schemas.room import (
     ChatMessageResponse,
     RoomCreate,
     RoomResponse,
+    RoomSetMedia,
     RoomUpdate,
     WSTokenResponse,
 )
@@ -78,6 +79,7 @@ async def create_room(
         name=payload.name,
         slug=slug,
         movie_id=payload.movie_id,
+        external_url=payload.external_url,
         creator_id=uuid.UUID(current_user_id),
         state=RoomState.WAITING,
         position_seconds=0.0,
@@ -192,6 +194,45 @@ async def join_room(
         await db.commit()
 
     return {"status": "joined"}
+
+
+@router.patch("/{room_id}/set-media", response_model=RoomResponse)
+async def set_room_media(
+    room_id: uuid.UUID,
+    payload: RoomSetMedia,
+    current_user_id: CurrentUserIdDep,
+    db: DatabaseDep,
+) -> Room:
+    """Host sets or changes the media in a room (library movie or external URL)."""
+    stmt = (
+        select(Room)
+        .where(Room.id == room_id)
+        .options(selectinload(Room.creator), selectinload(Room.movie))
+    )
+    result = await db.execute(stmt)
+    room = result.scalar_one_or_none()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    if str(room.creator_id) != current_user_id:
+        raise HTTPException(status_code=403, detail="Only host can change media")
+
+    room.movie_id = payload.movie_id
+    room.external_url = payload.external_url
+    # Reset playback when media changes
+    room.position_seconds = 0.0
+    room.state = RoomState.WAITING
+    from datetime import datetime, timezone
+    room.last_activity_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(room, ["creator", "movie"])
+
+    # Broadcast media change to all connected clients
+    await room_manager.broadcast(str(room_id), {
+        "type": "MEDIA_CHANGE",
+        "movie_id": str(payload.movie_id) if payload.movie_id else None,
+        "external_url": payload.external_url,
+    })
+    return room
 
 @router.patch("/{room_id}", response_model=RoomResponse)
 async def update_room(
@@ -435,7 +476,7 @@ async def room_websocket(
         })
 
 
-def _make_state_msg(live: RoomState_Live, member_count: int) -> dict:
+def _make_state_msg(live: RoomState_Live, member_count: int, external_url: str | None = None) -> dict:
     return {
         "type": "ROOM_STATE",
         "state": live.state.value if hasattr(live.state, "value") else live.state,
@@ -444,4 +485,5 @@ def _make_state_msg(live: RoomState_Live, member_count: int) -> dict:
         "host_id": live.host_id,
         "member_count": member_count,
         "server_time": datetime.now(timezone.utc).timestamp(),
+        "external_url": external_url,
     }

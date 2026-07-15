@@ -14,7 +14,7 @@ interface RegisterResponse {
 }
 
 interface Props {
-  inviteToken: string;
+  inviteToken: string | null;
 }
 
 export default function RegisterForm({ inviteToken }: Props) {
@@ -49,7 +49,7 @@ export default function RegisterForm({ inviteToken }: Props) {
 
     try {
       const { data } = await api.post<RegisterResponse>("/api/auth/register", {
-        invite_token: inviteToken,
+        ...(inviteToken ? { invite_token: inviteToken } : {}),
         username: form.username.trim(),
         email: form.email.trim(),
         password: form.password,

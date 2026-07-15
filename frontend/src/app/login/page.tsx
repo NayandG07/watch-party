@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import LoginForm from "./login-form";
 
 export const metadata: Metadata = {
@@ -48,9 +49,9 @@ export default function LoginPage() {
         {/* Footer */}
         <p className="text-center mt-6 text-xs text-content-muted">
           Don&apos;t have an account?{" "}
-          <span className="text-content-secondary">
-            Ask an admin for an invite link.
-          </span>
+          <Link href="/register" className="text-brand-400 hover:text-brand-300 transition-colors">
+            Sign up
+          </Link>
         </p>
       </div>
     </main>

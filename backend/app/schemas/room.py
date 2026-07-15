@@ -46,7 +46,13 @@ class RoomMemberResponse(WatchPartyModel):
 
 class RoomCreate(WatchPartyModel):
     name: str = Field(..., min_length=1, max_length=100)
-    movie_id: uuid.UUID
+    movie_id: uuid.UUID | None = None
+    external_url: str | None = None  # YouTube or other external video URL
+
+
+class RoomSetMedia(WatchPartyModel):
+    movie_id: uuid.UUID | None = None
+    external_url: str | None = None
 
 
 class RoomUpdate(WatchPartyModel):
@@ -64,7 +70,8 @@ class RoomResponse(WatchPartyModel):
     speed: float
     is_locked: bool
     creator: UserBrief
-    movie: MovieBrief
+    movie: MovieBrief | None = None
+    external_url: str | None = None
     created_at: datetime
     last_activity_at: datetime
 

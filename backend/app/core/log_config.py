@@ -85,7 +85,7 @@ def configure_logging(log_level: str = "INFO", log_format: str = "pretty") -> No
 
     # Reduce noise from third-party libraries
     logging.getLogger("uvicorn").setLevel(logging.WARNING)
-    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    logging.getLogger("uvicorn.access").setLevel(logging.INFO)
     logging.getLogger("sqlalchemy.engine").setLevel(
         logging.INFO if log_level == "DEBUG" else logging.WARNING
     )

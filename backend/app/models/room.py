@@ -62,11 +62,17 @@ class Room(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
-    movie_id: Mapped[uuid.UUID] = mapped_column(
+    # movie_id is nullable — rooms can exist before media is selected
+    movie_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("movies.id", ondelete="CASCADE"),
-        nullable=False,
+        ForeignKey("movies.id", ondelete="SET NULL"),
+        nullable=True,
         index=True,
+    )
+    # External video URL (YouTube, etc.) — alternative to a library movie
+    external_url: Mapped[str | None] = mapped_column(
+        String(2048),
+        nullable=True,
     )
 
     # ── Authoritative timeline ────────────────────────────────────────────────
@@ -112,7 +118,7 @@ class Room(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         foreign_keys=[creator_id],
         lazy="select",
     )
-    movie: Mapped[Movie] = relationship(
+    movie: Mapped[Movie | None] = relationship(
         "Movie",
         back_populates="rooms",
         lazy="select",

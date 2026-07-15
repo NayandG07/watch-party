@@ -2,11 +2,29 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { Users, MessageSquare, Share2, Loader2, Lock, Unlock, PlayCircle } from "lucide-react";
+import {
+  Users, MessageSquare, Share2, Loader2, Lock, Unlock,
+  PlayCircle, Film, Link2, X
+} from "lucide-react";
+
+// Inline YouTube icon since this lucide version doesn't include it
+function YoutubeIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+    </svg>
+  );
+}
 import api from "@/lib/api";
 import VideoPlayer from "@/components/player/VideoPlayer";
+import YouTubePlayer from "@/components/player/YouTubePlayer";
 import { useAuthStore } from "@/stores/authStore";
 import { ChatMessageData } from "@/hooks/useSyncedPlayer";
+
+interface MovieOption {
+  id: string;
+  title: string;
+}
 
 interface RoomData {
   id: string;
@@ -17,7 +35,8 @@ interface RoomData {
   speed: number;
   is_locked: boolean;
   creator: { id: string; username: string };
-  movie: { id: string; title: string; duration_seconds: number; poster_url: string | null };
+  movie: { id: string; title: string; duration_seconds: number; poster_url: string | null } | null;
+  external_url: string | null;
   created_at: string;
 }
 
@@ -34,7 +53,14 @@ export default function RoomPage() {
   const [memberCount, setMemberCount] = useState(1);
   const [messages, setMessages] = useState<ChatMessageData[]>([]);
   const [chatInput, setChatInput] = useState("");
-  const playerRef = useRef<{ 
+
+  // Media picker state
+  const [showMediaPicker, setShowMediaPicker] = useState(false);
+  const [movies, setMovies] = useState<MovieOption[]>([]);
+  const [youtubeInput, setYoutubeInput] = useState("");
+  const [isSettingMedia, setIsSettingMedia] = useState(false);
+
+  const playerRef = useRef<{
     sendChatMessage: (c: string, t?: "text" | "emoji_reaction" | "timestamp_share", r?: number) => void;
     seek: (time: number) => void;
   } | null>(null);
@@ -42,19 +68,16 @@ export default function RoomPage() {
 
   useEffect(() => {
     if (!id) return;
-    
+
     async function loadRoom() {
       try {
-        // If there's an invite token, try to join first
         const inviteToken = searchParams.get("invite");
         if (inviteToken) {
           try {
             await api.post(`/api/rooms/${id}/join`, { invite_token: inviteToken });
-            // Clean up the URL so the token isn't sitting there
             router.replace(`/room/${id}`);
           } catch (joinErr) {
             console.error("Failed to join with invite:", joinErr);
-            // We don't fail immediately, we'll see if they already had access
           }
         }
 
@@ -98,9 +121,48 @@ export default function RoomPage() {
     setChatInput("");
   };
 
-  const formatTime = (dateStr: string) => {
-    return new Date(dateStr).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const handleOpenMediaPicker = async () => {
+    setShowMediaPicker(true);
+    if (movies.length === 0) {
+      try {
+        const { data } = await api.get<{ items: MovieOption[] }>("/api/movies");
+        setMovies(data.items ?? []);
+      } catch {
+        setMovies([]);
+      }
+    }
   };
+
+  const handleSetMovie = async (movieId: string) => {
+    setIsSettingMedia(true);
+    try {
+      const { data } = await api.patch<RoomData>(`/api/rooms/${id}/set-media`, {
+        movie_id: movieId,
+        external_url: null,
+      });
+      setRoom(data);
+      setShowMediaPicker(false);
+    } catch { /* noop */ }
+    finally { setIsSettingMedia(false); }
+  };
+
+  const handleSetYouTube = async () => {
+    if (!youtubeInput.trim()) return;
+    setIsSettingMedia(true);
+    try {
+      const { data } = await api.patch<RoomData>(`/api/rooms/${id}/set-media`, {
+        movie_id: null,
+        external_url: youtubeInput.trim(),
+      });
+      setRoom(data);
+      setShowMediaPicker(false);
+      setYoutubeInput("");
+    } catch { /* noop */ }
+    finally { setIsSettingMedia(false); }
+  };
+
+  const formatTime = (dateStr: string) =>
+    new Date(dateStr).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
   if (isLoading) {
     return (
@@ -123,6 +185,8 @@ export default function RoomPage() {
     );
   }
 
+  const hasMedia = !!(room.movie || room.external_url);
+
   return (
     <main className="min-h-screen bg-surface-base animate-fade-in flex flex-col md:flex-row">
       {/* Main Player Area */}
@@ -143,9 +207,9 @@ export default function RoomPage() {
                 <h1 className="text-white font-semibold text-sm drop-shadow-md">{room.name}</h1>
                 <p className="text-white/60 text-[11px] drop-shadow-md flex items-center gap-2">
                   <span>{isHost ? "You are the host" : `Hosted by ${room.creator.username}`}</span>
-                  
+
                   {isHost ? (
-                    <button 
+                    <button
                       onClick={handleToggleLock}
                       className="inline-flex items-center gap-1 hover:text-white transition-colors ml-1"
                     >
@@ -168,6 +232,15 @@ export default function RoomPage() {
           </div>
 
           <div className="flex gap-2 pointer-events-auto">
+            {isHost && (
+              <button
+                onClick={handleOpenMediaPicker}
+                className="btn-secondary h-8 px-3 text-xs bg-black/40 border-white/10 hover:bg-black/60 text-white"
+              >
+                <Film className="w-3.5 h-3.5 mr-1.5" />
+                {hasMedia ? "Change Media" : "Select Media"}
+              </button>
+            )}
             <button className="btn-secondary h-8 px-3 text-xs bg-black/40 border-white/10 hover:bg-black/60 text-white">
               <Share2 className="w-3.5 h-3.5 mr-1.5" />
               Invite
@@ -175,23 +248,53 @@ export default function RoomPage() {
           </div>
         </header>
 
-        {/* Video */}
+        {/* Video area */}
         <div className="flex-1 flex items-center justify-center">
-          <VideoPlayer
-            movieId={room.movie.id}
-            roomId={room.id}
-            wsToken={wsToken ?? undefined}
-            isHost={isHost}
-            onChatMessage={(msg) => setMessages((prev) => [...prev, msg])}
-            onMemberUpdate={(count) => setMemberCount(count)}
-            playerRef={playerRef}
-          />
+          {!hasMedia ? (
+            /* Empty room — waiting for host to select media */
+            <div className="text-center text-content-secondary">
+              <div className="w-24 h-24 rounded-3xl bg-surface-raised flex items-center justify-center mx-auto mb-6 border border-surface-elevated">
+                <Film className="w-12 h-12 text-brand-500/50" />
+              </div>
+              <h2 className="text-2xl font-bold text-content-primary mb-2">No media selected</h2>
+              <p className="text-sm mb-8 max-w-xs mx-auto">
+                {isHost
+                  ? "Pick something to watch from your library or paste a YouTube link."
+                  : "Waiting for the host to select media…"}
+              </p>
+              {isHost && (
+                <button onClick={handleOpenMediaPicker} className="btn-primary">
+                  <Film className="w-4 h-4 mr-2" />
+                  Select Media
+                </button>
+              )}
+            </div>
+          ) : room.external_url ? (
+            <YouTubePlayer
+              url={room.external_url}
+              roomId={room.id}
+              wsToken={wsToken ?? undefined}
+              isHost={isHost}
+              onChatMessage={(msg) => setMessages((prev) => [...prev, msg])}
+              onMemberUpdate={(count) => setMemberCount(count)}
+              playerRef={playerRef}
+            />
+          ) : room.movie ? (
+            <VideoPlayer
+              movieId={room.movie.id}
+              roomId={room.id}
+              wsToken={wsToken ?? undefined}
+              isHost={isHost}
+              onChatMessage={(msg) => setMessages((prev) => [...prev, msg])}
+              onMemberUpdate={(count) => setMemberCount(count)}
+              playerRef={playerRef}
+            />
+          ) : null}
         </div>
       </div>
 
-      {/* Sidebar Chat & Members */}
+      {/* Chat Sidebar */}
       <aside className="w-full md:w-80 lg:w-96 border-t md:border-t-0 md:border-l border-surface-raised bg-surface-base flex flex-col h-64 md:h-auto">
-        {/* Tabs */}
         <div className="flex border-b border-surface-raised shrink-0">
           <button className="flex-1 py-3 text-xs font-medium text-brand-400 border-b-2 border-brand-400 flex flex-col items-center gap-1">
             <MessageSquare className="w-4 h-4" />
@@ -203,12 +306,9 @@ export default function RoomPage() {
           </button>
         </div>
 
-        {/* Chat messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.length === 0 ? (
-            <p className="text-xs text-content-muted text-center py-8">
-              No messages yet. Say hi!
-            </p>
+            <p className="text-xs text-content-muted text-center py-8">No messages yet. Say hi!</p>
           ) : (
             messages.map((msg) => (
               <div key={msg.id} className="group">
@@ -221,7 +321,7 @@ export default function RoomPage() {
                   </span>
                 </div>
                 {msg.message_type === "timestamp_share" ? (
-                  <button 
+                  <button
                     onClick={() => {
                       if (isHost && msg.timestamp_reference !== undefined) {
                         playerRef.current?.seek(msg.timestamp_reference);
@@ -235,9 +335,7 @@ export default function RoomPage() {
                     <span>{msg.content}</span>
                   </button>
                 ) : (
-                  <p className="text-sm text-content-secondary break-words leading-relaxed">
-                    {msg.content}
-                  </p>
+                  <p className="text-sm text-content-secondary break-words leading-relaxed">{msg.content}</p>
                 )}
               </div>
             ))
@@ -245,7 +343,6 @@ export default function RoomPage() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Chat input */}
         <div className="p-3 border-t border-surface-raised shrink-0">
           <form onSubmit={handleSendMessage} className="relative">
             <input
@@ -255,19 +352,79 @@ export default function RoomPage() {
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
             />
-            <button 
+            <button
               type="submit"
               disabled={!chatInput.trim()}
               className="absolute right-2.5 top-1/2 -translate-y-1/2 text-content-muted hover:text-brand-400 disabled:opacity-50 transition-colors"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
               </svg>
             </button>
           </form>
         </div>
       </aside>
+
+      {/* Media Picker Modal */}
+      {showMediaPicker && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+          <div className="glass w-full max-w-lg rounded-3xl p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-bold text-content-primary">Select Media</h2>
+              <button onClick={() => setShowMediaPicker(false)} className="text-content-muted hover:text-content-primary transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* YouTube URL */}
+            <div className="mb-6">
+              <label className="flex items-center gap-2 text-sm font-medium text-content-secondary mb-2">
+                <YoutubeIcon className="w-4 h-4 text-red-500" />
+                YouTube / External URL
+              </label>
+              <div className="flex gap-2">
+                <input
+                  className="input flex-1 text-sm"
+                  placeholder="https://www.youtube.com/watch?v=..."
+                  value={youtubeInput}
+                  onChange={(e) => setYoutubeInput(e.target.value)}
+                />
+                <button
+                  onClick={handleSetYouTube}
+                  disabled={!youtubeInput.trim() || isSettingMedia}
+                  className="btn-primary h-10 px-4 text-sm shrink-0"
+                >
+                  {isSettingMedia ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Library movies */}
+            <div>
+              <label className="flex items-center gap-2 text-sm font-medium text-content-secondary mb-2">
+                <Film className="w-4 h-4 text-brand-400" />
+                From Library
+              </label>
+              {movies.length === 0 ? (
+                <p className="text-xs text-content-muted py-4 text-center">No movies in library yet.</p>
+              ) : (
+                <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
+                  {movies.map((m) => (
+                    <button
+                      key={m.id}
+                      onClick={() => handleSetMovie(m.id)}
+                      disabled={isSettingMedia}
+                      className="w-full text-left px-4 py-3 rounded-xl bg-surface-raised hover:bg-surface-elevated transition-colors text-sm text-content-primary"
+                    >
+                      {m.title}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

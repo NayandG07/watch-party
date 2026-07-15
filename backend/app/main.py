@@ -19,7 +19,7 @@ import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, collections, health, invites, libraries, movies, permissions, rooms, users
+from app.api import auth, collections, health, invites, libraries, movies, permissions, rooms, storage_providers, users
 from app.core.config import get_settings
 from app.core.exceptions import WatchPartyError, watchparty_exception_handler, unhandled_exception_handler
 from app.core.log_config import configure_logging
@@ -96,6 +96,9 @@ def create_app() -> FastAPI:
 
     # Phase 8: Permissions
     app.include_router(permissions.router, prefix="/api")
+
+    # Storage Providers
+    app.include_router(storage_providers.router, prefix="/api")
 
     return app
 

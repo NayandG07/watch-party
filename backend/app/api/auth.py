@@ -129,21 +129,26 @@ async def logout(
     _clear_refresh_cookie(response, settings)
 
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=LoginResponse, status_code=status.HTTP_201_CREATED)
 async def register(
     payload: UserRegister,
     db: DatabaseDep,
-) -> UserResponse:
-    # 1. Validate Invite Token
-    stmt = select(Invite).where(Invite.token == payload.invite_token)
-    result = await db.execute(stmt)
-    invite = result.scalar_one_or_none()
+    response: Response,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> LoginResponse:
+    invite: Invite | None = None
 
-    if not invite or not invite.is_valid or invite.room_id is not None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid, expired, or room-specific invite token",
-        )
+    # 1. Validate Invite Token (optional)
+    if payload.invite_token:
+        stmt = select(Invite).where(Invite.token == payload.invite_token)
+        result = await db.execute(stmt)
+        invite = result.scalar_one_or_none()
+
+        if not invite or not invite.is_valid or invite.room_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid, expired, or room-specific invite token",
+            )
 
     # 2. Check if username/email exists
     stmt = select(User).where((User.username == payload.username) | (User.email == payload.email))
@@ -163,15 +168,24 @@ async def register(
     )
     db.add(new_user)
 
-    # 4. Update Invite
-    invite.use_count += 1
-    if invite.use_count >= invite.max_uses:
-        invite.is_revoked = True
+    # 4. Update Invite usage if one was provided
+    if invite:
+        invite.use_count += 1
+        if invite.use_count >= invite.max_uses:
+            invite.is_revoked = True
 
     await db.commit()
     await db.refresh(new_user)
     
-    return UserResponse.model_validate(new_user)
+    access_token = create_access_token(subject=str(new_user.id), role=new_user.role.value)
+    refresh_token = create_refresh_token(subject=str(new_user.id))
+
+    _set_refresh_cookie(response, refresh_token, settings)
+
+    return LoginResponse(
+        access_token=access_token,
+        user=UserBrief.model_validate(new_user),
+    )
 
 
 @router.get("/me", response_model=UserResponse)

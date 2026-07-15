@@ -163,7 +163,7 @@ class RequireRole:
 
     async def __call__(
         self,
-        user_role_pair: Annotated[tuple[str, str], Depends(get_current_user_role)],
+        user_role_pair: tuple[str, str] = Depends(get_current_user_role),
     ) -> tuple[str, str]:
         user_id, role = user_role_pair
         actual_level = self._ROLE_LEVELS.get(role, 0)

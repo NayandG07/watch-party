@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Loader2, Tv2, Users, Play } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Loader2, Tv2, Users, Play, Plus } from "lucide-react";
 import api from "@/lib/api";
 import { formatDuration } from "@/lib/utils";
 
@@ -23,9 +24,11 @@ interface Room {
 }
 
 export default function RoomsPage() {
+  const router = useRouter();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
 
   useEffect(() => {
     async function fetchRooms() {
@@ -41,16 +44,30 @@ export default function RoomsPage() {
     fetchRooms();
   }, []);
 
+  async function handleCreateRoom() {
+    setIsCreating(true);
+    try {
+      const { data } = await api.post("/api/rooms", { name: "Watch Party" });
+      router.push(`/room/${data.id}`);
+    } catch {
+      setError("Failed to create room");
+    } finally {
+      setIsCreating(false);
+    }
+  }
+
   return (
     <div className="max-w-6xl mx-auto w-full animate-fade-in space-y-8">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight text-content-primary">
-          Your Watch Rooms
-        </h1>
-        <p className="text-content-secondary mt-1">
-          Active watch parties and previous sessions.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-content-primary">Your Watch Rooms</h1>
+          <p className="text-content-secondary mt-1">Active watch parties and previous sessions.</p>
+        </div>
+        <button onClick={handleCreateRoom} disabled={isCreating} className="btn-primary h-10 px-4 text-sm">
+          {isCreating ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Plus className="w-4 h-4 mr-1.5" />}
+          Create Room
+        </button>
       </div>
 
       {isLoading ? (
