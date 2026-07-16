@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.core.dependencies import CurrentUserRoleDep, DatabaseDep, RequireAdminDep
+from app.core.dependencies import CurrentUserRoleDep, DatabaseDep, RequireAdminDep, RequireLevel2Dep
 from app.models.collection import Collection
 from app.models.library import Library
 from app.schemas.library import CollectionCreate, CollectionResponse, CollectionUpdate
@@ -32,20 +32,27 @@ async def list_collections(
     result = await db.execute(stmt)
     all_collections = list(result.scalars().all())
 
-    visible = []
-    for col in all_collections:
-        library = col.library
-        if await PermissionService.can_view_collection(col, library, user_id, user_role, db):
-            visible.append(col)
-    return visible
+    return await PermissionService.batch_filter_visible_collections(
+        collections=all_collections,
+        user_id=user_id,
+        user_role=user_role,
+        db=db,
+    )
 
 
 @router.post("", response_model=CollectionResponse, status_code=status.HTTP_201_CREATED)
 async def create_collection(
     payload: CollectionCreate,
-    _: RequireAdminDep,
+    user_info: RequireLevel2Dep,
     db: DatabaseDep,
 ) -> Collection:
+    user_id, user_role = user_info
+    library = await db.get(Library, payload.library_id)
+    if not library:
+        raise HTTPException(status_code=404, detail="Library not found")
+        
+    if not await PermissionService.can_manage_library(library, user_id, user_role):
+        raise HTTPException(status_code=403, detail="Access denied to this library")
     new_collection = Collection(
         library_id=payload.library_id,
         name=payload.name,
@@ -86,12 +93,20 @@ async def get_collection(
 async def update_collection(
     collection_id: uuid.UUID,
     payload: CollectionUpdate,
-    _: RequireAdminDep,
+    user_info: RequireLevel2Dep,
     db: DatabaseDep,
 ) -> Collection:
-    collection = await db.get(Collection, collection_id)
+    user_id, user_role = user_info
+    
+    stmt = select(Collection).where(Collection.id == collection_id).options(selectinload(Collection.library))
+    result = await db.execute(stmt)
+    collection = result.scalar_one_or_none()
+    
     if not collection:
         raise HTTPException(status_code=404, detail="Collection not found")
+        
+    if not await PermissionService.can_manage_collection(collection, collection.library, user_id, user_role):
+        raise HTTPException(status_code=403, detail="Access denied")
 
     update_data = payload.model_dump(exclude_unset=True)
     for key, value in update_data.items():
@@ -105,12 +120,20 @@ async def update_collection(
 @router.delete("/{collection_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_collection(
     collection_id: uuid.UUID,
-    _: RequireAdminDep,
+    user_info: RequireLevel2Dep,
     db: DatabaseDep,
 ) -> None:
-    collection = await db.get(Collection, collection_id)
+    user_id, user_role = user_info
+    
+    stmt = select(Collection).where(Collection.id == collection_id).options(selectinload(Collection.library))
+    result = await db.execute(stmt)
+    collection = result.scalar_one_or_none()
+    
     if not collection:
         raise HTTPException(status_code=404, detail="Collection not found")
+        
+    if not await PermissionService.can_manage_collection(collection, collection.library, user_id, user_role):
+        raise HTTPException(status_code=403, detail="Access denied")
         
     await db.delete(collection)
     await db.commit()

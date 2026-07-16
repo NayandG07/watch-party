@@ -272,7 +272,10 @@ export default function AdminUsersPage() {
                         </span>
                       ) : (
                         <button
-                          onClick={() => setOpenRoleDropdown(openRoleDropdown === user.id ? null : user.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenRoleDropdown(openRoleDropdown === user.id ? null : user.id);
+                          }}
                           disabled={updatingUserId === user.id}
                           className={cn(
                             "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all hover:ring-1 hover:ring-brand-500/50 cursor-pointer",
@@ -295,7 +298,10 @@ export default function AdminUsersPage() {
                           {["level1", "level2"].map((role) => (
                             <button
                               key={role}
-                              onClick={() => handleRoleChange(user.id, role)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRoleChange(user.id, role);
+                              }}
                               className={cn(
                                 "w-full px-3 py-2.5 text-left text-sm flex items-center gap-2 hover:bg-white/5 transition-colors",
                                 user.role === role ? "text-brand-400" : "text-content-secondary"

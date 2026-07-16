@@ -29,6 +29,9 @@ const NAV_ITEMS: NavItem[] = [
 
 const ADMIN_NAV_ITEMS: NavItem[] = [
   { href: "/admin/users", label: "Users", icon: Users },
+];
+
+const CREATOR_NAV_ITEMS: NavItem[] = [
   { href: "/admin/settings/storage", label: "Storage", icon: Settings },
 ];
 
@@ -88,6 +91,11 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
         ))}
 
         <div className="divider !my-4" />
+
+        {/* Creator section */}
+        {(user?.role === "level2" || user?.role === "super_admin") && CREATOR_NAV_ITEMS.map((item) => (
+          <NavLink key={item.href} item={item} onClick={onClose} />
+        ))}
 
         {/* Admin section */}
         {user?.role === "super_admin" && ADMIN_NAV_ITEMS.map((item) => (

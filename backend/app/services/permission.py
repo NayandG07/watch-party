@@ -9,6 +9,11 @@ Resolution order (most specific wins):
   5. Library is_private
 
 Explicit grants (Permission table) are checked for FRIENDS-level resources.
+
+Performance notes:
+  - `batch_filter_visible_*` methods collapse N+1 per-item permission checks
+    into a single DB query per request — critical for list endpoints.
+  - Super-admin / owner short-circuits before hitting the DB at all.
 """
 
 from __future__ import annotations
@@ -191,6 +196,136 @@ class PermissionService:
         if user_role == UserRole.SUPER_ADMIN:
             return True
         return str(library.owner_id) == user_id
+
+    # ── Batch list filtering (eliminates N+1 per-row permission queries) ──────
+
+    @staticmethod
+    async def batch_filter_visible_collections(
+        collections: "list[Collection]",
+        user_id: str,
+        user_role: str,
+        db: AsyncSession,
+    ) -> "list[Collection]":
+        """Filter a list of collections to only those visible to the user.
+
+        Replaces a per-collection ``can_view_collection`` loop with at most
+        two DB queries regardless of how many collections are in the list.
+
+        Algorithm:
+          1. Super-admin / owner short-circuit: no DB hit at all.
+          2. Fetch all of the user's explicit grants in one query.
+          3. Apply visibility rules in Python using the pre-fetched grant set.
+        """
+        if not collections:
+            return []
+
+        # Super-admin sees everything
+        if user_role == UserRole.SUPER_ADMIN:
+            return collections
+
+        # Build the set of library_ids the user owns
+        user_uuid = uuid.UUID(user_id)
+
+        # Collect all unique library_ids and collection_ids for batch grant lookup
+        library_ids = {c.library.id for c in collections if c.library is not None}
+        collection_ids = {c.id for c in collections}
+
+        # Single query: fetch all explicit grants for this user touching any of these resources
+        grants_q = select(Permission).where(
+            Permission.grantee_id == user_uuid,
+        )
+        result = await db.execute(grants_q)
+        all_grants = result.scalars().all()
+
+        granted_library_ids: set[uuid.UUID] = {g.library_id for g in all_grants if g.library_id}
+        granted_collection_ids: set[uuid.UUID] = {g.collection_id for g in all_grants if g.collection_id}
+
+        visible: list[Collection] = []
+        for col in collections:
+            lib = col.library
+            if lib is None:
+                continue
+
+            # Owner of the library sees all its collections
+            if str(lib.owner_id) == user_id:
+                visible.append(col)
+                continue
+
+            # Private library: must have a library-level grant
+            if lib.is_private and lib.id not in granted_library_ids:
+                continue
+
+            # Check collection-level visibility
+            if col.visibility == Visibility.SHARED:
+                visible.append(col)
+            elif col.visibility in (Visibility.FRIENDS, Visibility.PRIVATE):
+                if col.id in granted_collection_ids:
+                    visible.append(col)
+
+        return visible
+
+    @staticmethod
+    async def batch_filter_visible_movies(
+        movies: "list[Movie]",
+        user_id: str,
+        user_role: str,
+        db: AsyncSession,
+    ) -> "list[Movie]":
+        """Filter a list of movies to only those visible to the user.
+
+        Same approach as ``batch_filter_visible_collections``:
+        one DB round-trip for all grants instead of one per movie.
+        """
+        if not movies:
+            return []
+
+        if user_role == UserRole.SUPER_ADMIN:
+            return movies
+
+        user_uuid = uuid.UUID(user_id)
+
+        # Single query: all explicit grants for this user
+        grants_q = select(Permission).where(Permission.grantee_id == user_uuid)
+        result = await db.execute(grants_q)
+        all_grants = result.scalars().all()
+
+        granted_library_ids: set[uuid.UUID] = {g.library_id for g in all_grants if g.library_id}
+        granted_collection_ids: set[uuid.UUID] = {g.collection_id for g in all_grants if g.collection_id}
+        granted_movie_ids: set[uuid.UUID] = {g.movie_id for g in all_grants if g.movie_id}
+
+        visible: list[Movie] = []
+        for movie in movies:
+            col = movie.collection
+            lib = col.library if col else None
+
+            if col is None or lib is None:
+                continue
+
+            # Library owner sees all
+            if str(lib.owner_id) == user_id:
+                visible.append(movie)
+                continue
+
+            # Explicit movie-level grant
+            if movie.id in granted_movie_ids:
+                visible.append(movie)
+                continue
+
+            # Private library gating
+            if lib.is_private and lib.id not in granted_library_ids:
+                continue
+
+            # Effective visibility
+            effective = movie.visibility_override or col.visibility
+
+            if effective == Visibility.SHARED:
+                visible.append(movie)
+            elif effective == Visibility.FRIENDS:
+                if col.id in granted_collection_ids:
+                    visible.append(movie)
+            # PRIVATE: only explicit grants (already handled above)
+
+        return visible
 
     # ── Internal helpers ──────────────────────────────────────────────────────
 

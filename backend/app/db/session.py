@@ -39,7 +39,8 @@ engine = create_async_engine(
     pool_size=5,
     max_overflow=5,
     connect_args={
-        "statement_cache_size": 0,  # Required for PgBouncer/Supabase pooler
+        "prepared_statement_cache_size": 0, # Disables SQLAlchemy's prepared statement cache
+        "statement_cache_size": 0,          # Disables asyncpg's internal statement cache
     },
     pool_recycle=3600,  # recycle connections every hour
 )

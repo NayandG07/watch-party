@@ -42,18 +42,12 @@ async def list_movies(
     result = await db.execute(stmt)
     all_movies = list(result.scalars().all())
 
-    visible = []
-    for m in all_movies:
-        if await PermissionService.can_view_movie(
-            movie=m,
-            collection=m.collection,
-            library=m.collection.library,
-            user_id=user_id,
-            user_role=user_role,
-            db=db,
-        ):
-            visible.append(m)
-    return visible
+    return await PermissionService.batch_filter_visible_movies(
+        movies=all_movies,
+        user_id=user_id,
+        user_role=user_role,
+        db=db,
+    )
 
 
 @router.post("", response_model=MovieResponse, status_code=status.HTTP_201_CREATED)

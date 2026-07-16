@@ -76,6 +76,7 @@ class CollectionResponse(WatchPartyModel):
     sort_order: int
     movie_count: int = 0
     created_at: datetime
+    library: LibraryBrief
 
 
 class CollectionBrief(WatchPartyModel):
@@ -84,3 +85,18 @@ class CollectionBrief(WatchPartyModel):
     name: str
     visibility: Visibility
     library: LibraryBrief
+
+
+class CollectionWithMoviesBrief(WatchPartyModel):
+    """Collection with its visible movies — used by the library summary endpoint
+    to avoid N+1 frontend round-trips."""
+    id: uuid.UUID
+    library_id: uuid.UUID
+    name: str
+    description: str | None
+    visibility: Visibility
+    poster_path: str | None
+    sort_order: int
+    movie_count: int = 0
+    library: LibraryBrief
+    movies: list  # list[MovieBrief] — declared as list to avoid circular import

@@ -47,7 +47,7 @@ def configure_logging(log_level: str = "INFO", log_format: str = "pretty") -> No
         structlog.stdlib.PositionalArgumentsFormatter(),
         structlog.processors.TimeStamper(fmt="iso", utc=True),
         structlog.processors.StackInfoRenderer(),
-        structlog.processors.ExceptionRenderer(),
+        structlog.processors.format_exc_info,
     ]
 
     # Pick renderer based on format
@@ -83,9 +83,10 @@ def configure_logging(log_level: str = "INFO", log_format: str = "pretty") -> No
     root_logger.handlers = [handler]
     root_logger.setLevel(numeric_level)
 
-    # Reduce noise from third-party libraries
-    logging.getLogger("uvicorn").setLevel(logging.WARNING)
+    # Reduce noise from third-party libraries, but keep Uvicorn informative
+    logging.getLogger("uvicorn").setLevel(logging.INFO)
     logging.getLogger("uvicorn.access").setLevel(logging.INFO)
+    logging.getLogger("uvicorn.error").setLevel(logging.INFO)
     logging.getLogger("sqlalchemy.engine").setLevel(
         logging.INFO if log_level == "DEBUG" else logging.WARNING
     )
