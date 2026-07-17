@@ -79,18 +79,13 @@ export default function VideoPlayer({
         if (Hls.isSupported()) {
           const hls = new Hls({
             xhrSetup: (xhr, url) => {
-              // Intercept requests to the key URL and inject the JWT
-              if (url.includes("watchparty://key")) {
-                // We overwrite the URL to actually hit the backend dispensing endpoint if we wanted to
-                // BUT since we just use the JWT to authenticate the CDN request, we append it as a header or query param.
-                // Assuming the CDN is configured to check Authorization header:
-                xhr.setRequestHeader("Authorization", `Bearer ${tokenData.hls_key_token}`);
-                
-                // For this project structure, let's assume the CDN is served by the backend or a bucket proxy
-                // We'll rewrite the URL to the real key URL (you would configure this based on your infrastructure)
-                // For now, we'll assume the URL generated in the playlist is absolute or relative to the master.
+              // The backend rewrites the EXT-X-KEY URI to /api/movies/{id}/hls-key.
+              // We append the JWT token as a query param so the backend can validate it.
+              if (url.includes("/hls-key")) {
+                const separator = url.includes("?") ? "&" : "?";
+                xhr.open("GET", `${url}${separator}token=${tokenData.hls_key_token}`, true);
               }
-            }
+            },
           });
           
           hlsRef.current = hls;

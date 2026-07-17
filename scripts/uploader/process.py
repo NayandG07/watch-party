@@ -400,7 +400,7 @@ def main() -> None:
         upload_to_b2(enc_key_file, f"{base_key}/enc.key", s3_client, bucket)
 
     # Upload images
-    hls_master_s3_key = f"{base_key}/master.m3u8"
+    hls_master_s3_key = f"{base_key}/hls/master.m3u8"
     poster_s3_key = f"{base_key}/poster.jpg"
     backdrop_s3_key = f"{base_key}/backdrop.jpg"
 
