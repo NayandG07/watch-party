@@ -1,6 +1,7 @@
 "use client";
 
-import { Settings as SettingsIcon } from "lucide-react";
+import Link from "next/link";
+import { HardDrive } from "lucide-react";
 
 export default function AdminSettingsPage() {
   return (
@@ -15,12 +16,17 @@ export default function AdminSettingsPage() {
         </p>
       </div>
 
-      <div className="glass p-12 text-center text-content-secondary">
-        <SettingsIcon className="w-12 h-12 mx-auto mb-4 text-brand-500/50" />
-        <h3 className="text-lg font-medium text-content-primary mb-1">Coming Soon</h3>
-        <p className="text-sm max-w-md mx-auto">
-          Global platform settings (like default metadata providers or appearance themes) will be configurable here in a future update.
-        </p>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <Link 
+          href="/admin/settings/storage"
+          className="glass p-6 rounded-2xl hover:bg-white/5 transition-colors border border-transparent hover:border-white/10 group cursor-pointer flex flex-col"
+        >
+          <HardDrive className="w-8 h-8 text-brand-400 mb-4 group-hover:scale-110 transition-transform" />
+          <h3 className="text-lg font-semibold text-content-primary mb-2">Storage Providers</h3>
+          <p className="text-sm text-content-secondary flex-1">
+            Configure Backblaze B2 or other object storage endpoints for your media library.
+          </p>
+        </Link>
       </div>
     </div>
   );

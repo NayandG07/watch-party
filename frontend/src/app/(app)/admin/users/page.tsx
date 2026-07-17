@@ -14,6 +14,7 @@ import {
   UserCheck,
   UserX,
   ChevronDown,
+  Trash2,
 } from "lucide-react";
 import api, { getErrorMessage } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -145,6 +146,18 @@ export default function AdminUsersPage() {
     }
   }
 
+  async function handleDeleteUser(user: User) {
+    if (!window.confirm(`Are you sure you want to permanently delete user ${user.username}?`)) return;
+    setUpdatingUserId(user.id);
+    try {
+      await api.delete(`/api/users/${user.id}`);
+      setUsers((prev) => prev.filter((u) => u.id !== user.id));
+    } catch (err) {
+      setErrorMsg(getErrorMessage(err));
+      setUpdatingUserId(null);
+    }
+  }
+
   async function handleGenerateInvite() {
     setGenerating(true);
     try {
@@ -232,7 +245,7 @@ export default function AdminUsersPage() {
             ) : (
               <div className="divide-y divide-surface-border">
                 {/* Table Header */}
-                <div className="grid grid-cols-[1fr_1fr_140px_100px_96px] gap-4 px-5 py-3 text-xs font-medium text-content-muted uppercase tracking-wider">
+                <div className="grid grid-cols-[1fr_1fr_140px_100px_180px] gap-4 px-5 py-3 text-xs font-medium text-content-muted uppercase tracking-wider">
                   <span>User</span>
                   <span>Email</span>
                   <span>Role</span>
@@ -244,7 +257,7 @@ export default function AdminUsersPage() {
                   <div
                     key={user.id}
                     className={cn(
-                      "grid grid-cols-[1fr_1fr_140px_100px_96px] gap-4 px-5 py-4 items-center transition-colors hover:bg-white/2",
+                      "grid grid-cols-[1fr_1fr_140px_100px_180px] gap-4 px-5 py-4 items-center transition-colors hover:bg-white/2",
                       !user.is_active && "opacity-50"
                     )}
                   >
@@ -274,6 +287,7 @@ export default function AdminUsersPage() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
+                            e.nativeEvent.stopImmediatePropagation();
                             setOpenRoleDropdown(openRoleDropdown === user.id ? null : user.id);
                           }}
                           disabled={updatingUserId === user.id}
@@ -300,6 +314,7 @@ export default function AdminUsersPage() {
                               key={role}
                               onClick={(e) => {
                                 e.stopPropagation();
+                                e.nativeEvent.stopImmediatePropagation();
                                 handleRoleChange(user.id, role);
                               }}
                               className={cn(
@@ -337,23 +352,34 @@ export default function AdminUsersPage() {
 
                     {/* Actions */}
                     {user.role !== "super_admin" && (
-                      <button
-                        onClick={() => handleToggleActive(user)}
-                        disabled={updatingUserId === user.id}
-                        title={user.is_active ? "Deactivate user" : "Activate user"}
-                        className={cn(
-                          "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                          user.is_active
-                            ? "text-danger hover:bg-danger/10"
-                            : "text-success hover:bg-success/10"
-                        )}
-                      >
-                        {user.is_active ? (
-                          <><ShieldOff className="w-3.5 h-3.5" /> Suspend</>
-                        ) : (
-                          <><ShieldCheck className="w-3.5 h-3.5" /> Restore</>
-                        )}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleToggleActive(user)}
+                          disabled={updatingUserId === user.id}
+                          title={user.is_active ? "Deactivate user" : "Activate user"}
+                          className={cn(
+                            "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                            user.is_active
+                              ? "text-amber-500 hover:bg-amber-500/10"
+                              : "text-success hover:bg-success/10"
+                          )}
+                        >
+                          {user.is_active ? (
+                            <><ShieldOff className="w-3.5 h-3.5" /> Suspend</>
+                          ) : (
+                            <><ShieldCheck className="w-3.5 h-3.5" /> Restore</>
+                          )}
+                        </button>
+                        
+                        <button
+                          onClick={() => handleDeleteUser(user)}
+                          disabled={updatingUserId === user.id}
+                          title="Delete user permanently"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors text-danger hover:bg-danger/10"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" /> Delete
+                        </button>
+                      </div>
                     )}
                   </div>
                 ))}

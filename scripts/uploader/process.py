@@ -50,7 +50,8 @@ def prompt_auth(api_url: str) -> str:
     try:
         resp = httpx.post(
             f"{api_url}/api/auth/login",
-            data={"username": username, "password": password},
+            json={"username": username, "password": password},
+            timeout=30.0,
         )
     except httpx.ConnectError as exc:
         print(f"[ERROR] Could not connect to {api_url}: {exc}")
@@ -77,7 +78,7 @@ def verify_role(api_url: str, headers: dict) -> None:
 
     Exits with an error message if the role is insufficient.
     """
-    resp = httpx.get(f"{api_url}/api/auth/me", headers=headers)
+    resp = httpx.get(f"{api_url}/api/auth/me", headers=headers, timeout=30.0)
     if resp.status_code != 200:
         print(f"[ERROR] Could not verify user role ({resp.status_code}): {resp.text}")
         sys.exit(1)
@@ -103,7 +104,7 @@ def fetch_storage_provider(api_url: str, headers: dict) -> dict:
     Returns:
         A dict with keys: id, bucket_name, endpoint_url, key_id, application_key
     """
-    resp = httpx.get(f"{api_url}/api/storage-providers", headers=headers)
+    resp = httpx.get(f"{api_url}/api/storage-providers", headers=headers, timeout=30.0)
     if resp.status_code != 200:
         print(f"[ERROR] Failed to list storage providers ({resp.status_code}): {resp.text}")
         sys.exit(1)
@@ -135,6 +136,7 @@ def fetch_storage_provider(api_url: str, headers: dict) -> dict:
     cred_resp = httpx.get(
         f"{api_url}/api/storage-providers/{provider_id}/credentials",
         headers=headers,
+        timeout=30.0,
     )
     if cred_resp.status_code != 200:
         print(
@@ -160,7 +162,7 @@ def fetch_collection(api_url: str, headers: dict) -> str:
     Returns:
         collection_id (UUID string) of the chosen collection.
     """
-    resp = httpx.get(f"{api_url}/api/collections", headers=headers)
+    resp = httpx.get(f"{api_url}/api/collections", headers=headers, timeout=30.0)
     if resp.status_code != 200:
         print(f"[ERROR] Failed to list collections ({resp.status_code}): {resp.text}")
         sys.exit(1)
@@ -194,6 +196,7 @@ def create_movie_record(api_url: str, headers: dict, title: str, collection_id: 
         f"{api_url}/api/movies",
         json={"title": title, "collection_id": collection_id},
         headers=headers,
+        timeout=30.0,
     )
     if resp.status_code != 201:
         try:
@@ -429,6 +432,7 @@ def main() -> None:
         f"{api_url}/api/movies/{movie_id}/upload-complete",
         json=patch_payload,
         headers=headers,
+        timeout=30.0,
     )
     if patch_resp.status_code != 200:
         print(

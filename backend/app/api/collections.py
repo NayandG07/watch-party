@@ -23,7 +23,7 @@ async def list_collections(
     user_id, user_role = user_role_pair
     stmt = (
         select(Collection)
-        .options(selectinload(Collection.library))
+        .options(selectinload(Collection.library).selectinload(Library.owner))
         .order_by(Collection.sort_order.asc(), Collection.created_at.desc())
     )
     if library_id:
@@ -62,8 +62,15 @@ async def create_collection(
     )
     db.add(new_collection)
     await db.commit()
-    await db.refresh(new_collection)
-    return new_collection
+    
+    # Reload with relations to satisfy CollectionResponse
+    stmt = (
+        select(Collection)
+        .where(Collection.id == new_collection.id)
+        .options(selectinload(Collection.library).selectinload(Library.owner))
+    )
+    result = await db.execute(stmt)
+    return result.scalar_one()
 
 
 @router.get("/{collection_id}", response_model=CollectionResponse)
@@ -76,7 +83,7 @@ async def get_collection(
     stmt = (
         select(Collection)
         .where(Collection.id == collection_id)
-        .options(selectinload(Collection.library))
+        .options(selectinload(Collection.library).selectinload(Library.owner))
     )
     result = await db.execute(stmt)
     collection = result.scalar_one_or_none()
@@ -98,7 +105,7 @@ async def update_collection(
 ) -> Collection:
     user_id, user_role = user_info
     
-    stmt = select(Collection).where(Collection.id == collection_id).options(selectinload(Collection.library))
+    stmt = select(Collection).where(Collection.id == collection_id).options(selectinload(Collection.library).selectinload(Library.owner))
     result = await db.execute(stmt)
     collection = result.scalar_one_or_none()
     
@@ -125,7 +132,7 @@ async def delete_collection(
 ) -> None:
     user_id, user_role = user_info
     
-    stmt = select(Collection).where(Collection.id == collection_id).options(selectinload(Collection.library))
+    stmt = select(Collection).where(Collection.id == collection_id).options(selectinload(Collection.library).selectinload(Library.owner))
     result = await db.execute(stmt)
     collection = result.scalar_one_or_none()
     

@@ -67,79 +67,6 @@ async def create_library(
     return result.scalar_one()
 
 
-@router.get("/{library_id}", response_model=LibraryResponse)
-async def get_library(
-    library_id: uuid.UUID,
-    user_role_pair: CurrentUserRoleDep,
-    db: DatabaseDep,
-) -> Library:
-    user_id, user_role = user_role_pair
-    stmt = (
-        select(Library)
-        .where(Library.id == library_id)
-        .options(selectinload(Library.owner), selectinload(Library.storage_provider))
-    )
-    result = await db.execute(stmt)
-    library = result.scalar_one_or_none()
-    
-    if not library:
-        raise HTTPException(status_code=404, detail="Library not found")
-
-    if not await PermissionService.can_view_library(library, user_id, user_role, db):
-        raise HTTPException(status_code=403, detail="Access denied")
-        
-    return library
-
-
-@router.patch("/{library_id}", response_model=LibraryResponse)
-async def update_library(
-    library_id: uuid.UUID,
-    payload: LibraryUpdate,
-    user_info: RequireLevel2Dep,
-    db: DatabaseDep,
-) -> Library:
-    user_id, user_role = user_info
-    stmt = (
-        select(Library)
-        .where(Library.id == library_id)
-        .options(selectinload(Library.owner), selectinload(Library.storage_provider))
-    )
-    result = await db.execute(stmt)
-    library = result.scalar_one_or_none()
-    
-    if not library:
-        raise HTTPException(status_code=404, detail="Library not found")
-
-    if not await PermissionService.can_manage_library(library, user_id, user_role):
-        raise HTTPException(status_code=403, detail="Access denied")
-
-    update_data = payload.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(library, key, value)
-
-    await db.commit()
-    await db.refresh(library)
-    return library
-
-
-@router.delete("/{library_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_library(
-    library_id: uuid.UUID,
-    user_info: RequireLevel2Dep,
-    db: DatabaseDep,
-) -> None:
-    user_id, user_role = user_info
-    library = await db.get(Library, library_id)
-    if not library:
-        raise HTTPException(status_code=404, detail="Library not found")
-        
-    if not await PermissionService.can_manage_library(library, user_id, user_role):
-        raise HTTPException(status_code=403, detail="Access denied")
-        
-    await db.delete(library)
-    await db.commit()
-
-
 @router.get("/library-summary", response_model=list[CollectionWithMoviesBrief], tags=["library"])
 async def get_library_summary(
     user_role_pair: CurrentUserRoleDep,
@@ -245,3 +172,76 @@ async def get_library_summary(
         })
 
     return result
+
+
+@router.get("/{library_id}", response_model=LibraryResponse)
+async def get_library(
+    library_id: uuid.UUID,
+    user_role_pair: CurrentUserRoleDep,
+    db: DatabaseDep,
+) -> Library:
+    user_id, user_role = user_role_pair
+    stmt = (
+        select(Library)
+        .where(Library.id == library_id)
+        .options(selectinload(Library.owner), selectinload(Library.storage_provider))
+    )
+    result = await db.execute(stmt)
+    library = result.scalar_one_or_none()
+    
+    if not library:
+        raise HTTPException(status_code=404, detail="Library not found")
+
+    if not await PermissionService.can_view_library(library, user_id, user_role, db):
+        raise HTTPException(status_code=403, detail="Access denied")
+        
+    return library
+
+
+@router.patch("/{library_id}", response_model=LibraryResponse)
+async def update_library(
+    library_id: uuid.UUID,
+    payload: LibraryUpdate,
+    user_info: RequireLevel2Dep,
+    db: DatabaseDep,
+) -> Library:
+    user_id, user_role = user_info
+    stmt = (
+        select(Library)
+        .where(Library.id == library_id)
+        .options(selectinload(Library.owner), selectinload(Library.storage_provider))
+    )
+    result = await db.execute(stmt)
+    library = result.scalar_one_or_none()
+    
+    if not library:
+        raise HTTPException(status_code=404, detail="Library not found")
+
+    if not await PermissionService.can_manage_library(library, user_id, user_role):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    update_data = payload.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(library, key, value)
+
+    await db.commit()
+    await db.refresh(library)
+    return library
+
+
+@router.delete("/{library_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_library(
+    library_id: uuid.UUID,
+    user_info: RequireLevel2Dep,
+    db: DatabaseDep,
+) -> None:
+    user_id, user_role = user_info
+    library = await db.get(Library, library_id)
+    if not library:
+        raise HTTPException(status_code=404, detail="Library not found")
+        
+    if not await PermissionService.can_manage_library(library, user_id, user_role):
+        raise HTTPException(status_code=403, detail="Access denied")
+        
+    await db.delete(library)
+    await db.commit()

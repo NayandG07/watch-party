@@ -12,6 +12,7 @@ import asyncio
 from logging.config import fileConfig
 
 from alembic import context
+import sqlalchemy as sa
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
@@ -32,12 +33,11 @@ settings = get_settings()
 # Override sqlalchemy.url from pydantic-settings (reads .env)
 # asyncpg URL must be converted to sync format for offline mode
 _async_url = str(settings.database_url)
-if "?" in _async_url:
-    _async_url += "&prepared_statement_cache_size=0"
-else:
-    _async_url += "?prepared_statement_cache_size=0"
-
-_sync_url = str(settings.database_url).replace("postgresql+asyncpg://", "postgresql://")
+# Alembic needs a direct connection (port 5432), not the PgBouncer pooler (6543)
+# because the pooler doesn't support prepared statements used during introspection.
+_async_url = _async_url.replace(":6543/", ":5432/")
+# Do NOT append query args — we pass options via connect_args below instead
+_sync_url = _async_url.replace("postgresql+asyncpg://", "postgresql://")
 
 if alembic_config.config_file_name is not None:
     fileConfig(alembic_config.config_file_name)

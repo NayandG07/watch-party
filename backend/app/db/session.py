@@ -39,8 +39,15 @@ engine = create_async_engine(
     pool_size=5,
     max_overflow=5,
     connect_args={
-        "prepared_statement_cache_size": 0, # Disables SQLAlchemy's prepared statement cache
-        "statement_cache_size": 0,          # Disables asyncpg's internal statement cache
+        # Both of these are REQUIRED for Supabase's PgBouncer (transaction-mode pooling).
+        # statement_cache_size=0 tells asyncpg not to cache prepared statements.
+        # prepared_statement_cache_size=0 tells SQLAlchemy not to cache them either.
+        # prepared_statement_name_func generates a UUID per statement so that
+        # even if PgBouncer leaks old statement names across connections/reloads,
+        # there's zero chance of a DuplicatePreparedStatementError.
+        "statement_cache_size": 0,
+        "prepared_statement_cache_size": 0,
+        "prepared_statement_name_func": lambda: f"__asyncpg_{__import__('uuid').uuid4().hex}__",
     },
     pool_recycle=3600,  # recycle connections every hour
 )

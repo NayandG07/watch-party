@@ -13,11 +13,11 @@ interface Room {
   state: "waiting" | "playing" | "paused" | "ended";
   position_seconds: number;
   created_at: string;
-  movie: {
+  movie?: {
     title: string;
     duration_seconds: number;
     backdrop_url?: string;
-  };
+  } | null;
   creator: {
     username: string;
   };
@@ -100,7 +100,7 @@ export default function RoomsPage() {
               <div className="glass overflow-hidden h-full flex flex-col hover:border-brand-500/30 hover:shadow-glow transition-all duration-300">
                 {/* Thumbnail */}
                 <div className="relative aspect-video bg-surface-raised overflow-hidden">
-                  {room.movie.backdrop_url ? (
+                  {room.movie?.backdrop_url ? (
                     /* eslint-disable-next-line @next/next/no-img-element */
                     <img 
                       src={room.movie.backdrop_url} 
@@ -108,7 +108,9 @@ export default function RoomsPage() {
                       className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
                   ) : (
-                    <div className="absolute inset-0 bg-gradient-brand opacity-30" />
+                    <div className="absolute inset-0 bg-gradient-brand opacity-30 flex items-center justify-center">
+                      <Tv2 className="w-10 h-10 text-white/50" />
+                    </div>
                   )}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                   
@@ -131,7 +133,7 @@ export default function RoomsPage() {
                   </div>
                   
                   {/* Progress bar */}
-                  {room.movie.duration_seconds > 0 && (
+                  {room.movie && room.movie.duration_seconds > 0 && (
                     <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20">
                       <div 
                         className="h-full bg-brand-500" 
@@ -147,7 +149,7 @@ export default function RoomsPage() {
                     {room.name}
                   </h3>
                   <p className="text-sm text-content-secondary line-clamp-1 mb-4">
-                    Playing: {room.movie.title}
+                    {room.movie ? `Playing: ${room.movie.title}` : "Waiting for movie..."}
                   </p>
                   
                   <div className="mt-auto flex items-center justify-between text-xs text-content-muted">
@@ -156,7 +158,7 @@ export default function RoomsPage() {
                       Host: {room.creator.username}
                     </div>
                     <div>
-                      {formatDuration(room.position_seconds)} / {formatDuration(room.movie.duration_seconds)}
+                      {room.movie ? `${formatDuration(room.position_seconds)} / ${formatDuration(room.movie.duration_seconds)}` : "0:00 / 0:00"}
                     </div>
                   </div>
                 </div>

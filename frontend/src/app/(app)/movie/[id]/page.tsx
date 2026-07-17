@@ -137,6 +137,7 @@ export default function MoviePage() {
               
               {/* Optional secondary play button if we add solo watch mode */}
               <button 
+                onClick={() => router.push(`/watch/${movie.id}`)}
                 className="btn-secondary h-12 px-6 sm:px-8 bg-white/10 hover:bg-white/20 backdrop-blur-md border-white/10"
               >
                 <Play className="w-5 h-5 mr-2" />
@@ -153,10 +154,7 @@ export default function MoviePage() {
           <section>
             <h2 className="text-xl font-semibold text-content-primary mb-3">Synopsis</h2>
             <p className="text-content-secondary leading-relaxed text-lg">
-              {/* For now, just a placeholder or description if available */}
-              {/* Note: backend schema has `description` but the frontend Movie interface didn't include it. 
-                  We should update the Movie interface to include description, but for now we'll just check if it exists via casting. */}
-              {(movie as unknown as Record<string, string>).description || "No synopsis available for this title."}
+              {movie.description || "No synopsis available for this title."}
             </p>
           </section>
         </div>

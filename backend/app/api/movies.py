@@ -1,3 +1,4 @@
+import re
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
@@ -10,6 +11,7 @@ from app.core.config import Settings, get_settings
 from app.core.dependencies import CurrentUserRoleDep, DatabaseDep, RequireAdminDep, RequireLevel2Dep
 from app.core.security import create_hls_key_token
 from app.models.collection import Collection
+from app.models.library import Library
 from app.models.movie import Movie
 from app.services.permission import PermissionService
 from app.schemas.movie import (
@@ -56,9 +58,14 @@ async def create_movie(
     _: RequireLevel2Dep,
     db: DatabaseDep,
 ) -> Movie:
+    # Generate a URL-safe slug from the title, appending part of a UUID for uniqueness
+    base_slug = re.sub(r"[^a-z0-9]+", "-", payload.title.lower()).strip("-")
+    slug = f"{base_slug}-{uuid.uuid4().hex[:8]}"
+
     new_movie = Movie(
         collection_id=payload.collection_id,
         title=payload.title,
+        slug=slug,
         description=payload.description,
         year=payload.year,
         visibility_override=payload.visibility_override,
@@ -67,11 +74,15 @@ async def create_movie(
     db.add(new_movie)
     await db.commit()
     
-    # Reload with collection relation
+    # Reload with full relation chain needed for MovieResponse
     stmt = (
         select(Movie)
         .where(Movie.id == new_movie.id)
-        .options(selectinload(Movie.collection).selectinload("library"))
+        .options(
+            selectinload(Movie.collection)
+            .selectinload(Collection.library)
+            .selectinload(Library.owner)
+        )
     )
     result = await db.execute(stmt)
     return result.scalar_one()
@@ -87,7 +98,11 @@ async def get_movie(
     stmt = (
         select(Movie)
         .where(Movie.id == movie_id)
-        .options(selectinload(Movie.collection).selectinload(Collection.library))
+        .options(
+            selectinload(Movie.collection)
+            .selectinload(Collection.library)
+            .selectinload(Library.owner)
+        )
     )
     result = await db.execute(stmt)
     movie = result.scalar_one_or_none()
@@ -135,8 +150,19 @@ async def update_movie(
         setattr(movie, key, value)
 
     await db.commit()
-    await db.refresh(movie)
-    return movie
+
+    # Re-query with full relation chain for serialization
+    stmt = (
+        select(Movie)
+        .where(Movie.id == movie_id)
+        .options(
+            selectinload(Movie.collection)
+            .selectinload(Collection.library)
+            .selectinload(Library.owner)
+        )
+    )
+    result = await db.execute(stmt)
+    return result.scalar_one()
 
 
 @router.patch("/{movie_id}/upload-complete", response_model=MovieResponse)
@@ -149,7 +175,11 @@ async def complete_movie_upload(
     stmt = (
         select(Movie)
         .where(Movie.id == movie_id)
-        .options(selectinload(Movie.collection).selectinload("library"))
+        .options(
+            selectinload(Movie.collection)
+            .selectinload(Collection.library)
+            .selectinload(Library.owner)
+        )
     )
     result = await db.execute(stmt)
     movie = result.scalar_one_or_none()
@@ -163,14 +193,14 @@ async def complete_movie_upload(
     # The security module has AES-256-GCM encryption we can use, but HLS Keys are in a separate table.
     # For now, we will just update the movie fields. Let's add the HLS Key logic.
     from app.models.hls_key import HLSKey
-    from app.core.security import encrypt_storage_secret
+    from app.core.security import encrypt_secret
 
     # Encrypt the HLS AES-128 key
     key_hex = update_data.pop("hls_key_hex")
     iv_hex = update_data.pop("hls_iv_hex")
     
-    enc_key = encrypt_storage_secret(key_hex)
-    enc_iv = encrypt_storage_secret(iv_hex)
+    enc_key = encrypt_secret(key_hex)
+    enc_iv = encrypt_secret(iv_hex)
 
     new_hls_key = HLSKey(
         movie_id=movie.id,
@@ -184,8 +214,19 @@ async def complete_movie_upload(
             setattr(movie, key, value)
 
     await db.commit()
-    await db.refresh(movie)
-    return movie
+
+    # Re-query with full relation chain for serialization
+    stmt = (
+        select(Movie)
+        .where(Movie.id == movie_id)
+        .options(
+            selectinload(Movie.collection)
+            .selectinload(Collection.library)
+            .selectinload(Library.owner)
+        )
+    )
+    result = await db.execute(stmt)
+    return result.scalar_one()
 
 
 @router.delete("/{movie_id}", status_code=status.HTTP_204_NO_CONTENT)
