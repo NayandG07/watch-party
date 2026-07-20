@@ -21,6 +21,8 @@ interface PlayerControlsProps {
   isVisible: boolean;
   
   onShareTimestamp?: () => void;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
 }
 
 export default function PlayerControls({
@@ -36,11 +38,32 @@ export default function PlayerControls({
   isFullscreen,
   onFullscreenToggle,
   isVisible,
-  onShareTimestamp
+  onShareTimestamp,
+  onMouseEnter,
+  onMouseLeave
 }: PlayerControlsProps) {
   
+  const [isDragging, setIsDragging] = React.useState(false);
+  const [dragValue, setDragValue] = React.useState(0);
+
+  // Sync internal drag value with currentTime when not dragging
+  React.useEffect(() => {
+    if (!isDragging) {
+      setDragValue(currentTime);
+    }
+  }, [currentTime, isDragging]);
+
   const handleSeekChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onSeek(parseFloat(e.target.value));
+    setDragValue(parseFloat(e.target.value));
+  };
+  
+  const handleSeekMouseUp = () => {
+    setIsDragging(false);
+    onSeek(dragValue);
+  };
+
+  const handleSeekMouseDown = () => {
+    setIsDragging(true);
   };
   
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -49,6 +72,8 @@ export default function PlayerControls({
 
   return (
     <div 
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       className={`absolute bottom-0 left-0 right-0 px-6 py-4 transition-opacity duration-300 ${
         isVisible ? "opacity-100" : "opacity-0 pointer-events-none"
       }`}
@@ -59,7 +84,7 @@ export default function PlayerControls({
       {/* Seek Bar */}
       <div className="flex items-center gap-4 mb-4">
         <span className="text-white/90 text-sm font-medium tabular-nums w-12 text-right">
-          {formatDuration(currentTime)}
+          {formatDuration(isDragging ? dragValue : currentTime)}
         </span>
         
         <div className="flex-1 relative group cursor-pointer h-5 flex items-center">
@@ -67,22 +92,27 @@ export default function PlayerControls({
             type="range"
             min={0}
             max={duration || 100}
-            value={currentTime}
+            step={0.1}
+            value={isDragging ? dragValue : currentTime}
             onChange={handleSeekChange}
+            onMouseDown={handleSeekMouseDown}
+            onMouseUp={handleSeekMouseUp}
+            onTouchStart={handleSeekMouseDown}
+            onTouchEnd={handleSeekMouseUp}
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
           />
           {/* Track Background */}
-          <div className="w-full h-1.5 bg-white/20 rounded-full overflow-hidden">
+          <div className="w-full h-1.5 bg-white/20 rounded-full overflow-hidden pointer-events-none">
             {/* Progress Fill */}
             <div 
-              className="h-full bg-brand-500 rounded-full transition-all duration-100"
-              style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}
+              className="h-full bg-brand-500 rounded-full transition-all duration-75"
+              style={{ width: `${duration ? ((isDragging ? dragValue : currentTime) / duration) * 100 : 0}%` }}
             />
           </div>
           {/* Thumb */}
           <div 
             className="absolute h-3.5 w-3.5 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity -translate-x-1/2 pointer-events-none"
-            style={{ left: `${duration ? (currentTime / duration) * 100 : 0}%` }}
+            style={{ left: `${duration ? ((isDragging ? dragValue : currentTime) / duration) * 100 : 0}%` }}
           />
         </div>
 

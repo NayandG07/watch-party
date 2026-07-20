@@ -30,12 +30,52 @@ from app.schemas.movie import (
 router = APIRouter(prefix="/movies", tags=["movies"])
 
 
+def _path_to_stream_url(request: Request, movie_id: uuid.UUID, full_path: str | None) -> str | None:
+    """
+    Convert a storage path like 'movies/UUID/poster.jpg' to a proxied
+    backend stream URL like 'http://localhost:8000/api/movies/UUID/stream/poster.jpg'.
+    
+    The full_path format is 'movies/{slug}/{filename}' or 'movies/{slug}/hls/{filename}'.
+    We strip the 'movies/{slug}/' prefix to get the relative path from the movie root.
+    """
+    if not full_path:
+        return None
+    # Strip leading 'movies/{anything}/' prefix — everything after the second slash segment
+    # e.g. 'movies/rv-test-video-abc12345/poster.jpg' → 'poster.jpg'
+    # e.g. 'movies/rv-test-video-abc12345/hls/master.m3u8' → 'hls/master.m3u8'
+    parts = full_path.split("/", 2)  # ['movies', 'slug', 'rest']
+    relative = parts[2] if len(parts) >= 3 else full_path
+    base = str(request.base_url).rstrip("/")
+    return f"{base}/api/movies/{movie_id}/stream/{relative}"
+
+
+def _movie_to_brief(movie: Movie, request: Request) -> dict:
+    """Build a MovieBrief-compatible dict with poster/backdrop URLs resolved."""
+    w = movie.resolution_width
+    h = movie.resolution_height
+    resolution = f"{w}x{h}" if w and h else None
+    return {
+        "id": movie.id,
+        "title": movie.title,
+        "slug": movie.slug,
+        "year": movie.year,
+        "duration_seconds": movie.duration_seconds,
+        "resolution": resolution,
+        "is_processed": movie.is_processed,
+        "is_uploaded": movie.is_uploaded,
+        "thumbnail_url": _path_to_stream_url(request, movie.id, movie.thumbnail_path),
+        "poster_url": _path_to_stream_url(request, movie.id, movie.poster_path),
+        "backdrop_url": _path_to_stream_url(request, movie.id, movie.backdrop_path),
+    }
+
+
 @router.get("", response_model=list[MovieBrief])
 async def list_movies(
+    request: Request,
     user_role_pair: CurrentUserRoleDep,
     db: DatabaseDep,
     collection_id: uuid.UUID | None = Query(None, description="Filter by collection ID"),
-) -> list[Movie]:
+):
     user_id, user_role = user_role_pair
     stmt = (
         select(Movie)
@@ -44,16 +84,17 @@ async def list_movies(
     )
     if collection_id:
         stmt = stmt.where(Movie.collection_id == collection_id)
-        
+
     result = await db.execute(stmt)
     all_movies = list(result.scalars().all())
 
-    return await PermissionService.batch_filter_visible_movies(
+    visible = await PermissionService.batch_filter_visible_movies(
         movies=all_movies,
         user_id=user_id,
         user_role=user_role,
         db=db,
     )
+    return [_movie_to_brief(m, request) for m in visible]
 
 
 @router.post("", response_model=MovieResponse, status_code=status.HTTP_201_CREATED)
@@ -94,10 +135,11 @@ async def create_movie(
 
 @router.get("/{movie_id}", response_model=MovieResponse)
 async def get_movie(
+    request: Request,
     movie_id: uuid.UUID,
     user_role_pair: CurrentUserRoleDep,
     db: DatabaseDep,
-) -> Movie:
+):
     user_id, user_role = user_role_pair
     stmt = (
         select(Movie)
@@ -110,7 +152,7 @@ async def get_movie(
     )
     result = await db.execute(stmt)
     movie = result.scalar_one_or_none()
-    
+
     if not movie:
         raise HTTPException(status_code=404, detail="Movie not found")
 
@@ -124,7 +166,13 @@ async def get_movie(
     ):
         raise HTTPException(status_code=403, detail="Access denied")
 
-    return movie
+    # Build response with computed URL fields
+    brief = _movie_to_brief(movie, request)
+    response_data = MovieResponse.model_validate(movie)
+    response_data.thumbnail_url = brief["thumbnail_url"]
+    response_data.poster_url = brief["poster_url"]
+    response_data.backdrop_url = brief["backdrop_url"]
+    return response_data
 
 
 @router.patch("/{movie_id}", response_model=MovieResponse)
@@ -300,9 +348,8 @@ async def get_hls_key_token(
         hls_url = f"{base_url}/{movie.hls_master_path}"
     else:
         # Fallback for private buckets / local dev: route through the backend proxy route.
-        # This will return a 302 Redirect to a presigned S3 URL.
-        api_base = str(request.base_url).rstrip("/")
-        hls_url = f"{api_base}/api/movies/{movie.id}/stream/master.m3u8"
+        # Uses _path_to_stream_url to build the correct relative path from hls_master_path.
+        hls_url = _path_to_stream_url(request, movie.id, movie.hls_master_path) or ""
 
     return PlaybackTokenResponse(
         hls_url=hls_url,
@@ -355,10 +402,18 @@ async def stream_movie_file(
         config=Config(signature_version="s3v4"),
     )
 
-    # movie.hls_master_path is like "movies/UUID/hls/master.m3u8"
-    # derive the HLS directory prefix "movies/UUID/hls"
-    base_dir = movie.hls_master_path.rsplit("/", 1)[0]
-    s3_key = f"{base_dir}/{file_path}"
+    # movie.hls_master_path is like "movies/slug/hls/master.m3u8"
+    # The movie root dir is everything up to the second-to-last component: "movies/slug"
+    # We use this as the base for all file_path lookups.
+    # Examples:
+    #   file_path="hls/master.m3u8" → s3_key="movies/slug/hls/master.m3u8"
+    #   file_path="poster.jpg"       → s3_key="movies/slug/poster.jpg"
+    #   file_path="hls/seg_000.ts"   → s3_key="movies/slug/hls/seg_000.ts"
+    parts = movie.hls_master_path.split("/")
+    # hls_master_path has at least 3 parts: movies / slug / hls / master.m3u8
+    # movie root = first 2 parts
+    movie_root = "/".join(parts[:2])
+    s3_key = f"{movie_root}/{file_path}"
 
     if file_path.endswith(".m3u8"):
         # ── Rewriting proxy for playlists ─────────────────────────────────────

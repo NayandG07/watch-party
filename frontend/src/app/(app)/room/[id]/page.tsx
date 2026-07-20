@@ -35,7 +35,7 @@ interface RoomData {
   speed: number;
   is_locked: boolean;
   creator: { id: string; username: string };
-  movie: { id: string; title: string; duration_seconds: number; poster_url: string | null } | null;
+  movie: { id: string; title: string; duration_seconds: number; poster_url: string | null; backdrop_url?: string | null } | null;
   external_url: string | null;
   created_at: string;
 }
@@ -125,8 +125,8 @@ export default function RoomPage() {
     setShowMediaPicker(true);
     if (movies.length === 0) {
       try {
-        const { data } = await api.get<{ items: MovieOption[] }>("/api/movies");
-        setMovies(data.items ?? []);
+        const { data } = await api.get<MovieOption[]>("/api/movies");
+        setMovies(Array.isArray(data) ? data : []);
       } catch {
         setMovies([]);
       }

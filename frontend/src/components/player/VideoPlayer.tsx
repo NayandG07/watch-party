@@ -42,6 +42,7 @@ export default function VideoPlayer({
   // UI state
   const [showControls, setShowControls] = useState(true);
   const controlsTimeoutRef = useRef<NodeJS.Timeout>();
+  const isHoveringControlsRef = useRef(false);
 
   // Sync engine — only active when roomId + wsToken are provided
   const sync = useSyncedPlayer({
@@ -132,7 +133,7 @@ export default function VideoPlayer({
       if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
       
       controlsTimeoutRef.current = setTimeout(() => {
-        if (isPlaying) {
+        if (isPlaying && !isHoveringControlsRef.current) {
           setShowControls(false);
         }
       }, 3000);
@@ -142,7 +143,7 @@ export default function VideoPlayer({
     if (container) {
       container.addEventListener("mousemove", handleMouseMove);
       container.addEventListener("mouseleave", () => {
-        if (isPlaying) setShowControls(false);
+        if (isPlaying && !isHoveringControlsRef.current) setShowControls(false);
       });
     }
     
@@ -157,17 +158,16 @@ export default function VideoPlayer({
   const togglePlay = useCallback(() => {
     if (!videoRef.current) return;
     const pos = videoRef.current.currentTime;
-    if (syncEnabled && isHost) {
-      if (videoRef.current.paused) {
+    
+    if (videoRef.current.paused) {
+      videoRef.current.play().catch(() => {});
+      if (syncEnabled && isHost) {
         sync.play(pos);
-      } else {
-        sync.pause(pos);
       }
     } else {
-      if (videoRef.current.paused) {
-        videoRef.current.play();
-      } else {
-        videoRef.current.pause();
+      videoRef.current.pause();
+      if (syncEnabled && isHost) {
+        sync.pause(pos);
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -185,11 +185,13 @@ export default function VideoPlayer({
 
   const handleSeek = (time: number) => {
     if (!videoRef.current) return;
+    
+    // Always apply locally first
+    videoRef.current.currentTime = time;
+    setCurrentTime(time);
+    
     if (syncEnabled && isHost) {
       sync.seek(time);
-    } else {
-      videoRef.current.currentTime = time;
-      setCurrentTime(time);
     }
   };
 
@@ -310,6 +312,8 @@ export default function VideoPlayer({
           const timeStr = new Date(currentTime * 1000).toISOString().substr(11, 8).replace(/^00:/, '');
           sync.sendChatMessage(timeStr, "timestamp_share", currentTime);
         }}
+        onMouseEnter={() => { isHoveringControlsRef.current = true; }}
+        onMouseLeave={() => { isHoveringControlsRef.current = false; }}
       />
     </div>
   );

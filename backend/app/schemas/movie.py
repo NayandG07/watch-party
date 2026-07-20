@@ -138,6 +138,7 @@ class MovieBrief(WatchPartyModel):
     is_uploaded: bool
     thumbnail_url: str | None = None
     poster_url: str | None = None
+    backdrop_url: str | None = None
 
 
 class PlaybackTokenResponse(WatchPartyModel):
