@@ -64,7 +64,8 @@ function useYouTubeSync({
   useEffect(() => {
     if (!roomId || !wsToken) return;
 
-    const wsUrl = `${process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000"}/api/rooms/${roomId}/ws?token=${wsToken}`;
+    const wsBase = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/^http/, "ws");
+    const wsUrl = `${wsBase}/api/rooms/${roomId}/ws?token=${wsToken}`;
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
