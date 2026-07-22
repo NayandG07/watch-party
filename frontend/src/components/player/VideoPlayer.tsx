@@ -15,6 +15,7 @@ interface VideoPlayerProps {
   isHost?: boolean;
   onChatMessage?: (msg: ChatMessageData) => void;
   onMemberUpdate?: (count: number, userIds: string[]) => void;
+  onConnectionChange?: (connected: boolean) => void;
   playerRef?: React.MutableRefObject<{ 
     sendChatMessage: (c: string, t?: "text" | "emoji_reaction" | "timestamp_share", r?: number) => void;
     seek: (time: number) => void;
@@ -22,7 +23,7 @@ interface VideoPlayerProps {
 }
 
 export default function VideoPlayer({ 
-  movieId, roomId, wsToken, isHost = false, onChatMessage, onMemberUpdate, playerRef 
+  movieId, roomId, wsToken, isHost = false, onChatMessage, onMemberUpdate, onConnectionChange, playerRef 
 }: VideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -54,6 +55,13 @@ export default function VideoPlayer({
     onMemberUpdate,
   });
   const syncEnabled = !!roomId && !!wsToken;
+
+  // Propagate connection state changes without becoming a dep of useSyncedPlayer
+  const onConnectionChangeRef = useRef(onConnectionChange);
+  onConnectionChangeRef.current = onConnectionChange;
+  useEffect(() => {
+    onConnectionChangeRef.current?.(sync.isConnected);
+  }, [sync.isConnected]);
 
   useEffect(() => {
     if (playerRef) {

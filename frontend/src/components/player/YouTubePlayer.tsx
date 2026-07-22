@@ -19,6 +19,7 @@ interface YouTubePlayerProps {
   isHost?: boolean;
   onChatMessage?: (msg: ChatMessageData) => void;
   onMemberUpdate?: (count: number, userIds: string[]) => void;
+  onConnectionChange?: (connected: boolean) => void;
   playerRef?: React.MutableRefObject<{
     sendChatMessage: (c: string, t?: "text" | "emoji_reaction" | "timestamp_share", r?: number) => void;
     seek: (time: number) => void;
@@ -32,6 +33,7 @@ function useYouTubeSync({
   isHost,
   onChatMessage,
   onMemberUpdate,
+  onConnectionChange,
   playerRef: internalPlayerRef,
 }: {
   roomId?: string;
@@ -39,11 +41,25 @@ function useYouTubeSync({
   isHost: boolean;
   onChatMessage?: (msg: ChatMessageData) => void;
   onMemberUpdate?: (count: number, userIds: string[]) => void;
+  onConnectionChange?: (connected: boolean) => void;
   playerRef: React.MutableRefObject<ReactPlayerInstance | null>;
 }) {
   const wsRef = useRef<WebSocket | null>(null);
   const [position, setPosition] = useState(0);
   const [playing, setPlaying] = useState(false);
+
+  // Keep all mutable values in refs so the WS effect never re-runs due to them
+  const isHostRef = useRef(isHost);
+  const onChatMessageRef = useRef(onChatMessage);
+  const onMemberUpdateRef = useRef(onMemberUpdate);
+  const onConnectionChangeRef = useRef(onConnectionChange);
+  const internalPlayerRefRef = useRef(internalPlayerRef);
+
+  isHostRef.current = isHost;
+  onChatMessageRef.current = onChatMessage;
+  onMemberUpdateRef.current = onMemberUpdate;
+  onConnectionChangeRef.current = onConnectionChange;
+  internalPlayerRefRef.current = internalPlayerRef;
 
   useEffect(() => {
     if (!roomId || !wsToken) return;
@@ -51,6 +67,14 @@ function useYouTubeSync({
     const wsUrl = `${process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000"}/api/rooms/${roomId}/ws?token=${wsToken}`;
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
+
+    ws.onopen = () => {
+      onConnectionChangeRef.current?.(true);
+    };
+
+    ws.onclose = () => {
+      onConnectionChangeRef.current?.(false);
+    };
 
     ws.onmessage = (evt) => {
       const msg = JSON.parse(evt.data);
@@ -60,25 +84,29 @@ function useYouTubeSync({
         const adjustedPos = msg.position + (msg.state === "playing" ? latency / 1000 : 0);
         setPosition(adjustedPos);
         setPlaying(msg.state === "playing");
-        const player = internalPlayerRef.current;
+        const player = internalPlayerRefRef.current.current;
         if (player) {
           const current = (player.getCurrentTime?.() ?? 0);
           if (Math.abs(current - adjustedPos) > 2) {
             player.seekTo(adjustedPos, "seconds");
           }
         }
-      } else if (msg.type === "CHAT_MESSAGE" && onChatMessage) {
-        onChatMessage(msg as ChatMessageData);
-      } else if (msg.type === "MEMBER_UPDATE" && onMemberUpdate) {
-        onMemberUpdate(msg.count, msg.user_ids ?? []);
+      } else if (msg.type === "CHAT_MESSAGE") {
+        onChatMessageRef.current?.(msg as ChatMessageData);
+      } else if (msg.type === "MEMBER_UPDATE") {
+        onMemberUpdateRef.current?.(msg.count, msg.user_ids ?? []);
       }
     };
 
     ws.onerror = () => ws.close();
 
     return () => {
+      ws.onclose = null;
       ws.close();
+      wsRef.current = null;
+      onConnectionChangeRef.current?.(false);
     };
+  // Only reconnect when token or roomId changes
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, wsToken]);
 
@@ -89,12 +117,12 @@ function useYouTubeSync({
   }, []);
 
   const onPlay = useCallback(() => {
-    if (isHost) send({ type: "PLAY", position: internalPlayerRef.current?.getCurrentTime?.() ?? 0 });
-  }, [isHost, send, internalPlayerRef]);
+    if (isHostRef.current) send({ type: "PLAY", position: internalPlayerRefRef.current.current?.getCurrentTime?.() ?? 0 });
+  }, [send]);
 
   const onPause = useCallback(() => {
-    if (isHost) send({ type: "PAUSE", position: internalPlayerRef.current?.getCurrentTime?.() ?? 0 });
-  }, [isHost, send, internalPlayerRef]);
+    if (isHostRef.current) send({ type: "PAUSE", position: internalPlayerRefRef.current.current?.getCurrentTime?.() ?? 0 });
+  }, [send]);
 
   const onProgress = useCallback(({ playedSeconds }: { playedSeconds: number }) => {
     setPosition(playedSeconds);
@@ -108,7 +136,7 @@ function useYouTubeSync({
 }
 
 export default function YouTubePlayer({
-  url, roomId, wsToken, isHost = false, onChatMessage, onMemberUpdate, playerRef,
+  url, roomId, wsToken, isHost = false, onChatMessage, onMemberUpdate, onConnectionChange, playerRef,
 }: YouTubePlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const internalPlayerRef = useRef<ReactPlayerInstance | null>(null);
@@ -123,6 +151,7 @@ export default function YouTubePlayer({
     isHost,
     onChatMessage,
     onMemberUpdate,
+    onConnectionChange,
     playerRef: internalPlayerRef,
   });
 

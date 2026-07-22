@@ -117,7 +117,7 @@ def create_ws_token(user_id: str, room_id: str) -> str:
     across CDN/proxy boundaries). This token is passed as a query param.
     It expires in 60 seconds — long enough to open the connection.
     """
-    expire = datetime.now(timezone.utc) + timedelta(seconds=60)
+    expire = datetime.now(timezone.utc) + timedelta(minutes=5)
     payload: dict[str, Any] = {
         "sub": user_id,
         "room_id": room_id,

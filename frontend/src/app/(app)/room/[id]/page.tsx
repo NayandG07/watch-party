@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   Users, MessageSquare, Share2, Loader2, Lock, Unlock,
-  PlayCircle, Film, Link2, X
+  PlayCircle, Film, Link2, X, Check, Copy, Wifi, WifiOff
 } from "lucide-react";
 
 // Inline YouTube icon since this lucide version doesn't include it
@@ -59,6 +59,17 @@ export default function RoomPage() {
   const [movies, setMovies] = useState<MovieOption[]>([]);
   const [youtubeInput, setYoutubeInput] = useState("");
   const [isSettingMedia, setIsSettingMedia] = useState(false);
+
+  // Sidebar state
+  const [activeTab, setActiveTab] = useState<"chat" | "members">("chat");
+  const [connectedMembers, setConnectedMembers] = useState<string[]>([]);
+  const [isConnected, setIsConnected] = useState(false);
+  
+  // Invite modal state
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteLink, setInviteLink] = useState<string>("");
+  const [isGeneratingInvite, setIsGeneratingInvite] = useState(false);
+  const [inviteCopied, setInviteCopied] = useState(false);
 
   const playerRef = useRef<{
     sendChatMessage: (c: string, t?: "text" | "emoji_reaction" | "timestamp_share", r?: number) => void;
@@ -161,6 +172,31 @@ export default function RoomPage() {
     finally { setIsSettingMedia(false); }
   };
 
+  const handleGenerateInvite = async () => {
+    if (!room) return;
+    setIsGeneratingInvite(true);
+    try {
+      const { data } = await api.post<{ invite_url: string }>("/api/invites", {
+        room_id: room.id,
+        expires_in_hours: 48,
+        max_uses: 10,
+      });
+      setInviteLink(data.invite_url);
+      setShowInviteModal(true);
+    } catch (err) {
+      console.error("Failed to generate invite:", err);
+      alert("Failed to generate invite link. Please try again.");
+    } finally {
+      setIsGeneratingInvite(false);
+    }
+  };
+
+  const handleCopyInvite = () => {
+    navigator.clipboard.writeText(inviteLink);
+    setInviteCopied(true);
+    setTimeout(() => setInviteCopied(false), 2000);
+  };
+
   const formatTime = (dateStr: string) =>
     new Date(dateStr).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
@@ -196,7 +232,9 @@ export default function RoomPage() {
           <div className="flex items-center gap-3 pointer-events-auto">
             <div className="flex items-center gap-2">
               <div className="relative">
-                <div className="w-2.5 h-2.5 rounded-full bg-brand-400 animate-pulse-glow" />
+                <div className={`w-2.5 h-2.5 rounded-full transition-colors ${
+                  isConnected ? "bg-green-500 animate-pulse-glow" : "bg-red-500"
+                }`} />
                 {memberCount > 1 && (
                   <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-brand-500 text-[9px] text-white flex items-center justify-center font-bold">
                     {memberCount}
@@ -204,7 +242,14 @@ export default function RoomPage() {
                 )}
               </div>
               <div>
-                <h1 className="text-white font-semibold text-sm drop-shadow-md">{room.name}</h1>
+                <h1 className="text-white font-semibold text-sm drop-shadow-md flex items-center gap-2">
+                  {room.name}
+                  {isConnected ? (
+                    <Wifi className="w-3 h-3 text-green-400" />
+                  ) : (
+                    <WifiOff className="w-3 h-3 text-red-400" />
+                  )}
+                </h1>
                 <p className="text-white/60 text-[11px] drop-shadow-md flex items-center gap-2">
                   <span>{isHost ? "You are the host" : `Hosted by ${room.creator.username}`}</span>
 
@@ -241,8 +286,16 @@ export default function RoomPage() {
                 {hasMedia ? "Change Media" : "Select Media"}
               </button>
             )}
-            <button className="btn-secondary h-8 px-3 text-xs bg-black/40 border-white/10 hover:bg-black/60 text-white">
-              <Share2 className="w-3.5 h-3.5 mr-1.5" />
+            <button 
+              onClick={handleGenerateInvite}
+              disabled={isGeneratingInvite}
+              className="btn-secondary h-8 px-3 text-xs bg-black/40 border-white/10 hover:bg-black/60 text-white disabled:opacity-50"
+            >
+              {isGeneratingInvite ? (
+                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <Share2 className="w-3.5 h-3.5 mr-1.5" />
+              )}
               Invite
             </button>
           </div>
@@ -276,7 +329,10 @@ export default function RoomPage() {
               wsToken={wsToken ?? undefined}
               isHost={isHost}
               onChatMessage={(msg) => setMessages((prev) => [...prev, msg])}
-              onMemberUpdate={(count) => setMemberCount(count)}
+              onMemberUpdate={(count, userIds) => {
+                setMemberCount(count);
+                setConnectedMembers(userIds);
+              }}
               playerRef={playerRef}
             />
           ) : room.movie ? (
@@ -286,7 +342,11 @@ export default function RoomPage() {
               wsToken={wsToken ?? undefined}
               isHost={isHost}
               onChatMessage={(msg) => setMessages((prev) => [...prev, msg])}
-              onMemberUpdate={(count) => setMemberCount(count)}
+              onMemberUpdate={(count, userIds) => {
+                setMemberCount(count);
+                setConnectedMembers(userIds);
+              }}
+              onConnectionChange={(connected) => setIsConnected(connected)}
               playerRef={playerRef}
             />
           ) : null}
@@ -296,74 +356,184 @@ export default function RoomPage() {
       {/* Chat Sidebar */}
       <aside className="w-full md:w-80 lg:w-96 border-t md:border-t-0 md:border-l border-surface-raised bg-surface-base flex flex-col h-64 md:h-auto">
         <div className="flex border-b border-surface-raised shrink-0">
-          <button className="flex-1 py-3 text-xs font-medium text-brand-400 border-b-2 border-brand-400 flex flex-col items-center gap-1">
+          <button 
+            onClick={() => setActiveTab("chat")}
+            className={`flex-1 py-3 text-xs font-medium transition-colors flex flex-col items-center gap-1 ${
+              activeTab === "chat" 
+                ? "text-brand-400 border-b-2 border-brand-400" 
+                : "text-content-muted hover:text-content-secondary"
+            }`}
+          >
             <MessageSquare className="w-4 h-4" />
             Chat
           </button>
-          <button className="flex-1 py-3 text-xs font-medium text-content-muted hover:text-content-secondary transition-colors flex flex-col items-center gap-1">
+          <button 
+            onClick={() => setActiveTab("members")}
+            className={`flex-1 py-3 text-xs font-medium transition-colors flex flex-col items-center gap-1 ${
+              activeTab === "members" 
+                ? "text-brand-400 border-b-2 border-brand-400" 
+                : "text-content-muted hover:text-content-secondary"
+            }`}
+          >
             <Users className="w-4 h-4" />
-            Members
+            Members ({memberCount})
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {messages.length === 0 ? (
-            <p className="text-xs text-content-muted text-center py-8">No messages yet. Say hi!</p>
-          ) : (
-            messages.map((msg) => (
-              <div key={msg.id} className="group">
-                <div className="flex items-baseline justify-between mb-0.5">
-                  <span className={`text-xs font-medium ${msg.user.id === currentUser?.id ? "text-brand-400" : "text-white"}`}>
-                    {msg.user.username}
-                  </span>
-                  <span className="text-[10px] text-content-muted opacity-0 group-hover:opacity-100 transition-opacity">
-                    {formatTime(msg.created_at)}
-                  </span>
-                </div>
-                {msg.message_type === "timestamp_share" ? (
-                  <button
-                    onClick={() => {
-                      if (isHost && msg.timestamp_reference !== undefined) {
-                        playerRef.current?.seek(msg.timestamp_reference);
-                      }
-                    }}
-                    className={`inline-flex items-center gap-1.5 px-2 py-1 rounded bg-brand-500/20 text-brand-300 text-xs mt-0.5 transition-colors ${
-                      isHost ? "hover:bg-brand-500/30 cursor-pointer" : "cursor-default"
-                    }`}
-                  >
-                    <PlayCircle className="w-3 h-3" />
-                    <span>{msg.content}</span>
-                  </button>
-                ) : (
-                  <p className="text-sm text-content-secondary break-words leading-relaxed">{msg.content}</p>
-                )}
-              </div>
-            ))
-          )}
-          <div ref={messagesEndRef} />
-        </div>
+        {activeTab === "chat" ? (
+          <>
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {messages.length === 0 ? (
+                <p className="text-xs text-content-muted text-center py-8">No messages yet. Say hi!</p>
+              ) : (
+                messages.map((msg) => (
+                  <div key={msg.id} className="group">
+                    <div className="flex items-baseline justify-between mb-0.5">
+                      <span className={`text-xs font-medium ${msg.user.id === currentUser?.id ? "text-brand-400" : "text-white"}`}>
+                        {msg.user.username}
+                      </span>
+                      <span className="text-[10px] text-content-muted opacity-0 group-hover:opacity-100 transition-opacity">
+                        {formatTime(msg.created_at)}
+                      </span>
+                    </div>
+                    {msg.message_type === "timestamp_share" ? (
+                      <button
+                        onClick={() => {
+                          if (isHost && msg.timestamp_reference !== undefined) {
+                            playerRef.current?.seek(msg.timestamp_reference);
+                          }
+                        }}
+                        className={`inline-flex items-center gap-1.5 px-2 py-1 rounded bg-brand-500/20 text-brand-300 text-xs mt-0.5 transition-colors ${
+                          isHost ? "hover:bg-brand-500/30 cursor-pointer" : "cursor-default"
+                        }`}
+                      >
+                        <PlayCircle className="w-3 h-3" />
+                        <span>{msg.content}</span>
+                      </button>
+                    ) : (
+                      <p className="text-sm text-content-secondary break-words leading-relaxed">{msg.content}</p>
+                    )}
+                  </div>
+                ))
+              )}
+              <div ref={messagesEndRef} />
+            </div>
 
-        <div className="p-3 border-t border-surface-raised shrink-0">
-          <form onSubmit={handleSendMessage} className="relative">
-            <input
-              type="text"
-              placeholder="Type a message…"
-              className="input w-full pr-10 text-sm h-9"
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-            />
-            <button
-              type="submit"
-              disabled={!chatInput.trim()}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-content-muted hover:text-brand-400 disabled:opacity-50 transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-              </svg>
-            </button>
-          </form>
-        </div>
+            <div className="p-3 border-t border-surface-raised shrink-0">
+              <form onSubmit={handleSendMessage} className="relative">
+                <input
+                  type="text"
+                  placeholder="Type a message…"
+                  className="input w-full pr-10 text-sm h-9"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                />
+                <button
+                  type="submit"
+                  disabled={!chatInput.trim()}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-content-muted hover:text-brand-400 disabled:opacity-50 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                  </svg>
+                </button>
+              </form>
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 overflow-y-auto p-4">
+            <div className="space-y-2">
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-surface-raised">
+                <div className="w-8 h-8 rounded-full bg-brand-500 flex items-center justify-center text-white font-semibold text-sm">
+                  {room.creator.username[0].toUpperCase()}
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-content-primary">{room.creator.username}</p>
+                  <p className="text-xs text-brand-400">Host</p>
+                </div>
+                <div className="w-2 h-2 rounded-full bg-green-500" />
+              </div>
+              
+              {connectedMembers.filter(id => id !== room.creator.id).length > 0 ? (
+                connectedMembers
+                  .filter(id => id !== room.creator.id)
+                  .map((memberId, idx) => (
+                    <div key={memberId} className="flex items-center gap-3 p-3 rounded-xl bg-surface-raised">
+                      <div className="w-8 h-8 rounded-full bg-surface-elevated flex items-center justify-center text-content-secondary font-semibold text-sm">
+                        M{idx + 1}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-content-primary">Member {idx + 1}</p>
+                        <p className="text-xs text-content-muted">Guest</p>
+                      </div>
+                      <div className="w-2 h-2 rounded-full bg-green-500" />
+                    </div>
+                  ))
+              ) : (
+                <p className="text-xs text-content-muted text-center py-8">
+                  {isHost ? "Share the invite link to add members" : "No other members yet"}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
       </aside>
+
+      {/* Invite Modal */}
+      {showInviteModal && inviteLink && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+          <div className="glass w-full max-w-md rounded-3xl p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-bold text-content-primary">Invite Link</h2>
+              <button 
+                onClick={() => {
+                  setShowInviteModal(false);
+                  setInviteCopied(false);
+                }} 
+                className="text-content-muted hover:text-content-primary transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-sm text-content-secondary mb-4">
+              Share this link with others to invite them to your watch party:
+            </p>
+
+            <div className="flex gap-2 mb-4">
+              <input
+                type="text"
+                value={inviteLink}
+                readOnly
+                className="input flex-1 text-sm font-mono"
+                onClick={(e) => e.currentTarget.select()}
+              />
+              <button
+                onClick={handleCopyInvite}
+                className={`btn-primary h-10 px-4 text-sm shrink-0 transition-all ${
+                  inviteCopied ? "bg-green-600 hover:bg-green-700" : ""
+                }`}
+              >
+                {inviteCopied ? (
+                  <>
+                    <Check className="w-4 h-4 mr-1.5" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4 mr-1.5" />
+                    Copy
+                  </>
+                )}
+              </button>
+            </div>
+
+            <p className="text-xs text-content-muted">
+              This link expires in 48 hours and can be used up to 10 times.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Media Picker Modal */}
       {showMediaPicker && (
