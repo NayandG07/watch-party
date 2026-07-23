@@ -536,3 +536,38 @@ while remaining:
 * Lightweight
 * Easy to self-host
 * Designed specifically for a trusted group of friends
+
+---
+
+# Implemented & Modified Features
+
+The following aspects of the platform have been implemented, modified, and verified to date:
+
+1. **Authentication & Authorization System**
+   - Dual-token JWT auth flow (access token + httpOnly refresh token cookie).
+   - Role-based dependencies (`RequireLevel2Dep`, `RequireAdminDep`, `CurrentUserIdDep`).
+   - Extended WS token TTL (5 minutes) and secure signed HLS key tokens.
+
+2. **Room Management & Invite Flow**
+   - Room lifecycle management (creation, locking, media selection).
+   - Invite creation (`POST /api/invites`) allowing room creators and members to generate room invite links.
+   - Room join mechanism (`POST /api/rooms/{id}/join`) using invite tokens.
+
+3. **Room-Based Playback Permission Fallback**
+   - Updated `GET /api/movies/{id}/hls-key-token` to grant video key access to active room members when a movie is currently selected in their room, enabling invited guests to view private library videos.
+
+4. **WebSocket Sync Infrastructure**
+   - Ref-stabilized React hooks (`useSyncedPlayer.ts` and `YouTubePlayer.tsx`) resilient to React 18 Strict Mode double-invocation.
+   - Dynamic WebSocket URL resolution (`getWsBase()`) connecting directly to backend `ws://localhost:8000`.
+   - In-memory WebSocket connection manager broadcasting `ROOM_STATE`, presence updates, and chat messages.
+
+5. **Storage Provider & HLS Streaming Pipeline**
+   - Backblaze B2 S3 storage integration with backend presigned URL streaming proxy (`/api/movies/{id}/stream/*`).
+   - HLS playlist rewriting for AES-128 key fetching via `/api/movies/{id}/hls-key`.
+   - Updated standalone Python video processing script (`scripts/uploader/process.py`) with interactive user login, decrypted storage provider credentials API, HLS transcoding, AES-128 encryption, thumbnail generation, and metadata upload.
+
+6. **Next.js Proxy & UI Layout Redesign**
+   - Next.js API rewrite proxy (`next.config.mjs`) forwarding browser `/api/*` calls to FastAPI backend to eliminate CORS preflight issues.
+   - AppShell full-bleed container styling for `/room/*` routes eliminating double scrollbars.
+   - Watch2gether-inspired Room UI (`/room/[id]/page.tsx`): dark theme, top navigation bar, centered video player area, responsive tabbed Chat & Members sidebar, mobile chat drawer, and dark themed Invite / Media selection modals.
+

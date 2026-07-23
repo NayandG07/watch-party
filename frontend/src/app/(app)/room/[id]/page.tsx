@@ -4,10 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   Users, MessageSquare, Share2, Loader2, Lock, Unlock,
-  PlayCircle, Film, Link2, X, Check, Copy, Wifi, WifiOff
+  PlayCircle, Film, Link2, X, Check, Copy, Trash2,
+  ChevronLeft, Send,
 } from "lucide-react";
 
-// Inline YouTube icon since this lucide version doesn't include it
+// Inline YouTube icon
 function YoutubeIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -15,6 +16,7 @@ function YoutubeIcon({ className }: { className?: string }) {
     </svg>
   );
 }
+
 import api from "@/lib/api";
 import VideoPlayer from "@/components/player/VideoPlayer";
 import YouTubePlayer from "@/components/player/YouTubePlayer";
@@ -60,11 +62,12 @@ export default function RoomPage() {
   const [youtubeInput, setYoutubeInput] = useState("");
   const [isSettingMedia, setIsSettingMedia] = useState(false);
 
-  // Sidebar state
+  // Sidebar / mobile chat toggle
   const [activeTab, setActiveTab] = useState<"chat" | "members">("chat");
   const [connectedMembers, setConnectedMembers] = useState<string[]>([]);
   const [isConnected, setIsConnected] = useState(false);
-  
+  const [mobileChatOpen, setMobileChatOpen] = useState(false);
+
   // Invite modal state
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteLink, setInviteLink] = useState<string>("");
@@ -197,20 +200,34 @@ export default function RoomPage() {
     setTimeout(() => setInviteCopied(false), 2000);
   };
 
+  const handleDeleteRoom = async () => {
+    if (!room || !isHost) return;
+    if (!confirm("Are you sure you want to delete this room? Everyone will be disconnected.")) return;
+    try {
+      await api.delete(`/api/rooms/${id}`);
+      router.push("/rooms");
+    } catch (err) {
+      console.error("Failed to delete room:", err);
+      alert("Failed to delete room.");
+    }
+  };
+
   const formatTime = (dateStr: string) =>
     new Date(dateStr).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
+  // ── Loading ────────────────────────────────────────────────────────────────
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="h-full bg-black flex items-center justify-center">
         <Loader2 className="w-10 h-10 animate-spin text-brand-500" />
       </div>
     );
   }
 
+  // ── Error ──────────────────────────────────────────────────────────────────
   if (error || !room) {
     return (
-      <div className="min-h-screen bg-surface-base flex items-center justify-center">
+      <div className="h-full bg-surface-base flex items-center justify-center">
         <div className="glass p-8 rounded-2xl text-center max-w-sm">
           <p className="text-danger mb-4">{error || "Room not found"}</p>
           <button onClick={() => router.push("/library")} className="btn-secondary">
@@ -223,338 +240,388 @@ export default function RoomPage() {
 
   const hasMedia = !!(room.movie || room.external_url);
 
-  return (
-    <main className="min-h-screen bg-surface-base animate-fade-in flex flex-col md:flex-row">
-      {/* Main Player Area */}
-      <div className="flex-1 flex flex-col min-h-0 relative bg-black">
-        {/* Header Overlay */}
-        <header className="absolute top-0 left-0 right-0 p-4 md:p-6 z-10 flex items-center justify-between bg-gradient-to-b from-black/90 to-transparent pointer-events-none">
-          <div className="flex items-center gap-3 pointer-events-auto">
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <div className={`w-2.5 h-2.5 rounded-full transition-colors ${
-                  isConnected ? "bg-green-500 animate-pulse-glow" : "bg-red-500"
-                }`} />
-                {memberCount > 1 && (
-                  <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-brand-500 text-[9px] text-white flex items-center justify-center font-bold">
-                    {memberCount}
-                  </div>
-                )}
-              </div>
-              <div>
-                <h1 className="text-white font-semibold text-sm drop-shadow-md flex items-center gap-2">
-                  {room.name}
-                  {isConnected ? (
-                    <Wifi className="w-3 h-3 text-green-400" />
-                  ) : (
-                    <WifiOff className="w-3 h-3 text-red-400" />
-                  )}
-                </h1>
-                <p className="text-white/60 text-[11px] drop-shadow-md flex items-center gap-2">
-                  <span>{isHost ? "You are the host" : `Hosted by ${room.creator.username}`}</span>
-
-                  {isHost ? (
-                    <button
-                      onClick={handleToggleLock}
-                      className="inline-flex items-center gap-1 hover:text-white transition-colors ml-1"
-                    >
-                      {room.is_locked ? (
-                        <><Lock className="w-2.5 h-2.5 text-warning" /> Locked</>
-                      ) : (
-                        <><Unlock className="w-2.5 h-2.5" /> Unlocked</>
-                      )}
-                    </button>
-                  ) : (
-                    room.is_locked && (
-                      <span className="inline-flex items-center gap-1 text-warning/80 ml-1">
-                        <Lock className="w-2.5 h-2.5" /> Locked
-                      </span>
-                    )
-                  )}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex gap-2 pointer-events-auto">
-            {isHost && (
-              <button
-                onClick={handleOpenMediaPicker}
-                className="btn-secondary h-8 px-3 text-xs bg-black/40 border-white/10 hover:bg-black/60 text-white"
-              >
-                <Film className="w-3.5 h-3.5 mr-1.5" />
-                {hasMedia ? "Change Media" : "Select Media"}
-              </button>
-            )}
-            <button 
-              onClick={handleGenerateInvite}
-              disabled={isGeneratingInvite}
-              className="btn-secondary h-8 px-3 text-xs bg-black/40 border-white/10 hover:bg-black/60 text-white disabled:opacity-50"
-            >
-              {isGeneratingInvite ? (
-                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-              ) : (
-                <Share2 className="w-3.5 h-3.5 mr-1.5" />
-              )}
-              Invite
-            </button>
-          </div>
-        </header>
-
-        {/* Video area */}
-        <div className="flex-1 flex items-center justify-center">
-          {!hasMedia ? (
-            /* Empty room — waiting for host to select media */
-            <div className="text-center text-content-secondary">
-              <div className="w-24 h-24 rounded-3xl bg-surface-raised flex items-center justify-center mx-auto mb-6 border border-surface-elevated">
-                <Film className="w-12 h-12 text-brand-500/50" />
-              </div>
-              <h2 className="text-2xl font-bold text-content-primary mb-2">No media selected</h2>
-              <p className="text-sm mb-8 max-w-xs mx-auto">
-                {isHost
-                  ? "Pick something to watch from your library or paste a YouTube link."
-                  : "Waiting for the host to select media…"}
-              </p>
-              {isHost && (
-                <button onClick={handleOpenMediaPicker} className="btn-primary">
-                  <Film className="w-4 h-4 mr-2" />
-                  Select Media
-                </button>
-              )}
-            </div>
-          ) : room.external_url ? (
-            <YouTubePlayer
-              url={room.external_url}
-              roomId={room.id}
-              wsToken={wsToken ?? undefined}
-              isHost={isHost}
-              onChatMessage={(msg) => setMessages((prev) => [...prev, msg])}
-              onMemberUpdate={(count, userIds) => {
-                setMemberCount(count);
-                setConnectedMembers(userIds);
-              }}
-              playerRef={playerRef}
-            />
-          ) : room.movie ? (
-            <VideoPlayer
-              movieId={room.movie.id}
-              roomId={room.id}
-              wsToken={wsToken ?? undefined}
-              isHost={isHost}
-              onChatMessage={(msg) => setMessages((prev) => [...prev, msg])}
-              onMemberUpdate={(count, userIds) => {
-                setMemberCount(count);
-                setConnectedMembers(userIds);
-              }}
-              onConnectionChange={(connected) => setIsConnected(connected)}
-              playerRef={playerRef}
-            />
-          ) : null}
-        </div>
+  // ── Sidebar Panel (shared between desktop and mobile drawer) ───────────────
+  const SidebarPanel = () => (
+    <div className="flex flex-col h-full">
+      {/* Tab header */}
+      <div className="flex border-b border-white/10 shrink-0">
+        <button
+          onClick={() => setActiveTab("chat")}
+          className={`flex-1 py-3 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors ${
+            activeTab === "chat"
+              ? "text-brand-400 border-b-2 border-brand-400"
+              : "text-white/50 hover:text-white/70"
+          }`}
+        >
+          <MessageSquare className="w-3.5 h-3.5" />
+          Chat
+        </button>
+        <button
+          onClick={() => setActiveTab("members")}
+          className={`flex-1 py-3 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors ${
+            activeTab === "members"
+              ? "text-brand-400 border-b-2 border-brand-400"
+              : "text-white/50 hover:text-white/70"
+          }`}
+        >
+          <Users className="w-3.5 h-3.5" />
+          {memberCount} Members
+        </button>
       </div>
 
-      {/* Chat Sidebar */}
-      <aside className="w-full md:w-80 lg:w-96 border-t md:border-t-0 md:border-l border-surface-raised bg-surface-base flex flex-col h-64 md:h-auto">
-        <div className="flex border-b border-surface-raised shrink-0">
-          <button 
-            onClick={() => setActiveTab("chat")}
-            className={`flex-1 py-3 text-xs font-medium transition-colors flex flex-col items-center gap-1 ${
-              activeTab === "chat" 
-                ? "text-brand-400 border-b-2 border-brand-400" 
-                : "text-content-muted hover:text-content-secondary"
-            }`}
-          >
-            <MessageSquare className="w-4 h-4" />
-            Chat
-          </button>
-          <button 
-            onClick={() => setActiveTab("members")}
-            className={`flex-1 py-3 text-xs font-medium transition-colors flex flex-col items-center gap-1 ${
-              activeTab === "members" 
-                ? "text-brand-400 border-b-2 border-brand-400" 
-                : "text-content-muted hover:text-content-secondary"
-            }`}
-          >
-            <Users className="w-4 h-4" />
-            Members ({memberCount})
-          </button>
+      {/* Chat tab */}
+      {activeTab === "chat" ? (
+        <>
+          <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0">
+            {messages.length === 0 ? (
+              <p className="text-xs text-white/30 text-center py-12">No messages yet. Say hi!</p>
+            ) : (
+              messages.map((msg) => (
+                <div key={msg.id} className="group">
+                  <div className="flex items-baseline gap-2 mb-0.5">
+                    <span className={`text-xs font-semibold ${msg.user.id === currentUser?.id ? "text-brand-400" : "text-white/80"}`}>
+                      {msg.user.username}
+                    </span>
+                    <span className="text-[10px] text-white/25 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {formatTime(msg.created_at)}
+                    </span>
+                  </div>
+                  {msg.message_type === "timestamp_share" ? (
+                    <button
+                      onClick={() => {
+                        if (isHost && msg.timestamp_reference !== undefined) {
+                          playerRef.current?.seek(msg.timestamp_reference);
+                        }
+                      }}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-brand-500/20 text-brand-300 text-xs mt-0.5 transition-colors ${
+                        isHost ? "hover:bg-brand-500/30 cursor-pointer" : "cursor-default"
+                      }`}
+                    >
+                      <PlayCircle className="w-3 h-3" />
+                      <span>{msg.content}</span>
+                    </button>
+                  ) : (
+                    <p className="text-sm text-white/70 break-words leading-relaxed">{msg.content}</p>
+                  )}
+                </div>
+              ))
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          <div className="p-3 border-t border-white/10 shrink-0">
+            <form onSubmit={handleSendMessage} className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Type a message…"
+                className="flex-1 bg-white/8 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:border-brand-500/50 focus:bg-white/10 transition-all"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+              />
+              <button
+                type="submit"
+                disabled={!chatInput.trim()}
+                className="w-9 h-9 shrink-0 rounded-xl bg-brand-500 hover:bg-brand-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+              >
+                <Send className="w-3.5 h-3.5 text-white" />
+              </button>
+            </form>
+          </div>
+        </>
+      ) : (
+        /* Members tab */
+        <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
+          {/* Host */}
+          <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5">
+            <div className="w-8 h-8 rounded-full bg-brand-500 flex items-center justify-center text-white font-bold text-sm shrink-0">
+              {room.creator.username[0].toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-white truncate">{room.creator.username}</p>
+              <p className="text-[11px] text-brand-400">Host</p>
+            </div>
+            <div className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+          </div>
+
+          {connectedMembers.filter(mid => mid !== room.creator.id).length > 0 ? (
+            connectedMembers
+              .filter(mid => mid !== room.creator.id)
+              .map((memberId, idx) => (
+                <div key={memberId} className="flex items-center gap-3 p-3 rounded-xl bg-white/5">
+                  <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/60 font-semibold text-sm shrink-0">
+                    {String.fromCharCode(65 + idx)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white/80 truncate">Viewer {idx + 1}</p>
+                    <p className="text-[11px] text-white/40">Guest</p>
+                  </div>
+                  <div className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                </div>
+              ))
+          ) : (
+            <p className="text-xs text-white/30 text-center py-12">
+              {isHost ? "Share the invite link to add members" : "No other members yet"}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  // ── Main render ────────────────────────────────────────────────────────────
+  return (
+    <div className="h-full flex flex-col bg-[#0d0d0f] overflow-hidden">
+
+      {/* ── Top Bar ────────────────────────────────────────────────────────── */}
+      <header className="flex items-center gap-3 px-3 md:px-5 h-12 shrink-0 bg-[#141417] border-b border-white/8 z-20">
+        {/* Back */}
+        <button
+          onClick={() => router.push("/rooms")}
+          className="w-8 h-8 rounded-lg hover:bg-white/8 flex items-center justify-center text-white/50 hover:text-white transition-colors shrink-0"
+          title="Back to Rooms"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+
+        {/* Room info */}
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          {/* Connection dot */}
+          <div className={`w-2 h-2 rounded-full shrink-0 transition-colors ${isConnected ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]" : "bg-red-500"}`} />
+          <h1 className="text-sm font-semibold text-white truncate">{room.name}</h1>
+          <span className="text-xs text-white/35 shrink-0 hidden sm:block">
+            {isHost ? "You are the host" : `Hosted by ${room.creator.username}`}
+          </span>
+          {isHost && (
+            <button
+              onClick={handleToggleLock}
+              title={room.is_locked ? "Room locked — click to unlock" : "Room unlocked — click to lock"}
+              className="hidden sm:flex items-center gap-1 text-[11px] text-white/40 hover:text-white/70 transition-colors shrink-0"
+            >
+              {room.is_locked ? <Lock className="w-3 h-3 text-amber-400" /> : <Unlock className="w-3 h-3" />}
+              <span className="hidden md:block">{room.is_locked ? "Locked" : "Unlocked"}</span>
+            </button>
+          )}
         </div>
 
-        {activeTab === "chat" ? (
-          <>
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {messages.length === 0 ? (
-                <p className="text-xs text-content-muted text-center py-8">No messages yet. Say hi!</p>
-              ) : (
-                messages.map((msg) => (
-                  <div key={msg.id} className="group">
-                    <div className="flex items-baseline justify-between mb-0.5">
-                      <span className={`text-xs font-medium ${msg.user.id === currentUser?.id ? "text-brand-400" : "text-white"}`}>
-                        {msg.user.username}
-                      </span>
-                      <span className="text-[10px] text-content-muted opacity-0 group-hover:opacity-100 transition-opacity">
-                        {formatTime(msg.created_at)}
-                      </span>
-                    </div>
-                    {msg.message_type === "timestamp_share" ? (
-                      <button
-                        onClick={() => {
-                          if (isHost && msg.timestamp_reference !== undefined) {
-                            playerRef.current?.seek(msg.timestamp_reference);
-                          }
-                        }}
-                        className={`inline-flex items-center gap-1.5 px-2 py-1 rounded bg-brand-500/20 text-brand-300 text-xs mt-0.5 transition-colors ${
-                          isHost ? "hover:bg-brand-500/30 cursor-pointer" : "cursor-default"
-                        }`}
-                      >
-                        <PlayCircle className="w-3 h-3" />
-                        <span>{msg.content}</span>
-                      </button>
-                    ) : (
-                      <p className="text-sm text-content-secondary break-words leading-relaxed">{msg.content}</p>
-                    )}
-                  </div>
-                ))
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-
-            <div className="p-3 border-t border-surface-raised shrink-0">
-              <form onSubmit={handleSendMessage} className="relative">
-                <input
-                  type="text"
-                  placeholder="Type a message…"
-                  className="input w-full pr-10 text-sm h-9"
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                />
-                <button
-                  type="submit"
-                  disabled={!chatInput.trim()}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-content-muted hover:text-brand-400 disabled:opacity-50 transition-colors"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                  </svg>
-                </button>
-              </form>
-            </div>
-          </>
-        ) : (
-          <div className="flex-1 overflow-y-auto p-4">
-            <div className="space-y-2">
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-surface-raised">
-                <div className="w-8 h-8 rounded-full bg-brand-500 flex items-center justify-center text-white font-semibold text-sm">
-                  {room.creator.username[0].toUpperCase()}
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-content-primary">{room.creator.username}</p>
-                  <p className="text-xs text-brand-400">Host</p>
-                </div>
-                <div className="w-2 h-2 rounded-full bg-green-500" />
-              </div>
-              
-              {connectedMembers.filter(id => id !== room.creator.id).length > 0 ? (
-                connectedMembers
-                  .filter(id => id !== room.creator.id)
-                  .map((memberId, idx) => (
-                    <div key={memberId} className="flex items-center gap-3 p-3 rounded-xl bg-surface-raised">
-                      <div className="w-8 h-8 rounded-full bg-surface-elevated flex items-center justify-center text-content-secondary font-semibold text-sm">
-                        M{idx + 1}
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-content-primary">Member {idx + 1}</p>
-                        <p className="text-xs text-content-muted">Guest</p>
-                      </div>
-                      <div className="w-2 h-2 rounded-full bg-green-500" />
-                    </div>
-                  ))
-              ) : (
-                <p className="text-xs text-content-muted text-center py-8">
-                  {isHost ? "Share the invite link to add members" : "No other members yet"}
-                </p>
-              )}
-            </div>
-          </div>
-        )}
-      </aside>
-
-      {/* Invite Modal */}
-      {showInviteModal && inviteLink && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-          <div className="glass w-full max-w-md rounded-3xl p-6 shadow-2xl">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-bold text-content-primary">Invite Link</h2>
-              <button 
-                onClick={() => {
-                  setShowInviteModal(false);
-                  setInviteCopied(false);
-                }} 
-                className="text-content-muted hover:text-content-primary transition-colors"
+        {/* Action buttons */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {isHost && (
+            <>
+              <button
+                onClick={handleOpenMediaPicker}
+                className="hidden sm:flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white/8 hover:bg-white/12 text-white/70 hover:text-white text-xs font-medium transition-all"
               >
-                <X className="w-5 h-5" />
+                <Film className="w-3.5 h-3.5" />
+                {hasMedia ? "Change Media" : "Select Media"}
+              </button>
+              <button
+                onClick={handleDeleteRoom}
+                title="Delete Room"
+                className="hidden sm:flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 text-xs font-medium transition-all"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span className="hidden md:block">Delete</span>
+              </button>
+            </>
+          )}
+          <button
+            onClick={handleGenerateInvite}
+            disabled={isGeneratingInvite}
+            className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-brand-500/20 hover:bg-brand-500/30 text-brand-300 hover:text-brand-200 text-xs font-medium transition-all disabled:opacity-50"
+          >
+            {isGeneratingInvite ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Share2 className="w-3.5 h-3.5" />}
+            <span className="hidden sm:block">Invite</span>
+          </button>
+          {/* Mobile: chat toggle */}
+          <button
+            onClick={() => setMobileChatOpen(true)}
+            className="flex xl:hidden items-center gap-1 h-8 px-2.5 rounded-lg bg-white/8 hover:bg-white/12 text-white/60 hover:text-white text-xs transition-all relative"
+          >
+            <MessageSquare className="w-3.5 h-3.5" />
+            {memberCount > 1 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-brand-500 text-[9px] text-white flex items-center justify-center font-bold">
+                {memberCount}
+              </span>
+            )}
+          </button>
+        </div>
+      </header>
+
+      {/* ── Body: Player + Sidebar ─────────────────────────────────────────── */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+
+        {/* Player column */}
+        <div className="flex-1 flex flex-col min-w-0 bg-black overflow-hidden">
+          {/* Mobile: host controls row */}
+          {isHost && (
+            <div className="flex sm:hidden items-center gap-2 px-3 py-2 bg-[#141417] border-b border-white/8 shrink-0">
+              <button
+                onClick={handleOpenMediaPicker}
+                className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white/8 hover:bg-white/12 text-white/70 hover:text-white text-xs font-medium transition-all"
+              >
+                <Film className="w-3.5 h-3.5" />
+                {hasMedia ? "Change Media" : "Select Media"}
+              </button>
+              <button
+                onClick={handleToggleLock}
+                className="flex items-center gap-1 h-8 px-3 rounded-lg bg-white/8 hover:bg-white/12 text-white/50 hover:text-white text-xs transition-all"
+              >
+                {room.is_locked ? <Lock className="w-3 h-3 text-amber-400" /> : <Unlock className="w-3 h-3" />}
+                {room.is_locked ? "Locked" : "Unlocked"}
               </button>
             </div>
+          )}
 
-            <p className="text-sm text-content-secondary mb-4">
-              Share this link with others to invite them to your watch party:
-            </p>
+          {/* Video area — fills remaining height */}
+          <div className="flex-1 flex items-center justify-center min-h-0 overflow-hidden">
+            {!hasMedia ? (
+              <div className="text-center text-white/40 px-4">
+                <div className="w-20 h-20 rounded-2xl bg-white/5 flex items-center justify-center mx-auto mb-5 border border-white/8">
+                  <Film className="w-10 h-10 text-brand-500/40" />
+                </div>
+                <h2 className="text-xl font-bold text-white/60 mb-2">No media selected</h2>
+                <p className="text-sm mb-6 max-w-xs mx-auto">
+                  {isHost
+                    ? "Pick something to watch from your library or paste a YouTube link."
+                    : "Waiting for the host to select media…"}
+                </p>
+                {isHost && (
+                  <button onClick={handleOpenMediaPicker} className="btn-primary">
+                    <Film className="w-4 h-4 mr-2" />
+                    Select Media
+                  </button>
+                )}
+              </div>
+            ) : room.external_url ? (
+              <YouTubePlayer
+                url={room.external_url}
+                roomId={room.id}
+                wsToken={wsToken ?? undefined}
+                isHost={isHost}
+                isLocked={room.is_locked}
+                onChatMessage={(msg) => setMessages((prev) => [...prev, msg])}
+                onMemberUpdate={(count, userIds) => {
+                  setMemberCount(count);
+                  setConnectedMembers(userIds);
+                }}
+                playerRef={playerRef}
+              />
+            ) : room.movie ? (
+              <VideoPlayer
+                movieId={room.movie.id}
+                roomId={room.id}
+                wsToken={wsToken ?? undefined}
+                isHost={isHost}
+                isLocked={room.is_locked}
+                onChatMessage={(msg) => setMessages((prev) => [...prev, msg])}
+                onMemberUpdate={(count, userIds) => {
+                  setMemberCount(count);
+                  setConnectedMembers(userIds);
+                }}
+                onConnectionChange={(connected) => setIsConnected(connected)}
+                onRoomDeleted={() => {
+                  alert("This room has been deleted by the host.");
+                  router.push("/rooms");
+                }}
+                playerRef={playerRef}
+              />
+            ) : null}
+          </div>
+        </div>
 
+        {/* ── Desktop Sidebar ────────────────────────────────────────────────── */}
+        <aside className="hidden xl:flex w-72 2xl:w-80 shrink-0 flex-col border-l border-white/8 bg-[#141417] overflow-hidden">
+          <SidebarPanel />
+        </aside>
+      </div>
+
+      {/* ── Mobile Chat Drawer ─────────────────────────────────────────────── */}
+      {mobileChatOpen && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 z-40 bg-black/60 xl:hidden"
+            onClick={() => setMobileChatOpen(false)}
+          />
+          {/* Drawer */}
+          <div className="fixed inset-y-0 right-0 z-50 w-[min(340px,90vw)] bg-[#141417] border-l border-white/10 flex flex-col xl:hidden shadow-2xl">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 shrink-0">
+              <span className="text-sm font-semibold text-white">Room Chat</span>
+              <button
+                onClick={() => setMobileChatOpen(false)}
+                className="w-7 h-7 rounded-lg hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <SidebarPanel />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Invite Modal ───────────────────────────────────────────────────── */}
+      {showInviteModal && inviteLink && (
+        <div className="fixed inset-0 z-[60] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+          <div className="w-full max-w-md rounded-2xl bg-[#1a1a1f] border border-white/10 shadow-2xl p-6">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-base font-bold text-white">Share Invite Link</h2>
+              <button
+                onClick={() => { setShowInviteModal(false); setInviteCopied(false); }}
+                className="w-7 h-7 rounded-lg hover:bg-white/10 flex items-center justify-center text-white/40 hover:text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-sm text-white/50 mb-4">Share this link to invite others to your watch party:</p>
             <div className="flex gap-2 mb-4">
               <input
                 type="text"
                 value={inviteLink}
                 readOnly
-                className="input flex-1 text-sm font-mono"
+                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white/80 font-mono focus:outline-none focus:border-brand-500/50 transition-colors"
                 onClick={(e) => e.currentTarget.select()}
               />
               <button
                 onClick={handleCopyInvite}
-                className={`btn-primary h-10 px-4 text-sm shrink-0 transition-all ${
-                  inviteCopied ? "bg-green-600 hover:bg-green-700" : ""
+                className={`h-10 px-4 rounded-xl text-sm font-medium flex items-center gap-1.5 shrink-0 transition-all ${
+                  inviteCopied
+                    ? "bg-emerald-600 text-white"
+                    : "bg-brand-500 hover:bg-brand-600 text-white"
                 }`}
               >
-                {inviteCopied ? (
-                  <>
-                    <Check className="w-4 h-4 mr-1.5" />
-                    Copied!
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-4 h-4 mr-1.5" />
-                    Copy
-                  </>
-                )}
+                {inviteCopied ? <><Check className="w-4 h-4" />Copied!</> : <><Copy className="w-4 h-4" />Copy</>}
               </button>
             </div>
-
-            <p className="text-xs text-content-muted">
-              This link expires in 48 hours and can be used up to 10 times.
-            </p>
+            <p className="text-xs text-white/30">Expires in 48 hours · Up to 10 uses</p>
           </div>
         </div>
       )}
 
-      {/* Media Picker Modal */}
+      {/* ── Media Picker Modal ─────────────────────────────────────────────── */}
       {showMediaPicker && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-          <div className="glass w-full max-w-lg rounded-3xl p-6 shadow-2xl">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-bold text-content-primary">Select Media</h2>
-              <button onClick={() => setShowMediaPicker(false)} className="text-content-muted hover:text-content-primary transition-colors">
-                <X className="w-5 h-5" />
+        <div className="fixed inset-0 z-[60] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+          <div className="w-full max-w-lg rounded-2xl bg-[#1a1a1f] border border-white/10 shadow-2xl p-6 max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between mb-5 shrink-0">
+              <h2 className="text-base font-bold text-white">Select Media</h2>
+              <button
+                onClick={() => setShowMediaPicker(false)}
+                className="w-7 h-7 rounded-lg hover:bg-white/10 flex items-center justify-center text-white/40 hover:text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* YouTube URL */}
-            <div className="mb-6">
-              <label className="flex items-center gap-2 text-sm font-medium text-content-secondary mb-2">
+            <div className="mb-5 shrink-0">
+              <label className="flex items-center gap-2 text-xs font-semibold text-white/50 uppercase tracking-widest mb-2">
                 <YoutubeIcon className="w-4 h-4 text-red-500" />
                 YouTube / External URL
               </label>
               <div className="flex gap-2">
                 <input
-                  className="input flex-1 text-sm"
+                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none focus:border-brand-500/50 transition-colors"
                   placeholder="https://www.youtube.com/watch?v=..."
                   value={youtubeInput}
                   onChange={(e) => setYoutubeInput(e.target.value)}
@@ -562,29 +629,36 @@ export default function RoomPage() {
                 <button
                   onClick={handleSetYouTube}
                   disabled={!youtubeInput.trim() || isSettingMedia}
-                  className="btn-primary h-10 px-4 text-sm shrink-0"
+                  className="h-10 px-4 rounded-xl bg-brand-500 hover:bg-brand-600 disabled:opacity-40 text-white flex items-center gap-1.5 text-sm shrink-0 transition-all"
                 >
                   {isSettingMedia ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
                 </button>
               </div>
             </div>
 
+            {/* Divider */}
+            <div className="flex items-center gap-3 mb-4 shrink-0">
+              <div className="flex-1 h-px bg-white/8" />
+              <span className="text-xs text-white/25">OR</span>
+              <div className="flex-1 h-px bg-white/8" />
+            </div>
+
             {/* Library movies */}
-            <div>
-              <label className="flex items-center gap-2 text-sm font-medium text-content-secondary mb-2">
-                <Film className="w-4 h-4 text-brand-400" />
+            <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+              <label className="flex items-center gap-2 text-xs font-semibold text-white/50 uppercase tracking-widest mb-2 shrink-0">
+                <Film className="w-3.5 h-3.5 text-brand-400" />
                 From Library
               </label>
               {movies.length === 0 ? (
-                <p className="text-xs text-content-muted py-4 text-center">No movies in library yet.</p>
+                <p className="text-xs text-white/30 py-6 text-center">No movies in library yet.</p>
               ) : (
-                <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
+                <div className="overflow-y-auto flex-1 space-y-1.5 pr-1">
                   {movies.map((m) => (
                     <button
                       key={m.id}
                       onClick={() => handleSetMovie(m.id)}
                       disabled={isSettingMedia}
-                      className="w-full text-left px-4 py-3 rounded-xl bg-surface-raised hover:bg-surface-elevated transition-colors text-sm text-content-primary"
+                      className="w-full text-left px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors text-sm text-white/80 hover:text-white border border-transparent hover:border-white/10"
                     >
                       {m.title}
                     </button>
@@ -595,6 +669,6 @@ export default function RoomPage() {
           </div>
         </div>
       )}
-    </main>
+    </div>
   );
 }

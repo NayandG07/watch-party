@@ -17,6 +17,7 @@ interface YouTubePlayerProps {
   roomId?: string;
   wsToken?: string;
   isHost?: boolean;
+  isLocked?: boolean;
   onChatMessage?: (msg: ChatMessageData) => void;
   onMemberUpdate?: (count: number, userIds: string[]) => void;
   onConnectionChange?: (connected: boolean) => void;
@@ -31,6 +32,7 @@ function useYouTubeSync({
   roomId,
   wsToken,
   isHost,
+  isLocked = false,
   onChatMessage,
   onMemberUpdate,
   onConnectionChange,
@@ -39,6 +41,7 @@ function useYouTubeSync({
   roomId?: string;
   wsToken?: string;
   isHost: boolean;
+  isLocked?: boolean;
   onChatMessage?: (msg: ChatMessageData) => void;
   onMemberUpdate?: (count: number, userIds: string[]) => void;
   onConnectionChange?: (connected: boolean) => void;
@@ -80,15 +83,13 @@ function useYouTubeSync({
     ws.onmessage = (evt) => {
       const msg = JSON.parse(evt.data);
       if (msg.type === "ROOM_STATE") {
-        const serverNow = msg.server_time * 1000;
-        const latency = (Date.now() - serverNow) / 2;
-        const adjustedPos = msg.position + (msg.state === "playing" ? latency / 1000 : 0);
+        const adjustedPos = msg.position;
         setPosition(adjustedPos);
         setPlaying(msg.state === "playing");
         const player = internalPlayerRefRef.current.current;
         if (player) {
           const current = (player.getCurrentTime?.() ?? 0);
-          if (Math.abs(current - adjustedPos) > 2) {
+          if (Math.abs(current - adjustedPos) > 1.5) {
             player.seekTo(adjustedPos, "seconds");
           }
         }
@@ -117,12 +118,19 @@ function useYouTubeSync({
     }
   }, []);
 
+  const isLockedRef = useRef(isLocked);
+  isLockedRef.current = isLocked;
+
   const onPlay = useCallback(() => {
-    if (isHostRef.current) send({ type: "PLAY", position: internalPlayerRefRef.current.current?.getCurrentTime?.() ?? 0 });
+    if (!isLockedRef.current || isHostRef.current) {
+      send({ type: "PLAY", position: internalPlayerRefRef.current.current?.getCurrentTime?.() ?? 0 });
+    }
   }, [send]);
 
   const onPause = useCallback(() => {
-    if (isHostRef.current) send({ type: "PAUSE", position: internalPlayerRefRef.current.current?.getCurrentTime?.() ?? 0 });
+    if (!isLockedRef.current || isHostRef.current) {
+      send({ type: "PAUSE", position: internalPlayerRefRef.current.current?.getCurrentTime?.() ?? 0 });
+    }
   }, [send]);
 
   const onProgress = useCallback(({ playedSeconds }: { playedSeconds: number }) => {
@@ -137,7 +145,7 @@ function useYouTubeSync({
 }
 
 export default function YouTubePlayer({
-  url, roomId, wsToken, isHost = false, onChatMessage, onMemberUpdate, onConnectionChange, playerRef,
+  url, roomId, wsToken, isHost = false, isLocked = false, onChatMessage, onMemberUpdate, onConnectionChange, playerRef,
 }: YouTubePlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const internalPlayerRef = useRef<ReactPlayerInstance | null>(null);
@@ -150,6 +158,7 @@ export default function YouTubePlayer({
     roomId,
     wsToken,
     isHost,
+    isLocked,
     onChatMessage,
     onMemberUpdate,
     onConnectionChange,

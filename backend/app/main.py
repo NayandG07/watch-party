@@ -27,6 +27,9 @@ from app.core.log_config import configure_logging
 settings = get_settings()
 
 
+import asyncio
+from app.api.rooms import cleanup_inactive_rooms
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:  # noqa: ARG001
     """Application lifespan: startup → serve → shutdown."""
@@ -40,9 +43,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:  # noqa: ARG001
         environment=settings.environment,
     )
 
+    cleanup_task = asyncio.create_task(cleanup_inactive_rooms())
+
     yield
 
     # Shutdown
+    cleanup_task.cancel()
     logger.info("watchparty_stopping")
 
 

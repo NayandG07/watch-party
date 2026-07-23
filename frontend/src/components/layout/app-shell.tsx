@@ -133,6 +133,9 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const pathname = usePathname();
+  // Room pages need the full viewport — no padding/scrolling wrapper
+  const isRoomPage = pathname?.startsWith("/room/");
 
   return (
     <div className="flex h-dvh overflow-hidden bg-surface-default">
@@ -170,34 +173,43 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Main content area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Mobile top bar */}
-        <header className="md:hidden flex items-center gap-3 px-4 h-14 border-b border-surface-border bg-surface-base shrink-0">
-          <button
-            onClick={() => setMobileOpen(true)}
-            className="btn-ghost p-2"
-            aria-label="Open navigation"
-            id="mobile-nav-toggle"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
-          <Link href="/library" className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-md bg-gradient-brand flex items-center justify-center">
-              <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="M8 5v14l11-7z" />
-              </svg>
-            </div>
-            <span className="text-sm font-bold text-content-primary">Watch Party</span>
-          </Link>
-        </header>
+        {/* Mobile top bar — hidden on room pages (room has its own header) */}
+        {!isRoomPage && (
+          <header className="md:hidden flex items-center gap-3 px-4 h-14 border-b border-surface-border bg-surface-base shrink-0">
+            <button
+              onClick={() => setMobileOpen(true)}
+              className="btn-ghost p-2"
+              aria-label="Open navigation"
+              id="mobile-nav-toggle"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <Link href="/library" className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-md bg-gradient-brand flex items-center justify-center">
+                <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </div>
+              <span className="text-sm font-bold text-content-primary">Watch Party</span>
+            </Link>
+          </header>
+        )}
 
         {/* Page content */}
-        <main
-          id="main-content"
-          className="flex-1 overflow-y-auto p-6 md:p-8"
-          tabIndex={-1}
-        >
-          {children}
-        </main>
+        {isRoomPage ? (
+          // Room pages: full-bleed, no padding, no overflow scroll
+          <div id="main-content" className="flex-1 overflow-hidden flex flex-col">
+            {children}
+          </div>
+        ) : (
+          <main
+            id="main-content"
+            className="flex-1 overflow-y-auto p-6 md:p-8"
+            tabIndex={-1}
+          >
+            {children}
+          </main>
+        )}
       </div>
     </div>
   );

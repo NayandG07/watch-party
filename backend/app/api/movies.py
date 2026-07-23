@@ -17,6 +17,8 @@ from app.core.security import create_hls_key_token, decrypt_secret
 from app.models.collection import Collection
 from app.models.library import Library
 from app.models.movie import Movie
+from app.models.room import Room
+from app.models.room_member import RoomMember
 from app.services.permission import PermissionService
 from app.schemas.movie import (
     MovieBrief,
@@ -319,15 +321,32 @@ async def get_hls_key_token(
     if not movie:
         raise HTTPException(status_code=404, detail="Movie not found")
 
-    # 2. Enforce permission check
-    if not await PermissionService.can_play_movie(
+    # 2. Enforce permission check — direct library/collection permissions
+    has_access = await PermissionService.can_play_movie(
         movie=movie,
         collection=movie.collection,
         library=movie.collection.library,
         user_id=user_id,
         user_role=user_role,
         db=db,
-    ):
+    )
+
+    # 2b. Room-member fallback: if the user is a member of a room currently
+    #     playing this movie, grant them playback access regardless of the
+    #     library's visibility settings. This is the invite-to-room use case.
+    if not has_access:
+        room_membership = await db.scalar(
+            select(Room)
+            .join(RoomMember, RoomMember.room_id == Room.id, isouter=True)
+            .where(
+                Room.movie_id == movie_id,
+                (RoomMember.user_id == uuid.UUID(user_id)) | (Room.creator_id == uuid.UUID(user_id)),
+            )
+            .limit(1)
+        )
+        has_access = room_membership is not None
+
+    if not has_access:
         raise HTTPException(status_code=403, detail="Access denied")
 
     # 3. Ensure movie is processed and uploaded
