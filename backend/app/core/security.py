@@ -241,6 +241,32 @@ def decode_hls_key_token(token: str) -> dict[str, Any]:
     return payload
 
 
+def create_stream_token(movie_id: str, user_id: str) -> str:
+    """Create a short-lived token for proxied movie assets and playlists."""
+    expire = datetime.now(timezone.utc) + timedelta(
+        minutes=settings.access_token_expire_minutes
+    )
+    payload: dict[str, Any] = {
+        "sub": user_id,
+        "movie_id": movie_id,
+        "exp": expire,
+        "type": "stream",
+    }
+    return jwt.encode(
+        payload, settings.hls_key_signing_secret, algorithm=settings.algorithm
+    )
+
+
+def decode_stream_token(token: str) -> dict[str, Any]:
+    """Validate and decode a proxied stream/asset token."""
+    payload = jwt.decode(
+        token, settings.hls_key_signing_secret, algorithms=[settings.algorithm]
+    )
+    if payload.get("type") != "stream":
+        raise JWTError("Invalid token type for stream")
+    return payload
+
+
 # ── Invite token ──────────────────────────────────────────────────────────────
 
 def create_invite_token(

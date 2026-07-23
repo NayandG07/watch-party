@@ -123,13 +123,37 @@ function useYouTubeSync({
 
   const onPlay = useCallback(() => {
     if (!isLockedRef.current || isHostRef.current) {
-      send({ type: "PLAY", position: internalPlayerRefRef.current.current?.getCurrentTime?.() ?? 0 });
+      const player = internalPlayerRefRef.current.current;
+      const current = player?.getCurrentTime?.() ?? 0;
+      const duration = player?.getDuration?.() ?? 0;
+      const position = duration > 0 && current >= duration - 0.5 ? 0 : current;
+      if (position === 0 && current > 0) {
+        player?.seekTo?.(0, "seconds");
+      }
+      send({ type: "PLAY", position });
     }
   }, [send]);
 
   const onPause = useCallback(() => {
     if (!isLockedRef.current || isHostRef.current) {
-      send({ type: "PAUSE", position: internalPlayerRefRef.current.current?.getCurrentTime?.() ?? 0 });
+      const player = internalPlayerRefRef.current.current;
+      const current = player?.getCurrentTime?.() ?? 0;
+      const duration = player?.getDuration?.() ?? 0;
+      if (duration > 0 && current >= duration - 0.5) {
+        return;
+      }
+      send({ type: "PAUSE", position: current });
+    }
+  }, [send]);
+
+  const onEnded = useCallback(() => {
+    const player = internalPlayerRefRef.current.current;
+    const duration = player?.getDuration?.() ?? 0;
+    const position = duration > 0 ? duration : player?.getCurrentTime?.() ?? 0;
+    setPlaying(false);
+    setPosition(position);
+    if (!isLockedRef.current || isHostRef.current) {
+      send({ type: "ENDED", position });
     }
   }, [send]);
 
@@ -141,7 +165,7 @@ function useYouTubeSync({
     send({ type: "CHAT_MESSAGE", content, message_type: type, timestamp_reference: ref });
   }, [send]);
 
-  return { playing, position, onPlay, onPause, onProgress, sendChatMessage };
+  return { playing, position, onPlay, onPause, onEnded, onProgress, sendChatMessage };
 }
 
 export default function YouTubePlayer({
@@ -220,6 +244,7 @@ export default function YouTubePlayer({
         onReady={() => setIsReady(true)}
         onPlay={sync.onPlay}
         onPause={sync.onPause}
+        onEnded={sync.onEnded}
         onProgress={sync.onProgress}
         progressInterval={500}
         config={{ youtube: { playerVars: {
@@ -235,7 +260,7 @@ export default function YouTubePlayer({
         <div className="flex items-center gap-3">
           <button
             onClick={() => {
-              if (isHost) {
+              if (!isLocked || isHost) {
                 if (sync.playing) {
                   sync.onPause();
                 } else {
@@ -244,7 +269,7 @@ export default function YouTubePlayer({
               }
             }}
             className="text-white hover:text-brand-300 transition-colors disabled:opacity-40"
-            disabled={!isHost}
+            disabled={isLocked && !isHost}
           >
             {sync.playing ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
           </button>

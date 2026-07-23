@@ -25,9 +25,9 @@ def upgrade() -> None:
     op.alter_column("rooms", "movie_id", existing_type=postgresql.UUID(as_uuid=True), nullable=True)
 
     # 2. Drop the CASCADE FK on movie_id and add SET NULL instead
-    op.drop_constraint("rooms_movie_id_fkey", "rooms", type_="foreignkey")
+    op.drop_constraint("fk_rooms_movie_id_movies", "rooms", type_="foreignkey")
     op.create_foreign_key(
-        "rooms_movie_id_fkey",
+        "fk_rooms_movie_id_movies",
         "rooms",
         "movies",
         ["movie_id"],
@@ -42,9 +42,9 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_column("rooms", "external_url")
 
-    op.drop_constraint("rooms_movie_id_fkey", "rooms", type_="foreignkey")
+    op.drop_constraint("fk_rooms_movie_id_movies", "rooms", type_="foreignkey")
     op.create_foreign_key(
-        "rooms_movie_id_fkey",
+        "fk_rooms_movie_id_movies",
         "rooms",
         "movies",
         ["movie_id"],

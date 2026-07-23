@@ -2,18 +2,20 @@ import re
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
+from urllib.parse import quote, urlencode
 
 import json
-from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status, Request
 from starlette.responses import RedirectResponse
 import boto3
 from botocore.client import Config
+from jose import JWTError
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.config import Settings, get_settings
 from app.core.dependencies import CurrentUserRoleDep, DatabaseDep, RequireAdminDep, RequireLevel2Dep
-from app.core.security import create_hls_key_token, decrypt_secret
+from app.core.security import create_hls_key_token, create_stream_token, decode_stream_token, decrypt_secret
 from app.models.collection import Collection
 from app.models.library import Library
 from app.models.movie import Movie
@@ -32,7 +34,12 @@ from app.schemas.movie import (
 router = APIRouter(prefix="/movies", tags=["movies"])
 
 
-def _path_to_stream_url(request: Request, movie_id: uuid.UUID, full_path: str | None) -> str | None:
+def _path_to_stream_url(
+    request: Request,
+    movie_id: uuid.UUID,
+    full_path: str | None,
+    token: str | None = None,
+) -> str | None:
     """
     Convert a storage path like 'movies/UUID/poster.jpg' to a proxied
     backend stream URL like 'http://localhost:8000/api/movies/UUID/stream/poster.jpg'.
@@ -48,10 +55,13 @@ def _path_to_stream_url(request: Request, movie_id: uuid.UUID, full_path: str | 
     parts = full_path.split("/", 2)  # ['movies', 'slug', 'rest']
     relative = parts[2] if len(parts) >= 3 else full_path
     base = str(request.base_url).rstrip("/")
-    return f"{base}/api/movies/{movie_id}/stream/{relative}"
+    url = f"{base}/api/movies/{movie_id}/stream/{relative}"
+    if token:
+        url = f"{url}?{urlencode({'token': token})}"
+    return url
 
 
-def _movie_to_brief(movie: Movie, request: Request) -> dict:
+def _movie_to_brief(movie: Movie, request: Request, stream_token: str | None = None) -> dict:
     """Build a MovieBrief-compatible dict with poster/backdrop URLs resolved."""
     w = movie.resolution_width
     h = movie.resolution_height
@@ -65,9 +75,9 @@ def _movie_to_brief(movie: Movie, request: Request) -> dict:
         "resolution": resolution,
         "is_processed": movie.is_processed,
         "is_uploaded": movie.is_uploaded,
-        "thumbnail_url": _path_to_stream_url(request, movie.id, movie.thumbnail_path),
-        "poster_url": _path_to_stream_url(request, movie.id, movie.poster_path),
-        "backdrop_url": _path_to_stream_url(request, movie.id, movie.backdrop_path),
+        "thumbnail_url": _path_to_stream_url(request, movie.id, movie.thumbnail_path, stream_token),
+        "poster_url": _path_to_stream_url(request, movie.id, movie.poster_path, stream_token),
+        "backdrop_url": _path_to_stream_url(request, movie.id, movie.backdrop_path, stream_token),
     }
 
 
@@ -96,7 +106,10 @@ async def list_movies(
         user_role=user_role,
         db=db,
     )
-    return [_movie_to_brief(m, request) for m in visible]
+    return [
+        _movie_to_brief(m, request, create_stream_token(movie_id=str(m.id), user_id=user_id))
+        for m in visible
+    ]
 
 
 @router.post("", response_model=MovieResponse, status_code=status.HTTP_201_CREATED)
@@ -169,7 +182,8 @@ async def get_movie(
         raise HTTPException(status_code=403, detail="Access denied")
 
     # Build response with computed URL fields
-    brief = _movie_to_brief(movie, request)
+    stream_token = create_stream_token(movie_id=str(movie.id), user_id=user_id)
+    brief = _movie_to_brief(movie, request, stream_token)
     response_data = MovieResponse.model_validate(movie)
     response_data.thumbnail_url = brief["thumbnail_url"]
     response_data.poster_url = brief["poster_url"]
@@ -187,7 +201,7 @@ async def update_movie(
     stmt = (
         select(Movie)
         .where(Movie.id == movie_id)
-        .options(selectinload(Movie.collection).selectinload("library"))
+        .options(selectinload(Movie.collection).selectinload(Collection.library))
     )
     result = await db.execute(stmt)
     movie = result.scalar_one_or_none()
@@ -355,6 +369,7 @@ async def get_hls_key_token(
 
     # 4. Create signed token for HLS key access
     token = create_hls_key_token(movie_id=str(movie.id), user_id=user_id)
+    stream_token = create_stream_token(movie_id=str(movie.id), user_id=user_id)
     
     # Expires in the same time as the access token
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
@@ -368,7 +383,7 @@ async def get_hls_key_token(
     else:
         # Fallback for private buckets / local dev: route through the backend proxy route.
         # Uses _path_to_stream_url to build the correct relative path from hls_master_path.
-        hls_url = _path_to_stream_url(request, movie.id, movie.hls_master_path) or ""
+        hls_url = _path_to_stream_url(request, movie.id, movie.hls_master_path, stream_token) or ""
 
     return PlaybackTokenResponse(
         hls_url=hls_url,
@@ -384,6 +399,7 @@ async def stream_movie_file(
     movie_id: uuid.UUID,
     file_path: str,
     db: DatabaseDep,
+    token: str | None = Query(None),
 ):
     """
     Backend streaming proxy for private B2 buckets.
@@ -396,6 +412,17 @@ async def stream_movie_file(
     For .ts segments and other binary files: redirects to a short-lived
     presigned S3 URL (the browser handles the redirect seamlessly).
     """
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing stream token")
+
+    try:
+        payload = decode_stream_token(token)
+    except JWTError as exc:
+        raise HTTPException(status_code=401, detail="Invalid or expired stream token") from exc
+
+    if payload.get("movie_id") != str(movie_id):
+        raise HTTPException(status_code=403, detail="Token does not match this movie")
+
     stmt = (
         select(Movie)
         .where(Movie.id == movie_id)
@@ -467,7 +494,8 @@ async def stream_movie_file(
                 # Relative segment filename → absolute proxy URL
                 # e.g. "seg_000.ts" → "http://localhost:8000/api/movies/<uuid>/stream/seg_000.ts"
                 if not line.startswith("http"):
-                    line = proxy_base + line
+                    separator = "&" if "?" in line else "?"
+                    line = f"{proxy_base}{line}{separator}token={quote(token, safe='')}"
             rewritten_lines.append(line)
 
         from starlette.responses import PlainTextResponse
@@ -491,7 +519,7 @@ async def serve_hls_key(
     movie_id: uuid.UUID,
     db: DatabaseDep,
     token: str | None = Query(None),
-    authorization: str | None = None,
+    authorization: Annotated[str | None, Header()] = None,
 ):
     """
     Serve the raw 16-byte AES-128 encryption key for HLS playback.

@@ -1,19 +1,22 @@
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.models.user import User
-from app.models.library import Library
-from app.models.permission import Permission
-from app.models.enums import UserRole
-from app.core.security import create_access_token
+
 import uuid
+
+from app.core.security import create_access_token
+from app.models.enums import StorageProviderType, UserRole
+from app.models.library import Library
+from app.models.storage_provider import StorageProvider
+from app.models.user import User
 
 @pytest.fixture
 async def test_admin(db_session: AsyncSession) -> User:
     from app.core.security import hash_password
+    suffix = uuid.uuid4().hex
     user = User(
-        username="admin_perm",
-        email="admin_perm@example.com",
+        username=f"admin_perm_{suffix}",
+        email=f"admin_perm_{suffix}@example.com",
         hashed_password=hash_password("password123"),
         role=UserRole.SUPER_ADMIN,
         is_active=True,
@@ -24,10 +27,23 @@ async def test_admin(db_session: AsyncSession) -> User:
 
 @pytest.fixture
 async def test_library(db_session: AsyncSession, test_admin: User) -> Library:
+    provider = StorageProvider(
+        owner_id=test_admin.id,
+        provider_type=StorageProviderType.B2,
+        name="Test Provider",
+        credentials_encrypted="{}",
+        bucket_name="test-bucket",
+        endpoint_url="https://example.invalid",
+        is_active=True,
+    )
+    db_session.add(provider)
+    await db_session.flush()
+
     lib = Library(
         name="Test Library",
         owner_id=test_admin.id,
-        is_public=False
+        storage_provider_id=provider.id,
+        is_private=True,
     )
     db_session.add(lib)
     await db_session.commit()
@@ -39,9 +55,10 @@ async def test_grant_permission(client: AsyncClient, test_admin: User, test_libr
     
     # Create another user to grant to
     from app.core.security import hash_password
+    suffix = uuid.uuid4().hex
     grantee = User(
-        username="grantee",
-        email="grantee@example.com",
+        username=f"grantee_{suffix}",
+        email=f"grantee_{suffix}@example.com",
         hashed_password=hash_password("pw"),
         role=UserRole.LEVEL1,
         is_active=True
@@ -59,4 +76,4 @@ async def test_grant_permission(client: AsyncClient, test_admin: User, test_libr
         }
     )
     assert response.status_code == 201
-    assert response.json()["grantee"]["username"] == "grantee"
+    assert response.json()["grantee"]["username"] == grantee.username

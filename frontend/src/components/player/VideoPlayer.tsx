@@ -75,6 +75,12 @@ export default function VideoPlayer({
   }, [sync.isConnected]);
 
   useEffect(() => {
+    if (sync.remoteState?.speed) {
+      setPlaybackSpeed(sync.remoteState.speed);
+    }
+  }, [sync.remoteState?.speed]);
+
+  useEffect(() => {
     if (playerRef) {
       playerRef.current = {
         sendChatMessage: sync.sendChatMessage,
@@ -248,20 +254,26 @@ export default function VideoPlayer({
     if (!videoRef.current) return;
     if (isLocked && !isHost) return; // Host lock enforced
 
-    const pos = videoRef.current.currentTime;
+    const video = videoRef.current;
+    const isAtEnd = video.ended || (duration > 0 && video.currentTime >= duration - 0.5);
+    const pos = video.paused && isAtEnd ? 0 : video.currentTime;
 
-    if (videoRef.current.paused) {
-      videoRef.current.play().catch(() => {});
+    if (video.paused) {
+      if (isAtEnd) {
+        video.currentTime = 0;
+        setCurrentTime(0);
+      }
+      video.play().catch(() => {});
       if (syncEnabled) {
         sync.play(pos);
       }
     } else {
-      videoRef.current.pause();
+      video.pause();
       if (syncEnabled) {
         sync.pause(pos);
       }
     }
-  }, [syncEnabled, isLocked, isHost, sync]);
+  }, [syncEnabled, isLocked, isHost, sync, duration]);
 
   const handleTimeUpdate = () => {
     if (!videoRef.current) return;
@@ -294,6 +306,16 @@ export default function VideoPlayer({
 
     if (syncEnabled) {
       sync.seek(safeTime);
+    }
+  };
+
+  const handleEnded = () => {
+    if (!videoRef.current) return;
+    const endPosition = duration > 0 ? duration : videoRef.current.currentTime;
+    setIsPlaying(false);
+    setCurrentTime(endPosition);
+    if (syncEnabled && (!isLocked || isHost)) {
+      sync.ended(endPosition);
     }
   };
 
@@ -340,6 +362,9 @@ export default function VideoPlayer({
     setPlaybackSpeed(speed);
     if (videoRef.current) {
       videoRef.current.playbackRate = speed;
+      if (syncEnabled) {
+        sync.setSpeed(speed, videoRef.current.currentTime);
+      }
     }
   };
 
@@ -440,6 +465,7 @@ export default function VideoPlayer({
         onClick={togglePlay}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
+        onEnded={handleEnded}
         onTimeUpdate={handleTimeUpdate}
         onDurationChange={handleDurationChange}
         onLoadedMetadata={handleDurationChange}

@@ -66,6 +66,7 @@ class JoinRoomRequest(BaseModel):
 
 logger = structlog.get_logger()
 router = APIRouter(prefix="/rooms", tags=["rooms"])
+REPLAY_END_EPSILON_SECONDS = 0.75
 
 
 # ── HTTP Endpoints ────────────────────────────────────────────────────────────
@@ -227,10 +228,20 @@ async def set_room_media(
     # Reset playback when media changes
     room.position_seconds = 0.0
     room.state = RoomState.WAITING
+    room.speed = 1.0
     from datetime import datetime, timezone
     room.last_activity_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(room, ["creator", "movie"])
+
+    live = RoomState_Live(
+        room_id=str(room_id),
+        state=RoomState.WAITING,
+        position_seconds=0.0,
+        speed=1.0,
+        host_id=current_user_id,
+    )
+    room_manager.set_state(live)
 
     # Broadcast media change to all connected clients
     await room_manager.broadcast(str(room_id), {
@@ -238,6 +249,7 @@ async def set_room_media(
         "movie_id": str(payload.movie_id) if payload.movie_id else None,
         "external_url": payload.external_url,
     })
+    await room_manager.broadcast(str(room_id), _make_state_msg(live, room_manager.member_count(str(room_id))))
     return room
 
 @router.patch("/{room_id}", response_model=RoomResponse)
@@ -397,7 +409,9 @@ async def room_websocket(
 
     # 2. Load room from DB (short-lived DB session)
     async with AsyncSessionLocal() as db:
-        room = await db.get(Room, room_id)
+        stmt = select(Room).where(Room.id == room_id).options(selectinload(Room.movie))
+        result = await db.execute(stmt)
+        room = result.scalar_one_or_none()
         if not room:
             await ws.close(code=4004, reason="Room not found")
             return
@@ -408,6 +422,7 @@ async def room_websocket(
 
         creator_id_str = str(room.creator_id)
         is_room_locked = room.is_locked
+        media_duration_seconds = room.movie.duration_seconds if room.movie else None
 
         # Seed live state if first connection
         live = room_manager.get_state(str(room_id))
@@ -441,48 +456,56 @@ async def room_websocket(
             # If room is locked, only the host can control playback.
             # If unlocked, any room member can control playback.
             if is_room_locked and not is_host:
-                if msg_type in ("PLAY", "PAUSE", "SEEK"):
+                if msg_type in ("PLAY", "PAUSE", "SEEK", "ENDED", "SPEED"):
                     await ws.send_json({
                         "type": "ERROR",
                         "detail": "Room is locked by host",
                     })
                     continue
 
-            if msg_type in ("PLAY", "PAUSE", "SEEK"):
-                position = float(data.get("position", live.current_position()))
+            if msg_type in ("PLAY", "PAUSE", "SEEK", "ENDED", "SPEED"):
+                authoritative_position = live.current_position()
+                position = float(data.get("position", authoritative_position))
 
-                if msg_type == "PLAY":
-                    new_state = RoomState.PLAYING
-                elif msg_type == "PAUSE":
-                    new_state = RoomState.PAUSED
+                new_speed = live.speed
+                if msg_type == "SPEED":
+                    new_state = live.state
+                    position = authoritative_position
+                    new_speed = _clamp_playback_speed(float(data.get("speed", live.speed)))
                 else:
-                    # SEEK — preserve current play/pause state
-                    new_state = live.state if live.state != RoomState.WAITING else RoomState.PAUSED
+                    new_state, position = _resolve_playback_command(
+                        msg_type=msg_type,
+                        position=position,
+                        live=live,
+                        media_duration_seconds=media_duration_seconds,
+                        authoritative_position=authoritative_position,
+                    )
 
                 # Update in-memory state — use exact position from client, not computed one
                 live = RoomState_Live(
                     room_id=str(room_id),
                     state=new_state,
                     position_seconds=position,
-                    speed=live.speed,
+                    speed=new_speed,
                     host_id=creator_id_str,
                 )
                 room_manager.set_state(live)
 
                 # Persist to DB in a background task so it doesn't block the real-time broadcast
-                async def _save_state(r_id, s, p):
+                async def _save_state(r_id, s, p, speed):
                     try:
                         async with AsyncSessionLocal() as db:
                             db_room = await db.get(Room, r_id)
                             if db_room:
                                 db_room.state = s
                                 db_room.position_seconds = p
+                                db_room.speed = speed
                                 db_room.last_activity_at = datetime.now(timezone.utc)
                                 await db.commit()
                     except Exception as e:
                         logger.error("bg_save_state_error", error=str(e))
                 
-                asyncio.create_task(_save_state(room_id, new_state, position))
+                asyncio.create_task(_save_state(room_id, new_state, position, new_speed))
 
                 # Broadcast new state — capture server_time NOW (after DB, before network)
                 # so clients can accurately compute their one-way latency.
@@ -556,6 +579,46 @@ async def room_websocket(
             "count": room_manager.member_count(str(room_id)),
             "user_ids": room_manager.connected_user_ids(str(room_id)),
         })
+
+
+def _resolve_playback_command(
+    *,
+    msg_type: str,
+    position: float,
+    live: RoomState_Live,
+    media_duration_seconds: float | None,
+    authoritative_position: float | None = None,
+) -> tuple[RoomState, float]:
+    position = max(0.0, position)
+    authoritative_position = max(0.0, authoritative_position if authoritative_position is not None else position)
+
+    if msg_type == "PLAY":
+        is_replay_from_ended_state = live.state == RoomState.ENDED
+        is_replay_from_media_end = (
+            media_duration_seconds is not None
+            and media_duration_seconds > 0
+            and position >= media_duration_seconds - REPLAY_END_EPSILON_SECONDS
+        )
+        if is_replay_from_ended_state or is_replay_from_media_end:
+            position = 0.0
+        return RoomState.PLAYING, position
+
+    if msg_type == "PAUSE":
+        return RoomState.PAUSED, position
+
+    if msg_type == "ENDED":
+        if media_duration_seconds is not None and media_duration_seconds > 0:
+            if authoritative_position < media_duration_seconds - REPLAY_END_EPSILON_SECONDS:
+                return live.state, authoritative_position
+            return RoomState.ENDED, media_duration_seconds
+        return RoomState.ENDED, position
+
+    new_state = live.state if live.state not in (RoomState.WAITING, RoomState.ENDED) else RoomState.PAUSED
+    return new_state, position
+
+
+def _clamp_playback_speed(speed: float) -> float:
+    return min(3.0, max(0.25, speed))
 
 
 def _make_state_msg(live: RoomState_Live, member_count: int, external_url: str | None = None) -> dict:
