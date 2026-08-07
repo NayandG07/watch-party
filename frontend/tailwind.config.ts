@@ -10,48 +10,56 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // ── Brand palette (Deep Indigo) ───────────────────────
+        // ── Primary Brand Palette (Rich Indigo) ───────────────
         brand: {
-          50:  "#e8eaf6",
-          100: "#c5cae9",
-          200: "#9fa8da",
-          300: "#7986cb",
-          400: "#5c6bc0",
-          500: "#3949ab",  // primary deep indigo
-          600: "#303f9f",
-          700: "#283593",
-          800: "#1a237e",
-          900: "#0d1452",
-          950: "#06092b",
+          50:  "#eef2ff",
+          100: "#e0e7ff",
+          200: "#c7d2fe",
+          300: "#a5b4fc",
+          400: "#818cf8",
+          500: "#6366f1",
+          600: "#4f46e5",
+          700: "#4338ca",  // primary deep indigo
+          800: "#3730a3",
+          900: "#312e81",
+          950: "#1e1b4b",
         },
-        // ── Accent palette (Coral / Amber) ─────────────────────
+        // ── Accent Palette (Vibrant Coral / Emerald) ──────────
         accent: {
-          50:  "#fff3f0",
-          100: "#ffe3dc",
-          200: "#ffc9bb",
-          300: "#ffa590",
-          400: "#f88b70",
-          500: "#e8795b",  // coral accent
-          600: "#d35e40",
-          700: "#b1482d",
-          800: "#8e3923",
-          900: "#743220",
+          50:  "#fff7ed",
+          100: "#ffedd5",
+          200: "#fed7aa",
+          300: "#fdba74",
+          400: "#fb923c",
+          500: "#f97316",  // warm coral accent
+          600: "#ea580c",
+          700: "#c2410c",
+          800: "#9a3412",
+          900: "#7c2d12",
         },
-        // ── Surfaces (Light Cinematic) ───────────────────────
+        // ── Live / Success Palette ────────────────────────────
+        live: {
+          50:  "#ecfdf5",
+          100: "#d1fae5",
+          500: "#22c55e",  // sync live green
+          600: "#16a34a",
+          700: "#15803d",
+        },
+        // ── Surfaces (Cinematic Light) ────────────────────────
         surface: {
-          base:     "#f4f7fb",  // page canvas background
-          default:  "#f4f7fb",  // app background
-          elevated: "#ffffff",  // cards, panels
-          overlay:  "#ffffff",  // modals, dropdowns
-          border:   "#e2e8f0",  // subtle border
+          base:     "#f8fafc",  // app background canvas
+          default:  "#f8fafc",
+          elevated: "#ffffff",  // card & modal surfaces
+          overlay:  "#ffffff",
+          border:   "#e2e8f0",  // subtle slate border
           borderStrong: "#cbd5e1",
         },
-        // ── Text Content (High Contrast Charcoal) ────────────
+        // ── Text Content (High Contrast Slate) ────────────────
         content: {
-          primary:   "#172033",  // dark charcoal
-          secondary: "#546e7a",  // slate text
-          muted:     "#90a4ae",  // muted slate
-          disabled:  "#cbd5e1",  // disabled
+          primary:   "#0f172a",  // deep slate charcoal
+          secondary: "#475569",  // body text
+          muted:     "#64748b",  // labels & metadata
+          disabled:  "#cbd5e1",
         },
         // ── Semantic ────────────────────────────────────────────
         success: "#10b981",
@@ -61,6 +69,7 @@ const config: Config = {
       },
       fontFamily: {
         sans: ["var(--font-inter)", "Inter", "system-ui", "sans-serif"],
+        display: ["Plus Jakarta Sans", "Inter", "sans-serif"],
         mono: ["var(--font-mono)", "ui-monospace", "monospace"],
       },
       borderRadius: {
@@ -70,10 +79,10 @@ const config: Config = {
       },
       backgroundImage: {
         "gradient-radial":    "radial-gradient(var(--tw-gradient-stops))",
-        "gradient-brand":     "linear-gradient(135deg, #3949ab 0%, #283593 100%)",
-        "gradient-accent":    "linear-gradient(135deg, #e8795b 0%, #d35e40 100%)",
-        "gradient-surface":   "linear-gradient(180deg, #ffffff 0%, #f4f7fb 100%)",
-        "gradient-spotlight": "radial-gradient(ellipse at top, rgba(57,73,171,0.08) 0%, transparent 70%)",
+        "gradient-brand":     "linear-gradient(135deg, #4338ca 0%, #312e81 100%)",
+        "gradient-accent":    "linear-gradient(135deg, #f97316 0%, #ea580c 100%)",
+        "gradient-hero":      "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
+        "gradient-spotlight": "radial-gradient(ellipse at top, rgba(67,56,202,0.08) 0%, transparent 70%)",
       },
       keyframes: {
         "slide-in-right": {
@@ -110,11 +119,11 @@ const config: Config = {
         float:            "float 4s ease-in-out infinite",
       },
       boxShadow: {
-        brand:   "0 4px 14px rgba(57,73,171,0.25)",
-        accent:  "0 4px 14px rgba(232,121,91,0.25)",
-        card:    "0 2px 10px rgba(23,32,51,0.06), 0 1px 3px rgba(23,32,51,0.04)",
-        "card-hover": "0 10px 30px rgba(23,32,51,0.12), 0 2px 8px rgba(23,32,51,0.06)",
-        glow:    "0 0 20px rgba(57,73,171,0.2)",
+        brand:   "0 4px 14px rgba(67,56,202,0.22)",
+        accent:  "0 4px 14px rgba(249,115,22,0.22)",
+        card:    "0 2px 10px rgba(15,23,42,0.05), 0 1px 3px rgba(15,23,42,0.03)",
+        "card-hover": "0 12px 32px rgba(15,23,42,0.1), 0 2px 8px rgba(15,23,42,0.04)",
+        glow:    "0 0 20px rgba(67,56,202,0.18)",
       },
       transitionTimingFunction: {
         "out-expo": "cubic-bezier(0.19, 1, 0.22, 1)",
