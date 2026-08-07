@@ -8,4 +8,4 @@
 
 [build.environment]
   # IMPORTANT: Update this URL to match your Render backend URL once deployed
-  NEXT_PUBLIC_API_URL = "https://watch-party-backend.onrender.com"
+  NEXT_PUBLIC_API_URL = "https://watch-party-u7jq.onrender.com"
