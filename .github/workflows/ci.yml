@@ -55,7 +55,7 @@ jobs:
           cache-dependency-path: backend/requirements.txt
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install -r requirements.txt ruff mypy
 
       - name: Ruff — lint
         run: python -m ruff check .
@@ -72,3 +72,4 @@ jobs:
           HLS_KEY_SIGNING_SECRET: "ci-test-hls-signing-secret-not-for-production"
         run: python -m pytest tests/ -v --tb=short
         continue-on-error: true
+
