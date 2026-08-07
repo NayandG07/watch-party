@@ -7,7 +7,7 @@ from_attributes=True for ORM compatibility) or from a simpler BaseModel.
 
 from __future__ import annotations
 
-from typing import Generic, TypeVar
+from typing import TypeVar
 
 from pydantic import BaseModel, ConfigDict
 
@@ -24,7 +24,7 @@ class WatchPartyModel(BaseModel):
     )
 
 
-class PaginatedResponse(WatchPartyModel, Generic[T]):
+class PaginatedResponse[T](WatchPartyModel):
     """Generic paginated list response."""
 
     items: list[T]

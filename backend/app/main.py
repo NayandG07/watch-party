@@ -12,6 +12,7 @@ The backend NEVER proxies video. All media flows:
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -31,6 +32,7 @@ from app.api import (
     storage_providers,
     users,
 )
+from app.api.rooms import cleanup_inactive_rooms
 from app.core.config import get_settings
 from app.core.exceptions import (
     WatchPartyError,
@@ -40,11 +42,6 @@ from app.core.exceptions import (
 from app.core.log_config import configure_logging
 
 settings = get_settings()
-
-
-import asyncio
-
-from app.api.rooms import cleanup_inactive_rooms
 
 
 @asynccontextmanager

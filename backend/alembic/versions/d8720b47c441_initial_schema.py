@@ -450,7 +450,7 @@ def upgrade() -> None:
             "content",
             sa.Text(),
             nullable=False,
-            comment="For TEXT: message text. For EMOJI_REACTION: emoji char. For TIMESTAMP_SHARE: human-readable label e.g. '1:23:45'.",
+            comment="For TEXT: message text. For EMOJI_REACTION: emoji char. For TIMESTAMP_SHARE: human-readable label e.g. '1:23:45'.",  # noqa: E501
         ),
         sa.Column(
             "message_type",

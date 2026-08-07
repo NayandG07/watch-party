@@ -1,5 +1,5 @@
 """
-Room Manager — in-memory WebSocket connection registry with DB-persisted state.
+Room Manager â€” in-memory WebSocket connection registry with DB-persisted state.
 
 Architecture:
   - One RoomManager singleton lives for the lifetime of the process.
@@ -15,6 +15,7 @@ Thread safety:
 
 from __future__ import annotations
 
+import contextlib
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -29,7 +30,7 @@ if TYPE_CHECKING:
 logger = structlog.get_logger()
 
 
-class RoomState_Live:
+class RoomStateLive:
     """Lightweight in-memory snapshot of a room's playback state."""
 
     __slots__ = (
@@ -83,11 +84,11 @@ class RoomManager:
         # room_id -> list of active connections
         self._connections: dict[str, list[ConnectionInfo]] = {}
         # room_id -> live room state
-        self._states: dict[str, RoomState_Live] = {}
+        self._states: dict[str, RoomStateLive] = {}
         # room_id -> {user_id: username} mapping for MEMBER_UPDATE broadcasts
         self._usernames: dict[str, dict[str, str]] = {}
 
-    # ── Connection lifecycle ───────────────────────────────────────────────────
+    # ── Connection lifecycle ───────────────────────────────────────────────────  # noqa: E501
 
     async def connect(self, room_id: str, user_id: str, ws: WebSocket, username: str = "") -> None:
         await ws.accept()
@@ -146,17 +147,17 @@ class RoomManager:
                 )
         return result
 
-    # ── State management ──────────────────────────────────────────────────────
+    # ── State management ──────────────────────────────────────────────────────  # noqa: E501
 
-    def set_state(self, state: RoomState_Live) -> None:
+    def set_state(self, state: RoomStateLive) -> None:
         self._states[state.room_id] = state
 
-    def get_state(self, room_id: str) -> RoomState_Live | None:
+    def get_state(self, room_id: str) -> RoomStateLive | None:
         return self._states.get(room_id)
 
-    def seed_from_db(self, room: Room) -> RoomState_Live:
+    def seed_from_db(self, room: Room) -> RoomStateLive:
         """Seed in-memory state from a DB Room row (on first connection or restart)."""
-        live = RoomState_Live(
+        live = RoomStateLive(
             room_id=str(room.id),
             state=room.state,
             position_seconds=room.position_seconds,
@@ -167,7 +168,7 @@ class RoomManager:
         self._states[str(room.id)] = live
         return live
 
-    # ── Broadcasting ──────────────────────────────────────────────────────────
+    # ── Broadcasting ──────────────────────────────────────────────────────────  # noqa: E501
 
     async def broadcast(self, room_id: str, message: dict) -> None:
         """Send a JSON message to all clients in a room."""
@@ -186,11 +187,9 @@ class RoomManager:
         """Send a message to a specific user in a room."""
         for conn in self._connections.get(room_id, []):
             if conn.user_id == user_id:
-                try:
+                with contextlib.suppress(Exception):
                     await conn.ws.send_json(message)
-                except Exception:
-                    pass
 
 
-# Module-level singleton — imported and used across the codebase
+# Module-level singleton â€” imported and used across the codebase
 room_manager = RoomManager()

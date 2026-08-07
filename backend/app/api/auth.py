@@ -99,11 +99,11 @@ async def refresh_token(
         if payload.get("type") != "refresh":
             raise ValueError("Invalid token type")
         user_id = payload["sub"]
-    except Exception:
+    except Exception as err:
         _clear_refresh_cookie(response, settings)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
-        )
+        ) from err
 
     user = await db.get(User, user_id)
     if not user or not user.is_active:

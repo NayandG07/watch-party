@@ -12,7 +12,7 @@ from __future__ import annotations
 import enum
 
 
-class UserRole(str, enum.Enum):
+class UserRole(enum.StrEnum):
     """Platform user roles in ascending privilege order."""
 
     LEVEL1 = "level1"  # Default member: browse + watch + join rooms
@@ -20,7 +20,7 @@ class UserRole(str, enum.Enum):
     SUPER_ADMIN = "super_admin"  # Platform owner: full access, single account
 
 
-class Visibility(str, enum.Enum):
+class Visibility(enum.StrEnum):
     """Content visibility levels for libraries, collections, and movies.
 
     Resolution order (lowest → highest override):
@@ -32,7 +32,7 @@ class Visibility(str, enum.Enum):
     SHARED = "shared"  # All authenticated platform users
 
 
-class StorageProviderType(str, enum.Enum):
+class StorageProviderType(enum.StrEnum):
     """Supported object storage backends.
 
     The application never calls storage APIs directly — it always goes through
@@ -45,7 +45,7 @@ class StorageProviderType(str, enum.Enum):
     MINIO = "minio"  # Self-hosted MinIO
 
 
-class RoomState(str, enum.Enum):
+class RoomState(enum.StrEnum):
     """Authoritative playback state of a watch room."""
 
     WAITING = "waiting"  # Room created, movie not started
@@ -54,7 +54,7 @@ class RoomState(str, enum.Enum):
     ENDED = "ended"  # Movie reached the end (or manually ended)
 
 
-class MessageType(str, enum.Enum):
+class MessageType(enum.StrEnum):
     """Chat message types within a room."""
 
     TEXT = "text"  # Plain text message

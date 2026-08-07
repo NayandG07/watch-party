@@ -65,7 +65,7 @@ from app.schemas.room import (
     RoomUpdate,
     WSTokenResponse,
 )
-from app.services.room_manager import RoomState_Live, room_manager
+from app.services.room_manager import RoomStateLive, room_manager
 
 
 class JoinRoomRequest(BaseModel):
@@ -77,7 +77,7 @@ router = APIRouter(prefix="/rooms", tags=["rooms"])
 REPLAY_END_EPSILON_SECONDS = 0.75
 
 
-# ── HTTP Endpoints ────────────────────────────────────────────────────────────
+# ── HTTP Endpoints ────────────────────────────────────────────────────────────  # noqa: E501
 
 
 @router.post("", response_model=RoomResponse, status_code=status.HTTP_201_CREATED)
@@ -178,8 +178,8 @@ async def join_room(
 
     try:
         claims = decode_invite_token(payload.invite_token)
-    except JWTError:
-        raise HTTPException(status_code=400, detail="Invalid or expired invite token")
+    except JWTError as err:
+        raise HTTPException(status_code=400, detail="Invalid or expired invite token") from err
 
     token_room_id = claims.get("room_id")
     if token_room_id and token_room_id != str(room_id):
@@ -249,7 +249,7 @@ async def set_room_media(
     await db.commit()
     await db.refresh(room, ["creator", "movie"])
 
-    live = RoomState_Live(
+    live = RoomStateLive(
         room_id=str(room_id),
         state=RoomState.WAITING,
         position_seconds=0.0,
@@ -414,7 +414,7 @@ async def get_ws_token(
     return WSTokenResponse(ws_token=token)
 
 
-# ── WebSocket ─────────────────────────────────────────────────────────────────
+# â”€â”€ WebSocket â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€  # noqa: E501
 
 
 @router.websocket("/{room_id}/ws")
@@ -494,15 +494,15 @@ async def room_websocket(
 
             # If room is locked, only the host can control playback.
             # If unlocked, any room member can control playback.
-            if is_room_locked and not is_host:
-                if msg_type in ("PLAY", "PAUSE", "SEEK", "ENDED", "SPEED"):
-                    await ws.send_json(
-                        {
-                            "type": "ERROR",
-                            "detail": "Room is locked by host",
-                        }
-                    )
-                    continue
+            playback_msgs = ("PLAY", "PAUSE", "SEEK", "ENDED", "SPEED")
+            if is_room_locked and not is_host and msg_type in playback_msgs:
+                await ws.send_json(
+                    {
+                        "type": "ERROR",
+                        "detail": "Room is locked by host",
+                    }
+                )
+                continue
 
             if msg_type in ("PLAY", "PAUSE", "SEEK", "ENDED", "SPEED"):
                 authoritative_position = live.current_position()
@@ -522,8 +522,8 @@ async def room_websocket(
                         authoritative_position=authoritative_position,
                     )
 
-                # Update in-memory state — use exact position from client, not computed one
-                live = RoomState_Live(
+                # Update in-memory state â€” use exact position from client, not computed one
+                live = RoomStateLive(
                     room_id=str(room_id),
                     state=new_state,
                     position_seconds=position,
@@ -548,7 +548,7 @@ async def room_websocket(
 
                 asyncio.create_task(_save_state(room_id, new_state, position, new_speed))
 
-                # Broadcast new state — capture server_time NOW (after DB, before network)
+                # Broadcast new state â€” capture server_time NOW (after DB, before network)
                 # so clients can accurately compute their one-way latency.
                 # We send `position` directly (the exact value from the host) rather than
                 # live.current_position() which would add DB-commit latency to the offset.
@@ -638,7 +638,7 @@ def _resolve_playback_command(
     *,
     msg_type: str,
     position: float,
-    live: RoomState_Live,
+    live: RoomStateLive,
     media_duration_seconds: float | None,
     authoritative_position: float | None = None,
 ) -> tuple[RoomState, float]:
@@ -679,7 +679,7 @@ def _clamp_playback_speed(speed: float) -> float:
 
 
 def _make_state_msg(
-    live: RoomState_Live, member_count: int, external_url: str | None = None
+    live: RoomStateLive, member_count: int, external_url: str | None = None
 ) -> dict:
     return {
         "type": "ROOM_STATE",

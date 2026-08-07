@@ -239,8 +239,8 @@ class PermissionService:
         user_uuid = uuid.UUID(user_id)
 
         # Collect all unique library_ids and collection_ids for batch grant lookup
-        library_ids = {c.library.id for c in collections if c.library is not None}
-        collection_ids = {c.id for c in collections}
+        {c.library.id for c in collections if c.library is not None}
+        {c.id for c in collections}
 
         # Single query: fetch all explicit grants for this user touching any of these resources
         grants_q = select(Permission).where(
@@ -270,11 +270,11 @@ class PermissionService:
                 continue
 
             # Check collection-level visibility
-            if col.visibility == Visibility.SHARED:
+            if col.visibility == Visibility.SHARED or (
+                col.visibility in (Visibility.FRIENDS, Visibility.PRIVATE)
+                and col.id in granted_collection_ids
+            ):
                 visible.append(col)
-            elif col.visibility in (Visibility.FRIENDS, Visibility.PRIVATE):
-                if col.id in granted_collection_ids:
-                    visible.append(col)
 
         return visible
 
@@ -334,11 +334,10 @@ class PermissionService:
             # Effective visibility
             effective = movie.visibility_override or col.visibility
 
-            if effective == Visibility.SHARED:
+            if effective == Visibility.SHARED or (
+                effective == Visibility.FRIENDS and col.id in granted_collection_ids
+            ):
                 visible.append(movie)
-            elif effective == Visibility.FRIENDS:
-                if col.id in granted_collection_ids:
-                    visible.append(movie)
             # PRIVATE: only explicit grants (already handled above)
 
         return visible

@@ -266,7 +266,7 @@ async def complete_movie_upload(
     update_data = payload.model_dump(exclude_unset=True)
 
     # In a real app we'd also store the HLS key hex, but that needs to be encrypted before saving.
-    # The security module has AES-256-GCM encryption we can use, but HLS Keys are in a separate table.
+    # The security module has AES-256-GCM encryption we can use, but HLS Keys are in a separate table.  # noqa: E501
     # For now, we will just update the movie fields. Let's add the HLS Key logic.
     from app.core.security import encrypt_secret
     from app.models.hls_key import HLSKey
@@ -495,12 +495,11 @@ async def stream_movie_file(
                     f'URI="{str(request.base_url).rstrip("/")}/api/movies/{movie_id}/hls-key"',
                     line,
                 )
-            elif line and not line.startswith("#"):
+            elif line and not line.startswith("#") and not line.startswith("http"):
                 # Relative segment filename → absolute proxy URL
                 # e.g. "seg_000.ts" → "http://localhost:8000/api/movies/<uuid>/stream/seg_000.ts"
-                if not line.startswith("http"):
-                    separator = "&" if "?" in line else "?"
-                    line = f"{proxy_base}{line}{separator}token={quote(token, safe='')}"
+                separator = "&" if "?" in line else "?"
+                line = f"{proxy_base}{line}{separator}token={quote(token, safe='')}"
             rewritten_lines.append(line)
 
         from starlette.responses import PlainTextResponse
@@ -553,8 +552,8 @@ async def serve_hls_key(
 
     try:
         payload = decode_hls_key_token(raw_token)
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid or expired HLS key token")
+    except JWTError as err:
+        raise HTTPException(status_code=401, detail="Invalid or expired HLS key token") from err
 
     # Verify the token is for THIS movie
     if payload.get("movie_id") != str(movie_id):

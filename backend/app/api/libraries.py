@@ -83,7 +83,7 @@ async def get_library_summary(
     """
     user_id, user_role = user_role_pair
 
-    # Query 1: All collections + their parent library + library owner (for permission checks + response)
+    # Query 1: All collections + their parent library + library owner (for permission checks + response)  # noqa: E501
     col_stmt = (
         select(Collection)
         .options(

@@ -60,7 +60,7 @@ class B2StorageProvider(StorageProviderBase):
                 new_parts = (
                     parsed_cdn.scheme,
                     parsed_cdn.netloc,
-                    parsed_url.path,  # Keep the path (which may include the bucket name depending on how Cloudflare is set up, this might need refinement based on exact CDN config)
+                    parsed_url.path,  # Keep the path (which may include the bucket name depending on how Cloudflare is set up, this might need refinement based on exact CDN config)  # noqa: E501
                     parsed_url.params,
                     parsed_url.query,
                     parsed_url.fragment,
