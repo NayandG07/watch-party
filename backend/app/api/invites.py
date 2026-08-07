@@ -1,5 +1,5 @@
 import uuid as _uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -97,7 +97,7 @@ async def create_invite(
         room_id=str(payload.room_id) if payload.room_id else None,
     )
 
-    expires_at = datetime.now(timezone.utc) + timedelta(hours=payload.expires_in_hours)
+    expires_at = datetime.now(UTC) + timedelta(hours=payload.expires_in_hours)
 
     invite = Invite(
         token=token,
@@ -113,9 +113,7 @@ async def create_invite(
     # Reload with inviter relationship populated
     await db.refresh(invite)
     result = await db.execute(
-        select(Invite)
-        .where(Invite.id == invite.id)
-        .options(selectinload(Invite.inviter))
+        select(Invite).where(Invite.id == invite.id).options(selectinload(Invite.inviter))
     )
     invite = result.scalar_one()
 
@@ -128,11 +126,7 @@ async def list_invites(
     db: DatabaseDep,
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> list[dict]:
-    stmt = (
-        select(Invite)
-        .options(selectinload(Invite.inviter))
-        .order_by(Invite.created_at.desc())
-    )
+    stmt = select(Invite).options(selectinload(Invite.inviter)).order_by(Invite.created_at.desc())
     result = await db.execute(stmt)
     invites = result.scalars().all()
     return [_build_invite_response(inv, settings) for inv in invites]

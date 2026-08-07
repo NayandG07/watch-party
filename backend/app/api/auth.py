@@ -176,7 +176,7 @@ async def register(
 
     await db.commit()
     await db.refresh(new_user)
-    
+
     access_token = create_access_token(subject=str(new_user.id), role=new_user.role.value)
     refresh_token = create_refresh_token(subject=str(new_user.id))
 

@@ -35,6 +35,7 @@ _bearer_scheme = HTTPBearer(auto_error=False)
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
+
 async def get_current_user_id(
     credentials: Annotated[
         HTTPAuthorizationCredentials | None,
@@ -144,6 +145,7 @@ async def get_current_user_role(
 
 
 # ── Role guards ───────────────────────────────────────────────────────────────
+
 
 class RequireRole:
     """Dependency factory that enforces a minimum role level.

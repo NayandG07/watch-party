@@ -19,6 +19,7 @@ logger = structlog.get_logger()
 
 # ── Base ──────────────────────────────────────────────────────────────────────
 
+
 class WatchPartyError(Exception):
     """Root exception for all Watch Party domain errors."""
 
@@ -31,6 +32,7 @@ class WatchPartyError(Exception):
 
 
 # ── 4xx Client Errors ─────────────────────────────────────────────────────────
+
 
 class NotFoundError(WatchPartyError):
     """Raised when a requested resource does not exist or is not visible."""
@@ -108,6 +110,7 @@ class StorageError(WatchPartyError):
 
 
 # ── Exception handlers ────────────────────────────────────────────────────────
+
 
 async def watchparty_exception_handler(
     request: Request,

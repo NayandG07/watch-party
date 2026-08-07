@@ -19,7 +19,6 @@ Super admins bypass all permission checks.
 from __future__ import annotations
 
 import uuid
-
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -30,7 +29,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
-
     from app.models.collection import Collection
     from app.models.library import Library
     from app.models.movie import Movie

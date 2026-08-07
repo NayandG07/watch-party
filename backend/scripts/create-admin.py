@@ -36,7 +36,7 @@ async def create_admin(username: str, email: str, password: str) -> None:
             sys.exit(1)
 
         hashed_password = hash_password(password)
-        
+
         admin = User(
             username=username,
             email=email,
@@ -44,10 +44,10 @@ async def create_admin(username: str, email: str, password: str) -> None:
             role=UserRole.SUPER_ADMIN,
             is_active=True,
         )
-        
+
         session.add(admin)
         await session.commit()
-        
+
         print(f"Success: super_admin account '{username}' created.")
 
 
@@ -56,9 +56,9 @@ def main():
     parser.add_argument("--username", required=True, help="Admin username")
     parser.add_argument("--email", required=True, help="Admin email")
     parser.add_argument("--password", required=True, help="Admin password")
-    
+
     args = parser.parse_args()
-    
+
     asyncio.run(create_admin(args.username, args.email, args.password))
 
 

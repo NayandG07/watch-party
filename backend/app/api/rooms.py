@@ -32,11 +32,19 @@ from __future__ import annotations
 import asyncio
 import secrets
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks, WebSocket, WebSocketDisconnect
+from fastapi import (
+    APIRouter,
+    HTTPException,
+    Query,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
 from jose import JWTError
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
@@ -57,8 +65,8 @@ from app.schemas.room import (
     RoomUpdate,
     WSTokenResponse,
 )
-from pydantic import BaseModel
 from app.services.room_manager import RoomState_Live, room_manager
+
 
 class JoinRoomRequest(BaseModel):
     invite_token: str
@@ -70,6 +78,7 @@ REPLAY_END_EPSILON_SECONDS = 0.75
 
 
 # ── HTTP Endpoints ────────────────────────────────────────────────────────────
+
 
 @router.post("", response_model=RoomResponse, status_code=status.HTTP_201_CREATED)
 async def create_room(
@@ -122,15 +131,18 @@ async def get_room(
     room = result.scalar_one_or_none()
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
-        
+
     # Check if user is a member
     is_member = await db.scalar(
-        select(RoomMember).where(RoomMember.room_id == room_id, RoomMember.user_id == uuid.UUID(current_user_id))
+        select(RoomMember).where(
+            RoomMember.room_id == room_id, RoomMember.user_id == uuid.UUID(current_user_id)
+        )
     )
     if not is_member:
         raise HTTPException(status_code=403, detail="You are not a member of this room")
-        
+
     return room
+
 
 @router.get("", response_model=list[RoomResponse])
 async def list_rooms(
@@ -147,6 +159,7 @@ async def list_rooms(
     result = await db.execute(stmt)
     return list(result.scalars().all())
 
+
 @router.post("/{room_id}/join")
 async def join_room(
     room_id: uuid.UUID,
@@ -154,9 +167,10 @@ async def join_room(
     current_user_id: CurrentUserIdDep,
     db: DatabaseDep,
 ) -> dict:
+    from datetime import datetime
+
     from app.core.security import decode_invite_token
     from app.models.invite import Invite
-    from datetime import datetime, timezone
 
     room = await db.get(Room, room_id)
     if not room:
@@ -175,13 +189,13 @@ async def join_room(
     stmt = select(Invite).where(Invite.token == payload.invite_token)
     result = await db.execute(stmt)
     invite = result.scalar_one_or_none()
-    
+
     if not invite or invite.is_revoked:
         raise HTTPException(status_code=400, detail="Invite is invalid or revoked")
-    
-    if invite.expires_at < datetime.now(timezone.utc):
+
+    if invite.expires_at < datetime.now(UTC):
         raise HTTPException(status_code=400, detail="Invite has expired")
-        
+
     if invite.use_count >= invite.max_uses:
         raise HTTPException(status_code=400, detail="Invite maximum uses reached")
 
@@ -190,7 +204,7 @@ async def join_room(
     is_member = await db.scalar(
         select(RoomMember).where(RoomMember.room_id == room_id, RoomMember.user_id == user_uuid)
     )
-    
+
     if not is_member:
         try:
             member = RoomMember(room_id=room_id, user_id=user_uuid, is_host=False)
@@ -229,8 +243,9 @@ async def set_room_media(
     room.position_seconds = 0.0
     room.state = RoomState.WAITING
     room.speed = 1.0
-    from datetime import datetime, timezone
-    room.last_activity_at = datetime.now(timezone.utc)
+    from datetime import datetime
+
+    room.last_activity_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(room, ["creator", "movie"])
 
@@ -244,13 +259,19 @@ async def set_room_media(
     room_manager.set_state(live)
 
     # Broadcast media change to all connected clients
-    await room_manager.broadcast(str(room_id), {
-        "type": "MEDIA_CHANGE",
-        "movie_id": str(payload.movie_id) if payload.movie_id else None,
-        "external_url": payload.external_url,
-    })
-    await room_manager.broadcast(str(room_id), _make_state_msg(live, room_manager.member_count(str(room_id))))
+    await room_manager.broadcast(
+        str(room_id),
+        {
+            "type": "MEDIA_CHANGE",
+            "movie_id": str(payload.movie_id) if payload.movie_id else None,
+            "external_url": payload.external_url,
+        },
+    )
+    await room_manager.broadcast(
+        str(room_id), _make_state_msg(live, room_manager.member_count(str(room_id)))
+    )
     return room
+
 
 @router.patch("/{room_id}", response_model=RoomResponse)
 async def update_room(
@@ -266,17 +287,17 @@ async def update_room(
     )
     result = await db.execute(stmt)
     room = result.scalar_one_or_none()
-    
+
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
-        
+
     if str(room.creator_id) != current_user_id:
         raise HTTPException(status_code=403, detail="Only host can update room")
-        
+
     update_data = payload.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(room, key, value)
-        
+
     await db.commit()
     await db.refresh(room)
     return room
@@ -300,10 +321,13 @@ async def delete_room(
         raise HTTPException(status_code=403, detail="Only host or admin can delete room")
 
     # Broadcast deletion to all connected WebSocket clients
-    await room_manager.broadcast(str(room_id), {
-        "type": "ROOM_DELETED",
-        "detail": "This room has been deleted by the host.",
-    })
+    await room_manager.broadcast(
+        str(room_id),
+        {
+            "type": "ROOM_DELETED",
+            "detail": "This room has been deleted by the host.",
+        },
+    )
 
     await db.delete(room)
     await db.commit()
@@ -315,7 +339,7 @@ async def cleanup_inactive_rooms() -> None:
     while True:
         try:
             await asyncio.sleep(300)  # Check every 5 minutes
-            cutoff = datetime.now(timezone.utc) - timedelta(minutes=60)
+            cutoff = datetime.now(UTC) - timedelta(minutes=60)
             async with AsyncSessionLocal() as db:
                 stmt = select(Room).where(Room.last_activity_at < cutoff)
                 result = await db.execute(stmt)
@@ -346,7 +370,9 @@ async def get_room_chat(
 
     # Ensure user is member
     is_member = await db.scalar(
-        select(RoomMember).where(RoomMember.room_id == room_id, RoomMember.user_id == uuid.UUID(current_user_id))
+        select(RoomMember).where(
+            RoomMember.room_id == room_id, RoomMember.user_id == uuid.UUID(current_user_id)
+        )
     )
     if not is_member:
         raise HTTPException(status_code=403, detail="You are not a member of this room")
@@ -363,6 +389,8 @@ async def get_room_chat(
     )
     result = await db.execute(stmt)
     return list(result.scalars().all())
+
+
 @router.get("/{room_id}/ws-token", response_model=WSTokenResponse)
 async def get_ws_token(
     room_id: uuid.UUID,
@@ -375,7 +403,9 @@ async def get_ws_token(
         raise HTTPException(status_code=404, detail="Room not found")
 
     is_member = await db.scalar(
-        select(RoomMember).where(RoomMember.room_id == room_id, RoomMember.user_id == uuid.UUID(current_user_id))
+        select(RoomMember).where(
+            RoomMember.room_id == room_id, RoomMember.user_id == uuid.UUID(current_user_id)
+        )
     )
     if not is_member:
         raise HTTPException(status_code=403, detail="You are not a member of this room")
@@ -385,6 +415,7 @@ async def get_ws_token(
 
 
 # ── WebSocket ─────────────────────────────────────────────────────────────────
+
 
 @router.websocket("/{room_id}/ws")
 async def room_websocket(
@@ -409,11 +440,7 @@ async def room_websocket(
 
     # 2. Load room from DB (short-lived DB session)
     async with AsyncSessionLocal() as db:
-        stmt = (
-            select(Room)
-            .where(Room.id == room_id)
-            .options(selectinload(Room.movie))
-        )
+        stmt = select(Room).where(Room.id == room_id).options(selectinload(Room.movie))
         result = await db.execute(stmt)
         room = result.scalar_one_or_none()
         if not room:
@@ -439,18 +466,21 @@ async def room_websocket(
 
     # 4. Accept the connection
     await room_manager.connect(str(room_id), user_id, ws, username=current_username)
-    is_host = (creator_id_str == user_id)
+    is_host = creator_id_str == user_id
 
     # 5. Send initial state to the newly connected client
     await ws.send_json(_make_state_msg(live, room_manager.member_count(str(room_id))))
 
     # Notify everyone of new member
-    await room_manager.broadcast(str(room_id), {
-        "type": "MEMBER_UPDATE",
-        "count": room_manager.member_count(str(room_id)),
-        "user_ids": room_manager.connected_user_ids(str(room_id)),
-        "members": room_manager.connected_members(str(room_id)),
-    })
+    await room_manager.broadcast(
+        str(room_id),
+        {
+            "type": "MEMBER_UPDATE",
+            "count": room_manager.member_count(str(room_id)),
+            "user_ids": room_manager.connected_user_ids(str(room_id)),
+            "members": room_manager.connected_members(str(room_id)),
+        },
+    )
 
     # 6. Message loop
     try:
@@ -466,10 +496,12 @@ async def room_websocket(
             # If unlocked, any room member can control playback.
             if is_room_locked and not is_host:
                 if msg_type in ("PLAY", "PAUSE", "SEEK", "ENDED", "SPEED"):
-                    await ws.send_json({
-                        "type": "ERROR",
-                        "detail": "Room is locked by host",
-                    })
+                    await ws.send_json(
+                        {
+                            "type": "ERROR",
+                            "detail": "Room is locked by host",
+                        }
+                    )
                     continue
 
             if msg_type in ("PLAY", "PAUSE", "SEEK", "ENDED", "SPEED"):
@@ -509,11 +541,11 @@ async def room_websocket(
                                 db_room.state = s
                                 db_room.position_seconds = p
                                 db_room.speed = speed
-                                db_room.last_activity_at = datetime.now(timezone.utc)
+                                db_room.last_activity_at = datetime.now(UTC)
                                 await db.commit()
                     except Exception as e:
                         logger.error("bg_save_state_error", error=str(e))
-                
+
                 asyncio.create_task(_save_state(room_id, new_state, position, new_speed))
 
                 # Broadcast new state — capture server_time NOW (after DB, before network)
@@ -527,10 +559,10 @@ async def room_websocket(
                     "speed": live.speed,
                     "host_id": live.host_id,
                     "member_count": room_manager.member_count(str(room_id)),
-                    "server_time": datetime.now(timezone.utc).timestamp(),
+                    "server_time": datetime.now(UTC).timestamp(),
                 }
                 await room_manager.broadcast(str(room_id), broadcast_msg)
-                
+
             elif msg_type == "CHAT_MESSAGE":
                 content = data.get("content")
                 if not content:
@@ -541,7 +573,7 @@ async def room_websocket(
                     enum_type = MessageType(m_type)
                 except ValueError:
                     enum_type = MessageType.TEXT
-                    
+
                 timestamp_ref = data.get("timestamp_reference")
 
                 async with AsyncSessionLocal() as db:
@@ -550,17 +582,23 @@ async def room_websocket(
                         user_id=uuid.UUID(user_id),
                         content=str(content),
                         message_type=enum_type,
-                        timestamp_reference=float(timestamp_ref) if timestamp_ref is not None else None,
+                        timestamp_reference=float(timestamp_ref)
+                        if timestamp_ref is not None
+                        else None,
                     )
                     db.add(new_msg)
                     await db.commit()
-                    
+
                     # Fetch user for broadcast
                     user = await db.get(User, uuid.UUID(user_id))
                     username = user.username if user else "Unknown"
                     msg_id = str(new_msg.id)
-                    created_at_str = new_msg.created_at.isoformat() if new_msg.created_at else datetime.now(timezone.utc).isoformat()
-                
+                    created_at_str = (
+                        new_msg.created_at.isoformat()
+                        if new_msg.created_at
+                        else datetime.now(UTC).isoformat()
+                    )
+
                 await room_manager.broadcast(
                     str(room_id),
                     {
@@ -568,13 +606,15 @@ async def room_websocket(
                         "id": msg_id,
                         "content": str(content),
                         "message_type": enum_type.value,
-                        "timestamp_reference": float(timestamp_ref) if timestamp_ref is not None else None,
+                        "timestamp_reference": float(timestamp_ref)
+                        if timestamp_ref is not None
+                        else None,
                         "created_at": created_at_str,
                         "user": {
                             "id": user_id,
                             "username": username,
-                        }
-                    }
+                        },
+                    },
                 )
 
     except WebSocketDisconnect:
@@ -583,12 +623,15 @@ async def room_websocket(
         logger.error("ws_error", room_id=str(room_id), error=str(exc))
     finally:
         room_manager.disconnect(str(room_id), ws)
-        await room_manager.broadcast(str(room_id), {
-            "type": "MEMBER_UPDATE",
-            "count": room_manager.member_count(str(room_id)),
-            "user_ids": room_manager.connected_user_ids(str(room_id)),
-            "members": room_manager.connected_members(str(room_id)),
-        })
+        await room_manager.broadcast(
+            str(room_id),
+            {
+                "type": "MEMBER_UPDATE",
+                "count": room_manager.member_count(str(room_id)),
+                "user_ids": room_manager.connected_user_ids(str(room_id)),
+                "members": room_manager.connected_members(str(room_id)),
+            },
+        )
 
 
 def _resolve_playback_command(
@@ -600,7 +643,9 @@ def _resolve_playback_command(
     authoritative_position: float | None = None,
 ) -> tuple[RoomState, float]:
     position = max(0.0, position)
-    authoritative_position = max(0.0, authoritative_position if authoritative_position is not None else position)
+    authoritative_position = max(
+        0.0, authoritative_position if authoritative_position is not None else position
+    )
 
     if msg_type == "PLAY":
         is_replay_from_ended_state = live.state == RoomState.ENDED
@@ -623,7 +668,9 @@ def _resolve_playback_command(
             return RoomState.ENDED, media_duration_seconds
         return RoomState.ENDED, position
 
-    new_state = live.state if live.state not in (RoomState.WAITING, RoomState.ENDED) else RoomState.PAUSED
+    new_state = (
+        live.state if live.state not in (RoomState.WAITING, RoomState.ENDED) else RoomState.PAUSED
+    )
     return new_state, position
 
 
@@ -631,7 +678,9 @@ def _clamp_playback_speed(speed: float) -> float:
     return min(3.0, max(0.25, speed))
 
 
-def _make_state_msg(live: RoomState_Live, member_count: int, external_url: str | None = None) -> dict:
+def _make_state_msg(
+    live: RoomState_Live, member_count: int, external_url: str | None = None
+) -> dict:
     return {
         "type": "ROOM_STATE",
         "state": live.state.value if hasattr(live.state, "value") else live.state,
@@ -639,6 +688,6 @@ def _make_state_msg(live: RoomState_Live, member_count: int, external_url: str |
         "speed": live.speed,
         "host_id": live.host_id,
         "member_count": member_count,
-        "server_time": datetime.now(timezone.utc).timestamp(),
+        "server_time": datetime.now(UTC).timestamp(),
         "external_url": external_url,
     }

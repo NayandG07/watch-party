@@ -1,17 +1,19 @@
 import uuid
-from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.core.dependencies import CurrentUserRoleDep, DatabaseDep, RequireAdminDep, RequireLevel2Dep
+from app.core.dependencies import CurrentUserRoleDep, DatabaseDep, RequireLevel2Dep
 from app.models.collection import Collection
 from app.models.library import Library
 from app.models.movie import Movie
-from app.models.user import User
-from app.schemas.library import CollectionWithMoviesBrief, LibraryCreate, LibraryResponse, LibraryUpdate
-from app.schemas.movie import MovieBrief
+from app.schemas.library import (
+    CollectionWithMoviesBrief,
+    LibraryCreate,
+    LibraryResponse,
+    LibraryUpdate,
+)
 from app.services.permission import PermissionService
 
 router = APIRouter(prefix="/libraries", tags=["libraries"])
@@ -56,7 +58,7 @@ async def create_library(
     )
     db.add(new_library)
     await db.commit()
-    
+
     # Reload with relations
     stmt = (
         select(Library)
@@ -135,41 +137,43 @@ async def get_library_summary(
     for col in visible_collections:
         col_movies = movies_by_col.get(col.id, [])
         lib = col.library
-        result.append({
-            "id": col.id,
-            "library_id": col.library_id,
-            "name": col.name,
-            "description": col.description,
-            "visibility": col.visibility,
-            "poster_path": col.poster_path,
-            "sort_order": col.sort_order,
-            "movie_count": len(col_movies),
-            "library": {
-                "id": lib.id,
-                "name": lib.name,
-                "is_private": lib.is_private,
-                "owner": {
-                    "id": lib.owner_id,
-                    "username": lib.owner.username if lib.owner else "",
-                    "role": lib.owner.role.value if lib.owner else "level1",
+        result.append(
+            {
+                "id": col.id,
+                "library_id": col.library_id,
+                "name": col.name,
+                "description": col.description,
+                "visibility": col.visibility,
+                "poster_path": col.poster_path,
+                "sort_order": col.sort_order,
+                "movie_count": len(col_movies),
+                "library": {
+                    "id": lib.id,
+                    "name": lib.name,
+                    "is_private": lib.is_private,
+                    "owner": {
+                        "id": lib.owner_id,
+                        "username": lib.owner.username if lib.owner else "",
+                        "role": lib.owner.role.value if lib.owner else "level1",
+                    },
                 },
-            },
-            "movies": [
-                {
-                    "id": m.id,
-                    "title": m.title,
-                    "slug": m.slug,
-                    "year": m.year,
-                    "duration_seconds": m.duration_seconds,
-                    "resolution": m.resolution,
-                    "is_processed": m.is_processed,
-                    "is_uploaded": m.is_uploaded,
-                    "thumbnail_url": None,  # CDN URL built client-side
-                    "poster_url": None,
-                }
-                for m in col_movies
-            ],
-        })
+                "movies": [
+                    {
+                        "id": m.id,
+                        "title": m.title,
+                        "slug": m.slug,
+                        "year": m.year,
+                        "duration_seconds": m.duration_seconds,
+                        "resolution": m.resolution,
+                        "is_processed": m.is_processed,
+                        "is_uploaded": m.is_uploaded,
+                        "thumbnail_url": None,  # CDN URL built client-side
+                        "poster_url": None,
+                    }
+                    for m in col_movies
+                ],
+            }
+        )
 
     return result
 
@@ -188,13 +192,13 @@ async def get_library(
     )
     result = await db.execute(stmt)
     library = result.scalar_one_or_none()
-    
+
     if not library:
         raise HTTPException(status_code=404, detail="Library not found")
 
     if not await PermissionService.can_view_library(library, user_id, user_role, db):
         raise HTTPException(status_code=403, detail="Access denied")
-        
+
     return library
 
 
@@ -213,7 +217,7 @@ async def update_library(
     )
     result = await db.execute(stmt)
     library = result.scalar_one_or_none()
-    
+
     if not library:
         raise HTTPException(status_code=404, detail="Library not found")
 
@@ -239,9 +243,9 @@ async def delete_library(
     library = await db.get(Library, library_id)
     if not library:
         raise HTTPException(status_code=404, detail="Library not found")
-        
+
     if not await PermissionService.can_manage_library(library, user_id, user_role):
         raise HTTPException(status_code=403, detail="Access denied")
-        
+
     await db.delete(library)
     await db.commit()

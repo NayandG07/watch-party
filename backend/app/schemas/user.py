@@ -15,11 +15,12 @@ from pydantic import EmailStr, Field, field_validator
 from app.models.enums import UserRole
 from app.schemas.base import WatchPartyModel
 
-
 # ── Embedded (minimal, safe to include in other responses) ────────────────────
+
 
 class UserBrief(WatchPartyModel):
     """Minimal user info — safe to embed in other responses."""
+
     id: uuid.UUID
     username: str
     role: UserRole
@@ -27,19 +28,22 @@ class UserBrief(WatchPartyModel):
 
 # ── Request schemas ───────────────────────────────────────────────────────────
 
+
 class UserLogin(WatchPartyModel):
     """Credentials for POST /api/auth/login."""
+
     username: str = Field(..., min_length=1, max_length=50)
     password: str = Field(..., min_length=1)
 
 
 class UserRegister(WatchPartyModel):
     """New account creation via POST /api/auth/register.
-    
+
     invite_token is optional. When provided, the corresponding invite record
     is validated and its use_count is incremented. When omitted, the user is
     created as a Level 1 member without any invite restriction.
     """
+
     invite_token: str | None = None
     username: str = Field(..., min_length=3, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")
     email: EmailStr
@@ -53,6 +57,7 @@ class UserRegister(WatchPartyModel):
 
 class UserUpdate(WatchPartyModel):
     """Admin update of a user account. All fields optional."""
+
     role: UserRole | None = None
     is_active: bool | None = None
     email: EmailStr | None = None
@@ -60,8 +65,10 @@ class UserUpdate(WatchPartyModel):
 
 # ── Response schemas ──────────────────────────────────────────────────────────
 
+
 class UserResponse(WatchPartyModel):
     """Full user profile response for GET /api/auth/me and admin endpoints."""
+
     id: uuid.UUID
     username: str
     email: str
@@ -72,6 +79,7 @@ class UserResponse(WatchPartyModel):
 
 class LoginResponse(WatchPartyModel):
     """Response to a successful login."""
+
     access_token: str
     token_type: str = "bearer"
     user: UserBrief
@@ -79,5 +87,6 @@ class LoginResponse(WatchPartyModel):
 
 class TokenRefreshResponse(WatchPartyModel):
     """Response to a successful token refresh."""
+
     access_token: str
     token_type: str = "bearer"

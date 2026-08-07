@@ -9,12 +9,18 @@ from typing import Any
 class StorageProviderBase(ABC):
     """
     Abstract interface for all supported object storage backends.
-    
+
     Subclasses must implement these methods using the provided credentials
     (which are decrypted by the application before being passed here).
     """
 
-    def __init__(self, credentials: dict[str, str], bucket_name: str, endpoint_url: str | None = None, cdn_url: str | None = None):
+    def __init__(
+        self,
+        credentials: dict[str, str],
+        bucket_name: str,
+        endpoint_url: str | None = None,
+        cdn_url: str | None = None,
+    ):
         self.credentials = credentials
         self.bucket_name = bucket_name
         self.endpoint_url = endpoint_url

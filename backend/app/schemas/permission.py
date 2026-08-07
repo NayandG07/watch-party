@@ -30,7 +30,9 @@ class PermissionCreate(WatchPartyModel):
                 data.get("movie_id"),
             ]
             if sum(1 for t in targets if t is not None) != 1:
-                raise ValueError("Exactly one of library_id, collection_id, or movie_id must be provided.")
+                raise ValueError(
+                    "Exactly one of library_id, collection_id, or movie_id must be provided."
+                )
         return data
 
 

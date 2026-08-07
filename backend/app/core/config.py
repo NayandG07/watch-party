@@ -96,7 +96,7 @@ class Settings(BaseSettings):
         return upper
 
     @model_validator(mode="after")
-    def warn_insecure_defaults(self) -> "Settings":
+    def warn_insecure_defaults(self) -> Settings:
         """Raise hard error if production is started with insecure defaults."""
         insecure_markers = {"INSECURE_DEFAULT", "CHANGE_IN_PRODUCTION"}
         if self.environment == "production":

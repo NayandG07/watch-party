@@ -3,7 +3,7 @@ Permission service — central access-control logic.
 
 Resolution order (most specific wins):
   1. super_admin → always True
-  2. Resource owner → always True  
+  2. Resource owner → always True
   3. Movie visibility_override (if set)
   4. Collection visibility
   5. Library is_private
@@ -40,7 +40,7 @@ class PermissionService:
 
     @staticmethod
     async def can_view_library(
-        library: "Library",
+        library: Library,
         user_id: str,
         user_role: str,
         db: AsyncSession,
@@ -67,7 +67,7 @@ class PermissionService:
 
     @staticmethod
     async def can_manage_library(
-        library: "Library",
+        library: Library,
         user_id: str,
         user_role: str,
     ) -> bool:
@@ -80,8 +80,8 @@ class PermissionService:
 
     @staticmethod
     async def can_view_collection(
-        collection: "Collection",
-        library: "Library",
+        collection: Collection,
+        library: Library,
         user_id: str,
         user_role: str,
         db: AsyncSession,
@@ -97,7 +97,9 @@ class PermissionService:
         # If the parent library is private, user must have a library-level grant
         if library.is_private:
             library_grant = await PermissionService._has_explicit_grant(
-                user_id=user_id, db=db, library_id=library.id,
+                user_id=user_id,
+                db=db,
+                library_id=library.id,
             )
             if not library_grant:
                 return False
@@ -107,17 +109,21 @@ class PermissionService:
             return True
         elif collection.visibility == Visibility.FRIENDS:
             return await PermissionService._has_explicit_grant(
-                user_id=user_id, db=db, collection_id=collection.id,
+                user_id=user_id,
+                db=db,
+                collection_id=collection.id,
             )
         else:  # PRIVATE
             return await PermissionService._has_explicit_grant(
-                user_id=user_id, db=db, collection_id=collection.id,
+                user_id=user_id,
+                db=db,
+                collection_id=collection.id,
             )
 
     @staticmethod
     async def can_manage_collection(
-        collection: "Collection",
-        library: "Library",
+        collection: Collection,
+        library: Library,
         user_id: str,
         user_role: str,
     ) -> bool:
@@ -130,9 +136,9 @@ class PermissionService:
 
     @staticmethod
     async def can_view_movie(
-        movie: "Movie",
-        collection: "Collection",
-        library: "Library",
+        movie: Movie,
+        collection: Collection,
+        library: Library,
         user_id: str,
         user_role: str,
         db: AsyncSession,
@@ -146,7 +152,9 @@ class PermissionService:
 
         # Check movie-level explicit grant first (most specific)
         movie_grant = await PermissionService._has_explicit_grant(
-            user_id=user_id, db=db, movie_id=movie.id,
+            user_id=user_id,
+            db=db,
+            movie_id=movie.id,
         )
         if movie_grant:
             return True
@@ -157,21 +165,25 @@ class PermissionService:
         if effective_visibility == Visibility.SHARED:
             # Still need parent library to be accessible
             return not library.is_private or await PermissionService._has_explicit_grant(
-                user_id=user_id, db=db, library_id=library.id,
+                user_id=user_id,
+                db=db,
+                library_id=library.id,
             )
         elif effective_visibility == Visibility.FRIENDS:
             # Must have collection-level or movie-level grant (already checked movie above)
             return await PermissionService._has_explicit_grant(
-                user_id=user_id, db=db, collection_id=collection.id,
+                user_id=user_id,
+                db=db,
+                collection_id=collection.id,
             )
         else:  # PRIVATE
             return False
 
     @staticmethod
     async def can_play_movie(
-        movie: "Movie",
-        collection: "Collection",
-        library: "Library",
+        movie: Movie,
+        collection: Collection,
+        library: Library,
         user_id: str,
         user_role: str,
         db: AsyncSession,
@@ -188,7 +200,7 @@ class PermissionService:
 
     @staticmethod
     async def can_manage_movie(
-        library: "Library",
+        library: Library,
         user_id: str,
         user_role: str,
     ) -> bool:
@@ -201,11 +213,11 @@ class PermissionService:
 
     @staticmethod
     async def batch_filter_visible_collections(
-        collections: "list[Collection]",
+        collections: list[Collection],
         user_id: str,
         user_role: str,
         db: AsyncSession,
-    ) -> "list[Collection]":
+    ) -> list[Collection]:
         """Filter a list of collections to only those visible to the user.
 
         Replaces a per-collection ``can_view_collection`` loop with at most
@@ -238,7 +250,9 @@ class PermissionService:
         all_grants = result.scalars().all()
 
         granted_library_ids: set[uuid.UUID] = {g.library_id for g in all_grants if g.library_id}
-        granted_collection_ids: set[uuid.UUID] = {g.collection_id for g in all_grants if g.collection_id}
+        granted_collection_ids: set[uuid.UUID] = {
+            g.collection_id for g in all_grants if g.collection_id
+        }
 
         visible: list[Collection] = []
         for col in collections:
@@ -266,11 +280,11 @@ class PermissionService:
 
     @staticmethod
     async def batch_filter_visible_movies(
-        movies: "list[Movie]",
+        movies: list[Movie],
         user_id: str,
         user_role: str,
         db: AsyncSession,
-    ) -> "list[Movie]":
+    ) -> list[Movie]:
         """Filter a list of movies to only those visible to the user.
 
         Same approach as ``batch_filter_visible_collections``:
@@ -290,7 +304,9 @@ class PermissionService:
         all_grants = result.scalars().all()
 
         granted_library_ids: set[uuid.UUID] = {g.library_id for g in all_grants if g.library_id}
-        granted_collection_ids: set[uuid.UUID] = {g.collection_id for g in all_grants if g.collection_id}
+        granted_collection_ids: set[uuid.UUID] = {
+            g.collection_id for g in all_grants if g.collection_id
+        }
         granted_movie_ids: set[uuid.UUID] = {g.movie_id for g in all_grants if g.movie_id}
 
         visible: list[Movie] = []
@@ -338,9 +354,7 @@ class PermissionService:
         movie_id: uuid.UUID | None = None,
     ) -> bool:
         """Check if there is an explicit Permission row for this user + target."""
-        stmt = select(Permission).where(
-            Permission.grantee_id == uuid.UUID(user_id)
-        )
+        stmt = select(Permission).where(Permission.grantee_id == uuid.UUID(user_id))
 
         if library_id is not None:
             stmt = stmt.where(Permission.library_id == library_id)

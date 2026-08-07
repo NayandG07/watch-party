@@ -14,8 +14,8 @@ from app.schemas.base import WatchPartyModel
 from app.schemas.storage import StorageProviderBrief
 from app.schemas.user import UserBrief
 
-
 # ── Library ───────────────────────────────────────────────────────────────────
+
 
 class LibraryCreate(WatchPartyModel):
     name: str = Field(..., min_length=1, max_length=100)
@@ -43,6 +43,7 @@ class LibraryResponse(WatchPartyModel):
 
 class LibraryBrief(WatchPartyModel):
     """Minimal library info for embedding in other responses."""
+
     id: uuid.UUID
     name: str
     is_private: bool
@@ -50,6 +51,7 @@ class LibraryBrief(WatchPartyModel):
 
 
 # ── Collection ────────────────────────────────────────────────────────────────
+
 
 class CollectionCreate(WatchPartyModel):
     library_id: uuid.UUID
@@ -81,6 +83,7 @@ class CollectionResponse(WatchPartyModel):
 
 class CollectionBrief(WatchPartyModel):
     """Minimal collection info for embedding in movie responses."""
+
     id: uuid.UUID
     name: str
     visibility: Visibility
@@ -90,6 +93,7 @@ class CollectionBrief(WatchPartyModel):
 class CollectionWithMoviesBrief(WatchPartyModel):
     """Collection with its visible movies — used by the library summary endpoint
     to avoid N+1 frontend round-trips."""
+
     id: uuid.UUID
     library_id: uuid.UUID
     name: str

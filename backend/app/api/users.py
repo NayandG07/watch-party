@@ -72,6 +72,6 @@ async def delete_user(
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
 
     logger.info("admin_deleting_user", admin_id=admin[0], target_user_id=str(user_id))
-    
+
     await db.delete(user)
     await db.commit()

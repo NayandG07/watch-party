@@ -12,14 +12,13 @@ Endpoints:
 
 from __future__ import annotations
 
+import json as _json
 import uuid
 
 import structlog
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
-
-import json as _json
 
 from app.core.dependencies import DatabaseDep, RequireLevel2Dep
 from app.core.security import decrypt_secret, encrypt_secret
@@ -32,16 +31,21 @@ router = APIRouter(prefix="/storage-providers", tags=["storage"])
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
+
 class B2Credentials(BaseModel):
     key_id: str = Field(..., description="Backblaze B2 Application Key ID")
     application_key: str = Field(..., description="Backblaze B2 Application Key")
 
 
 class StorageProviderCreate(BaseModel):
-    name: str = Field(..., min_length=1, max_length=100, description="Human-readable label, e.g. 'My B2 Bucket'")
+    name: str = Field(
+        ..., min_length=1, max_length=100, description="Human-readable label, e.g. 'My B2 Bucket'"
+    )
     provider_type: StorageProviderType = StorageProviderType.B2
     bucket_name: str = Field(..., min_length=1, max_length=255)
-    endpoint_url: str | None = Field(None, description="S3-compatible endpoint, e.g. https://s3.us-west-004.backblazeb2.com")
+    endpoint_url: str | None = Field(
+        None, description="S3-compatible endpoint, e.g. https://s3.us-west-004.backblazeb2.com"
+    )
     cdn_url: str | None = Field(None, description="CDN base URL, e.g. https://cdn.example.com")
     credentials: B2Credentials
 
@@ -60,6 +64,7 @@ class StorageProviderResponse(BaseModel):
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
+
 @router.get("", response_model=list[StorageProviderResponse])
 async def list_storage_providers(
     user_role_pair: RequireLevel2Dep,
@@ -73,6 +78,7 @@ async def list_storage_providers(
 
 class StorageProviderCredentialsResponse(BaseModel):
     """Decrypted credentials for a storage provider (uploader use only)."""
+
     key_id: str
     application_key: str
     bucket_name: str
@@ -130,10 +136,12 @@ async def create_storage_provider(
 ) -> StorageProvider:
     user_id, _ = user_role_pair
 
-    credentials_json = _json.dumps({
-        "key_id": payload.credentials.key_id,
-        "application_key": payload.credentials.application_key,
-    })
+    credentials_json = _json.dumps(
+        {
+            "key_id": payload.credentials.key_id,
+            "application_key": payload.credentials.application_key,
+        }
+    )
     encrypted = encrypt_secret(credentials_json)
 
     provider = StorageProvider(
