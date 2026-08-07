@@ -10,37 +10,51 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // ── Brand palette ──────────────────────────────────────
+        // ── Brand palette (Deep Indigo) ───────────────────────
         brand: {
-          50:  "#f0e7ff",
-          100: "#dcc5ff",
-          200: "#c49dff",
-          300: "#a96bff",
-          400: "#9145ff",
-          500: "#7c2ff7",  // primary
-          600: "#6820d4",
-          700: "#5316a8",
-          800: "#3e0e7c",
-          900: "#290854",
-          950: "#140326",
+          50:  "#e8eaf6",
+          100: "#c5cae9",
+          200: "#9fa8da",
+          300: "#7986cb",
+          400: "#5c6bc0",
+          500: "#3949ab",  // primary deep indigo
+          600: "#303f9f",
+          700: "#283593",
+          800: "#1a237e",
+          900: "#0d1452",
+          950: "#06092b",
         },
-        // ── Surfaces (dark-first) ──────────────────────────────
+        // ── Accent palette (Coral / Amber) ─────────────────────
+        accent: {
+          50:  "#fff3f0",
+          100: "#ffe3dc",
+          200: "#ffc9bb",
+          300: "#ffa590",
+          400: "#f88b70",
+          500: "#e8795b",  // coral accent
+          600: "#d35e40",
+          700: "#b1482d",
+          800: "#8e3923",
+          900: "#743220",
+        },
+        // ── Surfaces (Light Cinematic) ───────────────────────
         surface: {
-          base:     "#08080e",  // deepest background
-          default:  "#0f0f1a",  // page background
-          elevated: "#161624",  // cards, panels
-          overlay:  "#1e1e30",  // modals, dropdowns
-          border:   "rgba(255,255,255,0.07)",
+          base:     "#f4f7fb",  // page canvas background
+          default:  "#f4f7fb",  // app background
+          elevated: "#ffffff",  // cards, panels
+          overlay:  "#ffffff",  // modals, dropdowns
+          border:   "#e2e8f0",  // subtle border
+          borderStrong: "#cbd5e1",
         },
-        // ── Text ───────────────────────────────────────────────
+        // ── Text Content (High Contrast Charcoal) ────────────
         content: {
-          primary:   "#f2f2ff",
-          secondary: "#9898b8",
-          muted:     "#5a5a7a",
-          disabled:  "#3a3a52",
+          primary:   "#172033",  // dark charcoal
+          secondary: "#546e7a",  // slate text
+          muted:     "#90a4ae",  // muted slate
+          disabled:  "#cbd5e1",  // disabled
         },
         // ── Semantic ────────────────────────────────────────────
-        success: "#22c55e",
+        success: "#10b981",
         warning: "#f59e0b",
         danger:  "#ef4444",
         info:    "#3b82f6",
@@ -56,44 +70,39 @@ const config: Config = {
       },
       backgroundImage: {
         "gradient-radial":    "radial-gradient(var(--tw-gradient-stops))",
-        "gradient-brand":     "linear-gradient(135deg, #7c2ff7 0%, #c41ca8 100%)",
-        "gradient-surface":   "linear-gradient(180deg, #161624 0%, #0f0f1a 100%)",
-        "gradient-spotlight": "radial-gradient(ellipse at top, rgba(124,47,247,0.15) 0%, transparent 70%)",
+        "gradient-brand":     "linear-gradient(135deg, #3949ab 0%, #283593 100%)",
+        "gradient-accent":    "linear-gradient(135deg, #e8795b 0%, #d35e40 100%)",
+        "gradient-surface":   "linear-gradient(180deg, #ffffff 0%, #f4f7fb 100%)",
+        "gradient-spotlight": "radial-gradient(ellipse at top, rgba(57,73,171,0.08) 0%, transparent 70%)",
       },
       keyframes: {
-        // Slide in from right (mobile drawers)
         "slide-in-right": {
           "0%":   { transform: "translateX(100%)" },
           "100%": { transform: "translateX(0)" },
         },
-        // Slide in from left
         "slide-in-left": {
           "0%":   { transform: "translateX(-100%)" },
           "100%": { transform: "translateX(0)" },
         },
-        // Subtle float for decorative elements
         float: {
           "0%, 100%": { transform: "translateY(0)" },
-          "50%":      { transform: "translateY(-8px)" },
+          "50%":      { transform: "translateY(-6px)" },
         },
-        // Subtle fade in used for page transitions
         "fade-in": {
-          "0%":   { opacity: "0", transform: "translateY(6px)" },
+          "0%":   { opacity: "0", transform: "translateY(4px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
-        // Gentle pulse for loading states
         shimmer: {
           "0%":   { backgroundPosition: "-200% 0" },
           "100%": { backgroundPosition: "200% 0" },
         },
-        // Subtle scale-up for card hover
         "scale-in": {
-          "0%":   { opacity: "0", transform: "scale(0.96)" },
+          "0%":   { opacity: "0", transform: "scale(0.97)" },
           "100%": { opacity: "1", transform: "scale(1)" },
         },
       },
       animation: {
-        "fade-in":        "fade-in 0.25s ease-out forwards",
+        "fade-in":        "fade-in 0.2s ease-out forwards",
         "scale-in":       "scale-in 0.2s ease-out forwards",
         shimmer:          "shimmer 1.8s linear infinite",
         "slide-in-right": "slide-in-right 0.3s cubic-bezier(0.19, 1, 0.22, 1) forwards",
@@ -101,10 +110,11 @@ const config: Config = {
         float:            "float 4s ease-in-out infinite",
       },
       boxShadow: {
-        brand:   "0 0 40px rgba(124,47,247,0.25)",
-        card:    "0 4px 24px rgba(0,0,0,0.4)",
-        "card-hover": "0 8px 40px rgba(0,0,0,0.6)",
-        glow:    "0 0 20px rgba(124,47,247,0.4)",
+        brand:   "0 4px 14px rgba(57,73,171,0.25)",
+        accent:  "0 4px 14px rgba(232,121,91,0.25)",
+        card:    "0 2px 10px rgba(23,32,51,0.06), 0 1px 3px rgba(23,32,51,0.04)",
+        "card-hover": "0 10px 30px rgba(23,32,51,0.12), 0 2px 8px rgba(23,32,51,0.06)",
+        glow:    "0 0 20px rgba(57,73,171,0.2)",
       },
       transitionTimingFunction: {
         "out-expo": "cubic-bezier(0.19, 1, 0.22, 1)",

@@ -12,6 +12,7 @@ import VideoPlayer from "@/components/player/VideoPlayer";
 import YouTubePlayer from "@/components/player/YouTubePlayer";
 import { useAuthStore } from "@/stores/authStore";
 import { ChatMessageData } from "@/hooks/useSyncedPlayer";
+import { cn } from "@/lib/utils";
 
 // Inline YouTube icon
 function YoutubeIcon({ className }: { className?: string }) {
@@ -244,10 +245,10 @@ export default function RoomPage() {
   // ── Error ──────────────────────────────────────────────────────────────────
   if (error || !room) {
     return (
-      <div className="h-full bg-surface-base flex items-center justify-center">
-        <div className="glass p-8 rounded-2xl text-center max-w-sm">
-          <p className="text-danger mb-4">{error || "Room not found"}</p>
-          <button onClick={() => router.push("/library")} className="btn-secondary">
+      <div className="h-full bg-surface-base flex items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-3xl text-center max-w-sm border border-slate-200 shadow-card space-y-4">
+          <p className="text-danger font-semibold text-sm">{error || "Room not found"}</p>
+          <button onClick={() => router.push("/library")} className="btn-secondary w-full font-bold">
             Back to Library
           </button>
         </div>
@@ -259,39 +260,41 @@ export default function RoomPage() {
 
   // ── Sidebar Panel (shared between desktop and mobile drawer) ───────────────
   const SidebarPanel = () => (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-slate-900 border-l border-slate-800 text-white">
       {/* Tab header */}
-      <div className="flex border-b border-white/10 shrink-0">
+      <div className="flex border-b border-slate-800 shrink-0 bg-slate-950/60 p-1">
         <button
           onClick={() => setActiveTab("chat")}
-          className={`flex-1 py-3 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors ${
+          className={cn(
+            "flex-1 py-2.5 text-xs font-bold flex items-center justify-center gap-2 rounded-xl transition-all min-h-[40px]",
             activeTab === "chat"
-              ? "text-brand-400 border-b-2 border-brand-400"
-              : "text-white/50 hover:text-white/70"
-          }`}
+              ? "bg-brand-600 text-white shadow-brand"
+              : "text-slate-400 hover:text-white hover:bg-slate-800"
+          )}
         >
-          <MessageSquare className="w-3.5 h-3.5" />
-          Chat
+          <MessageSquare className="w-4 h-4" />
+          <span>Chat</span>
         </button>
         <button
           onClick={() => setActiveTab("members")}
-          className={`flex-1 py-3 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors ${
+          className={cn(
+            "flex-1 py-2.5 text-xs font-bold flex items-center justify-center gap-2 rounded-xl transition-all min-h-[40px]",
             activeTab === "members"
-              ? "text-brand-400 border-b-2 border-brand-400"
-              : "text-white/50 hover:text-white/70"
-          }`}
+              ? "bg-brand-600 text-white shadow-brand"
+              : "text-slate-400 hover:text-white hover:bg-slate-800"
+          )}
         >
-          <Users className="w-3.5 h-3.5" />
-          {memberCount} Members
+          <Users className="w-4 h-4" />
+          <span>Members ({memberCount})</span>
         </button>
       </div>
 
       {/* Chat tab */}
       {activeTab === "chat" ? (
         <>
-          <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0">
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
             {messages.length === 0 ? (
-              <p className="text-xs text-white/30 text-center py-12">No messages yet. Say hi!</p>
+              <p className="text-xs text-slate-500 text-center py-12">No messages yet. Say hi!</p>
             ) : (
               messages.map((msg, index) => {
                 const prevMsg = messages[index - 1];
@@ -302,10 +305,10 @@ export default function RoomPage() {
                   <div key={msg.id} className="group flex gap-2.5 items-start">
                     {/* Avatar */}
                     {isGrouped ? (
-                      <div className="w-8 h-8 shrink-0" /> // Empty space for grouped
+                      <div className="w-8 h-8 shrink-0" />
                     ) : (
                       <div
-                        className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-white font-bold text-sm ${hashColor(msg.user.username)}`}
+                        className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-xs ${hashColor(msg.user.username)}`}
                       >
                         {msg.user.username.charAt(0).toUpperCase()}
                       </div>
@@ -315,10 +318,10 @@ export default function RoomPage() {
                     <div className="flex-1 min-w-0 flex flex-col">
                       {!isGrouped && (
                         <div className="flex items-baseline gap-2 mb-0.5">
-                          <span className={`text-xs font-semibold ${isOwn ? "text-brand-300" : "text-white/80"}`}>
+                          <span className={cn("text-xs font-bold", isOwn ? "text-accent-400" : "text-slate-200")}>
                             {msg.user.username}
                           </span>
-                          <span className="text-[10px] text-white/25">
+                          <span className="text-[10px] text-slate-500 font-medium">
                             {formatTime(msg.created_at)}
                           </span>
                         </div>
@@ -331,15 +334,16 @@ export default function RoomPage() {
                               playerRef.current?.seek(msg.timestamp_reference);
                             }
                           }}
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-brand-500/20 text-brand-300 text-xs mt-0.5 transition-colors w-fit ${
-                            isHost ? "hover:bg-brand-500/30 cursor-pointer" : "cursor-default"
-                          }`}
+                          className={cn(
+                            "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-500/30 text-brand-200 text-xs font-semibold mt-0.5 border border-brand-500/40 w-fit transition-colors",
+                            isHost ? "hover:bg-brand-500/50 cursor-pointer" : "cursor-default"
+                          )}
                         >
-                          <PlayCircle className="w-3 h-3" />
+                          <PlayCircle className="w-3.5 h-3.5" />
                           <span>{msg.content}</span>
                         </button>
                       ) : (
-                        <p className="text-sm text-white/70 break-words leading-relaxed">{msg.content}</p>
+                        <p className="text-xs text-slate-300 break-words leading-relaxed">{msg.content}</p>
                       )}
                     </div>
                   </div>
@@ -349,21 +353,21 @@ export default function RoomPage() {
             <div ref={messagesEndRef} />
           </div>
 
-          <div className="p-3 border-t border-white/10 shrink-0">
+          <div className="p-3 border-t border-slate-800 shrink-0 bg-slate-950/40">
             <form onSubmit={handleSendMessage} className="flex gap-2">
               <input
                 type="text"
                 placeholder="Type a message…"
-                className="flex-1 bg-white/8 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:border-brand-500/50 focus:bg-white/10 transition-all"
+                className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 min-h-[44px] text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 font-medium"
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
               />
               <button
                 type="submit"
                 disabled={!chatInput.trim()}
-                className="w-9 h-9 shrink-0 rounded-xl bg-brand-500 hover:bg-brand-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                className="btn-primary w-11 h-11 min-h-[44px] p-0 shrink-0 rounded-xl disabled:opacity-30 flex items-center justify-center shadow-brand"
               >
-                <Send className="w-3.5 h-3.5 text-white" />
+                <Send className="w-4 h-4 text-white" />
               </button>
             </form>
           </div>
@@ -416,77 +420,91 @@ export default function RoomPage() {
     <div className="h-full flex flex-col bg-[#0d0d0f] overflow-hidden">
 
       {/* ── Top Bar ────────────────────────────────────────────────────────── */}
-      <header className="flex items-center gap-3 px-3 md:px-5 h-14 shrink-0 bg-[#0d0d14] border-b border-white/[0.06] z-20">
-        {/* Left: Back */}
-        <button
-          onClick={() => router.push("/rooms")}
-          className="w-8 h-8 rounded-lg hover:bg-white/8 flex items-center justify-center text-white/50 hover:text-white transition-colors shrink-0"
-          title="Back to Rooms"
-        >
-          <ChevronLeft className="w-4 h-4" />
-        </button>
+      <header className="flex items-center justify-between px-4 sm:px-6 h-16 shrink-0 bg-slate-900 text-white border-b border-slate-800 z-20 shadow-md">
+        {/* Left: Back & Room info */}
+        <div className="flex items-center gap-3 min-w-0">
+          <button
+            onClick={() => router.push("/rooms")}
+            className="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-white transition-colors shrink-0 focus-visible:ring-2 focus-visible:ring-brand-500"
+            title="Back to Rooms"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
 
-        {/* Room info (Left side) */}
-        <div className="flex items-center gap-2.5 shrink-0">
-          <div className={`w-2 h-2 rounded-full shrink-0 transition-colors ${isConnected ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]" : "bg-red-500"}`} />
-          <h1 className="text-sm font-semibold text-white truncate max-w-[120px] sm:max-w-xs">{room.name}</h1>
+          <div className="flex items-center gap-3 min-w-0">
+            <h1 className="text-base font-bold text-white truncate max-w-[150px] sm:max-w-xs">{room.name}</h1>
+
+            {/* Persistent Sync Indicator */}
+            <div className={cn(
+              "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border",
+              isConnected
+                ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                : "bg-amber-500/20 text-amber-300 border-amber-500/30"
+            )}>
+              <span className={cn("w-2 h-2 rounded-full", isConnected ? "bg-emerald-400 animate-pulse" : "bg-amber-400")} />
+              <span>{isConnected ? "Synced" : "Catching up"}</span>
+            </div>
+          </div>
         </div>
 
-        {/* Center: Movie title (desktop only) */}
+        {/* Center: Movie title (desktop) */}
         <div className="hidden md:flex flex-1 items-center justify-center min-w-0 px-4">
           {room.movie && (
-            <span className="truncate max-w-xs text-white/50 text-xs text-center">
-              Watching: {room.movie.title}
+            <span className="truncate max-w-sm text-slate-300 text-xs font-semibold bg-slate-800/80 px-3.5 py-1.5 rounded-full border border-slate-700">
+              Watching: <strong className="text-white">{room.movie.title}</strong>
             </span>
           )}
         </div>
 
-        {/* Action buttons (Right) */}
-        <div className="flex items-center justify-end gap-2 shrink-0 ml-auto md:ml-0">
+        {/* Right Action buttons */}
+        <div className="flex items-center gap-2.5 shrink-0">
+          {/* Prominent Invite Friends Button */}
+          <button
+            onClick={handleGenerateInvite}
+            disabled={isGeneratingInvite}
+            className="btn-accent h-10 px-4 text-xs font-bold shadow-accent gap-1.5"
+          >
+            {isGeneratingInvite ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
+            <span>Invite friends</span>
+          </button>
+
           {isHost && (
             <>
               <button
                 onClick={handleToggleLock}
                 title={room.is_locked ? "Unlock Room" : "Lock Room"}
-                className="hidden sm:flex w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 items-center justify-center text-white/60 hover:text-white transition-all shrink-0"
+                className="hidden sm:flex w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 items-center justify-center text-white transition-all shrink-0"
               >
-                {room.is_locked ? <Lock className="w-3.5 h-3.5 text-amber-400" /> : <Unlock className="w-3.5 h-3.5" />}
+                {room.is_locked ? <Lock className="w-4 h-4 text-amber-400" /> : <Unlock className="w-4 h-4" />}
               </button>
               
               <button
                 onClick={handleOpenMediaPicker}
-                className="hidden sm:flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white/8 hover:bg-white/12 text-white/70 hover:text-white text-xs font-medium transition-all"
+                className="hidden sm:flex items-center gap-1.5 h-10 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold transition-all border border-slate-700"
               >
-                <Film className="w-3.5 h-3.5" />
-                {hasMedia ? "Change Media" : "Select Media"}
+                <Film className="w-4 h-4" />
+                <span>{hasMedia ? "Change Media" : "Select Media"}</span>
               </button>
+
               <button
                 onClick={handleDeleteRoom}
                 title="Delete Room"
-                className="hidden sm:flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 text-xs font-medium transition-all"
+                className="hidden sm:flex items-center justify-center w-10 h-10 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-300 transition-all"
               >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span className="hidden md:block">Delete</span>
+                <Trash2 className="w-4 h-4" />
               </button>
             </>
           )}
-          <button
-            onClick={handleGenerateInvite}
-            disabled={isGeneratingInvite}
-            className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-brand-500/20 hover:bg-brand-500/35 text-brand-300 border border-brand-500/25 text-xs font-medium transition-all disabled:opacity-50"
-          >
-            {isGeneratingInvite ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Share2 className="w-3.5 h-3.5" />}
-            <span className="hidden sm:block">Invite</span>
-          </button>
-          
-          {/* Mobile: chat toggle */}
+
+          {/* Mobile: chat bottom sheet toggle button */}
           <button
             onClick={() => setMobileChatOpen(true)}
-            className="flex lg:hidden items-center gap-1 h-8 px-2.5 rounded-lg bg-white/8 hover:bg-white/12 text-white/60 hover:text-white text-xs transition-all relative"
+            className="flex lg:hidden items-center gap-1.5 h-10 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold transition-all relative border border-slate-700"
           >
-            <MessageSquare className="w-3.5 h-3.5" />
+            <MessageSquare className="w-4 h-4" />
+            <span className="hidden sm:inline">Panel</span>
             {memberCount > 1 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-brand-500 text-[9px] text-white flex items-center justify-center font-bold">
+              <span className="w-4 h-4 rounded-full bg-accent-500 text-[10px] text-white flex items-center justify-center font-extrabold">
                 {memberCount}
               </span>
             )}

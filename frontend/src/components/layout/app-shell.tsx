@@ -163,7 +163,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const getPageTitle = () => {
     if (pathname?.startsWith("/library")) return "Library";
     if (pathname?.startsWith("/rooms")) return "Rooms";
-    if (pathname?.startsWith("/admin/settings")) return "Settings";
+    if (pathname?.startsWith("/admin/settings")) return "Storage Settings";
     if (pathname?.startsWith("/admin/users")) return "Users";
     return "";
   };
@@ -171,7 +171,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-dvh overflow-hidden bg-surface-default">
       {/* Desktop sidebar */}
-      <div className="hidden md:flex flex-col border-r border-surface-border bg-surface-base w-16 lg:w-[256px] hover:w-[256px] transition-[width] duration-300 ease-out z-40 group/sidebar shrink-0 absolute lg:relative h-full">
+      <div className="hidden md:flex flex-col border-r border-surface-border bg-white w-16 lg:w-[256px] hover:w-[256px] transition-[width] duration-300 ease-out z-40 group/sidebar shrink-0 absolute lg:relative h-full shadow-sm">
         <Sidebar />
       </div>
       
@@ -181,7 +181,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {/* Mobile sidebar overlay */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
+          className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm md:hidden animate-fade-in"
           onClick={() => setMobileOpen(false)}
           aria-hidden="true"
         />
@@ -190,13 +190,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {/* Mobile sidebar drawer */}
       <div
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-72 bg-surface-base border-r border-surface-border",
-          "transform transition-transform duration-300 ease-out-expo md:hidden",
+          "fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-surface-border shadow-2xl",
+          "transform transition-transform duration-300 ease-out-expo md:hidden flex flex-col",
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
         <button
-          className="absolute top-4 right-4 btn-ghost p-2 rounded-full"
+          className="absolute top-4 right-4 btn-ghost w-10 h-10 p-0 rounded-full flex items-center justify-center text-content-secondary hover:text-content-primary focus-visible:ring-2 focus-visible:ring-brand-500"
           onClick={() => setMobileOpen(false)}
           aria-label="Close navigation"
           id="mobile-nav-close"
@@ -210,18 +210,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
         {/* Mobile top bar — hidden on room pages (room has its own header) */}
         {!isRoomPage && (
-          <header className="md:hidden flex items-center gap-3 px-4 h-14 border-b border-surface-border bg-surface-base shrink-0 z-10">
+          <header className="md:hidden flex items-center justify-between px-4 h-14 border-b border-surface-border bg-white shrink-0 z-10 shadow-xs">
             <button
               onClick={() => setMobileOpen(true)}
-              className="btn-ghost p-2 -ml-2 rounded-full"
+              className="btn-ghost w-10 h-10 p-0 rounded-xl flex items-center justify-center text-content-primary"
               aria-label="Open navigation"
               id="mobile-nav-toggle"
             >
               <Menu className="w-5 h-5" />
             </button>
-            <div className="flex-1 flex items-center justify-center -ml-6 pointer-events-none">
+            <div className="flex-1 flex items-center justify-center pointer-events-none">
               <span className="text-base font-bold text-content-primary">{getPageTitle()}</span>
             </div>
+            <div className="w-10" />
           </header>
         )}
 
@@ -234,7 +235,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         ) : (
           <main
             id="main-content"
-            className="flex-1 overflow-y-auto p-6 md:p-8"
+            className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8"
             tabIndex={-1}
           >
             {children}

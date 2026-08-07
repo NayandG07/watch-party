@@ -1,27 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { Film } from "lucide-react";
+import { Film, Play, Clock } from "lucide-react";
 import type { Movie } from "@/types";
 
 interface MovieCardProps {
   movie: Movie;
-  index: number;
+  index?: number;
 }
 
-export default function MovieCard({ movie, index }: MovieCardProps) {
-  // Use index to deterministically assign a fallback color
-  const colors = [
-    "from-brand-800 to-brand-950",
-    "from-purple-900 to-indigo-950",
-    "from-pink-900 to-brand-950",
-    "from-indigo-800 to-purple-950",
-    "from-violet-800 to-brand-950",
-    "from-fuchsia-900 to-brand-950",
-  ];
-  const color = colors[index % colors.length];
-
+export default function MovieCard({ movie }: MovieCardProps) {
   const formatDuration = (seconds: number) => {
+    if (!seconds) return "";
     const minutes = Math.floor(seconds / 60);
     if (minutes >= 60) {
       const h = Math.floor(minutes / 60);
@@ -32,68 +22,79 @@ export default function MovieCard({ movie, index }: MovieCardProps) {
   };
 
   return (
-    <Link href={`/movie/${movie.id}`} className="block">
-      <article className="card-hover group cursor-pointer overflow-hidden">
-        {/* Poster */}
-        <div className={`aspect-[2/3] bg-gradient-to-b ${color} relative flex items-end overflow-hidden`}>
-          {movie.poster_url ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img 
-              src={movie.poster_url} 
-              alt={movie.title}
-              className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-            />
+    <article className="group relative bg-white rounded-2xl border border-surface-border overflow-hidden shadow-card hover:shadow-card-hover transition-all duration-300 flex flex-col h-full focus-within:ring-2 focus-within:ring-brand-500">
+      {/* Poster image container */}
+      <div className="relative aspect-[2/3] bg-slate-100 overflow-hidden shrink-0">
+        {movie.poster_url ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={movie.poster_url}
+            alt={movie.title}
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            loading="lazy"
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-slate-100 to-slate-200 flex flex-col items-center justify-center p-4 text-slate-400">
+            <Film className="w-12 h-12 mb-2 stroke-[1.5]" aria-hidden="true" />
+            <span className="text-xs font-semibold text-center text-slate-500 truncate max-w-full">
+              {movie.title}
+            </span>
+          </div>
+        )}
+
+        {/* Gradient overlays for high contrast overlay icons */}
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+
+        {/* Metadata Chips on Top */}
+        <div className="absolute top-2 left-2 right-2 flex items-center justify-between gap-1 pointer-events-none z-10">
+          {movie.resolution ? (
+            <span className="bg-slate-900/80 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider shadow-sm">
+              {movie.resolution}
+            </span>
           ) : (
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-20 group-hover:opacity-0 transition-opacity">
-              <Film className="w-12 h-12 text-white" />
-            </div>
-          )}
-          
-          {/* Permanent subtle bottom gradient for text readability */}
-          <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
-          
-          {/* Hover Overlay gradient */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-          
-          {/* Resolution Badge */}
-          {movie.resolution && (
-            <div className="absolute top-2 right-2 z-10">
-              <span className="bg-black/50 backdrop-blur text-white/80 text-[10px] font-bold px-1.5 py-0.5 rounded-md uppercase">
-                {movie.resolution}
-              </span>
-            </div>
+            <span />
           )}
 
-          {/* Play button on hover */}
-          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 scale-90 group-hover:scale-100">
-            <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center shadow-lg ring-0 group-hover:ring-2 group-hover:ring-white/20 transition-all">
-              <svg className="w-8 h-8 text-white ml-1" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="M8 5v14l11-7z" />
-              </svg>
-            </div>
-          </div>
-          
-          {/* Quick Stats (visible on hover) */}
-          <div className="absolute bottom-0 left-0 right-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-100 translate-y-2 group-hover:translate-y-0 z-10">
-            <div className="flex items-center gap-2 text-xs font-medium text-white/90">
-              {movie.year && <span>{movie.year}</span>}
-            </div>
-          </div>
-        </div>
-        
-        {/* Info */}
-        <div className="p-3">
-          <h3 className="text-sm font-semibold text-content-primary truncate group-hover:text-brand-300 transition-colors flex items-center justify-between">
-            <span className="truncate">{movie.title}</span>
-            <span className="opacity-0 group-hover:opacity-100 transition-all -translate-x-2 group-hover:translate-x-0 duration-300 ml-2">
-              →
+          {movie.year && (
+            <span className="bg-white/90 backdrop-blur-md text-slate-800 text-[10px] font-bold px-2 py-0.5 rounded-md shadow-sm">
+              {movie.year}
             </span>
-          </h3>
-          <p className="text-xs text-content-secondary mt-1">
-            {formatDuration(movie.duration_seconds)}
-          </p>
+          )}
         </div>
-      </article>
-    </Link>
+
+        {/* Direct Action Overlay on Hover */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4 opacity-0 group-hover:opacity-100 transition-all duration-300 z-20">
+          <Link
+            href={`/movie/${movie.id}`}
+            className="btn-primary w-full h-11 text-xs font-bold shadow-lg gap-2"
+            aria-label={`Watch ${movie.title}`}
+          >
+            <Play className="w-4 h-4 fill-white" />
+            Start Watching
+          </Link>
+        </div>
+      </div>
+
+      {/* Info Box */}
+      <div className="p-3 sm:p-4 flex-1 flex flex-col justify-between bg-white">
+        <div>
+          <h3 className="text-sm font-bold text-content-primary line-clamp-1 group-hover:text-brand-600 transition-colors">
+            <Link href={`/movie/${movie.id}`} className="focus:outline-none">
+              {movie.title}
+            </Link>
+          </h3>
+
+          {/* Subtitles & Audio metadata chips if present */}
+          <div className="flex flex-wrap items-center gap-1.5 mt-2 text-[11px] text-content-secondary">
+            {movie.duration_seconds > 0 && (
+              <span className="inline-flex items-center gap-1 text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md font-medium">
+                <Clock className="w-3 h-3 text-slate-500" />
+                {formatDuration(movie.duration_seconds)}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    </article>
   );
 }
