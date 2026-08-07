@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import RegisterForm from "./register-form";
 import { Suspense } from "react";
+import { Play, ShieldCheck } from "lucide-react";
 
 function RegisterContent() {
   const searchParams = useSearchParams();
@@ -11,69 +12,73 @@ function RegisterContent() {
 
   return (
     <main className="min-h-dvh flex bg-surface-base overflow-hidden">
-      {/* Left Panel - Hidden on Mobile */}
-      <div className="hidden lg:flex flex-1 relative items-center justify-center bg-surface-base border-r border-surface-border overflow-hidden">
-        {/* Animated gradients */}
-        <div className="absolute inset-0 z-0">
-          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-brand-500/20 rounded-full blur-[140px] animate-pulse" style={{ animationDuration: '4s' }} />
-        </div>
+      {/* Left Decorative Panel */}
+      <div className="hidden lg:flex flex-1 relative items-center justify-center bg-slate-900 border-r border-slate-800 overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-hero opacity-10" />
+        
+        {/* Subtle background glow */}
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-brand-600/20 rounded-full blur-[140px] pointer-events-none" />
 
-        <div className="relative z-10 flex flex-col items-center justify-center w-full max-w-lg px-12">
-          {/* Logo & Brand */}
-          <div className="mb-16 flex flex-col items-center text-center">
-            <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-gradient-brand shadow-[0_0_40px_rgba(124,47,247,0.4)] mb-6">
-              <svg className="w-10 h-10 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="M8 5v14l11-7z" />
-              </svg>
-            </div>
-            <h1 className="text-4xl font-black text-content-primary tracking-tight mb-2">Watch Party</h1>
-            <p className="text-lg text-content-secondary">Your private cinema experience.</p>
+        <div className="relative z-10 flex flex-col items-center justify-center w-full max-w-lg px-12 text-center text-white">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-brand shadow-brand flex items-center justify-center mb-6">
+            <Play className="w-8 h-8 text-white fill-current translate-x-0.5" />
           </div>
 
-          {/* Floating Movie Cards */}
-          <div className="relative h-64 w-full flex items-center justify-center mb-12">
-            <div className="absolute glass w-40 h-56 rounded-2xl border border-white/10 shadow-2xl overflow-hidden -rotate-2 -translate-x-24 animate-float">
-              <div className="w-full h-full bg-gradient-to-br from-indigo-900/40 to-purple-900/40 flex items-center justify-center p-4 text-center">
-                <span className="text-xs font-bold text-white/50 tracking-widest uppercase">RV Test Video</span>
-              </div>
+          <h1 className="text-4xl font-extrabold tracking-tight mb-3">Watch Party</h1>
+          <p className="text-base text-slate-300 mb-10 max-w-sm">
+            Create an account to host invite-only rooms and stream together.
+          </p>
+
+          {/* Floating Movie Posters Preview */}
+          <div className="relative h-60 w-full flex items-center justify-center mb-8">
+            <div className="absolute w-36 h-52 rounded-2xl bg-slate-800 border border-slate-700 shadow-2xl overflow-hidden -rotate-6 -translate-x-20 flex flex-col justify-end p-3 text-left">
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent" />
+              <span className="relative z-10 text-xs font-bold text-white">Interstellar</span>
+              <span className="relative z-10 text-[10px] text-amber-300 font-semibold">4K UHD</span>
             </div>
-            <div className="absolute glass w-44 h-60 rounded-2xl border border-white/20 shadow-2xl overflow-hidden z-10 animate-float" style={{ animationDelay: '0.5s' }}>
-              <div className="w-full h-full bg-gradient-to-tr from-brand-900/50 to-blue-900/50 flex items-center justify-center p-4 text-center">
-                <span className="text-xs font-bold text-white/70 tracking-widest uppercase">Interstellar</span>
+            <div className="absolute w-40 h-56 rounded-2xl bg-brand-900 border border-brand-500/40 shadow-2xl overflow-hidden z-10 flex flex-col justify-end p-4 text-left">
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent" />
+              <div className="relative z-10 flex items-center gap-1 text-[10px] font-bold text-emerald-400 mb-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                INVITE ONLY
               </div>
+              <span className="relative z-10 text-sm font-extrabold text-white">Your Cinema Room</span>
             </div>
-            <div className="absolute glass w-40 h-56 rounded-2xl border border-white/10 shadow-2xl overflow-hidden rotate-1 translate-x-24 animate-float" style={{ animationDelay: '1s' }}>
-              <div className="w-full h-full bg-gradient-to-bl from-orange-900/40 to-red-900/40 flex items-center justify-center p-4 text-center">
-                <span className="text-xs font-bold text-white/50 tracking-widest uppercase">Dune</span>
-              </div>
+            <div className="absolute w-36 h-52 rounded-2xl bg-slate-800 border border-slate-700 shadow-2xl overflow-hidden rotate-6 translate-x-20 flex flex-col justify-end p-3 text-left">
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent" />
+              <span className="relative z-10 text-xs font-bold text-white">Oppenheimer</span>
+              <span className="relative z-10 text-[10px] text-slate-300 font-medium">1080p</span>
             </div>
           </div>
 
-          <p className="text-content-muted italic text-sm">&quot;Watch together, perfectly in sync.&quot;</p>
+          <div className="inline-flex items-center gap-2 text-xs text-slate-400 bg-slate-800/80 px-3.5 py-1.5 rounded-full border border-slate-700">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Private & secure — your media stays in your storage</span>
+          </div>
         </div>
       </div>
 
-      {/* Right Panel - Form */}
-      <div className="flex-1 flex items-center justify-center bg-surface-default relative">
-        <div className="w-full max-w-md px-6 animate-fade-in">
-          <div className="text-center mb-10">
-            {/* Mobile-only logo */}
-            <div className="lg:hidden inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-brand shadow-brand mb-5">
-              <svg className="w-7 h-7 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="M8 5v14l11-7z" />
-              </svg>
+      {/* Right Form Panel */}
+      <div className="flex-1 flex items-center justify-center bg-surface-base p-6 sm:p-12 relative">
+        <div className="w-full max-w-md animate-fade-in">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <div className="lg:hidden inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-brand shadow-brand mb-4">
+              <Play className="w-6 h-6 text-white fill-current translate-x-0.5" />
             </div>
-            <h2 className="text-3xl font-bold text-content-primary tracking-tight">Create your account</h2>
-            <p className="mt-2 text-sm text-content-secondary">Join your private cinema</p>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-content-primary tracking-tight">Create your account</h2>
+            <p className="mt-1.5 text-sm text-content-secondary">Start watching together in private rooms</p>
           </div>
 
-          <div className="glass p-8 shadow-card rounded-2xl border border-white/5">
+          {/* Form Card */}
+          <div className="card p-6 sm:p-8">
             <RegisterForm inviteToken={inviteToken} />
           </div>
 
-          <p className="text-center mt-8 text-sm text-content-muted">
+          {/* Footer */}
+          <p className="text-center mt-6 text-sm text-content-muted">
             Already have an account?{" "}
-            <Link href="/login" className="text-brand-400 hover:text-brand-300 font-medium transition-colors">
+            <Link href="/login" className="text-brand-600 hover:text-brand-700 font-bold transition-colors">
               Sign in
             </Link>
           </p>
@@ -87,7 +92,7 @@ export default function RegisterPage() {
   return (
     <Suspense fallback={
       <div className="min-h-dvh flex items-center justify-center bg-surface-base">
-        <div className="w-8 h-8 rounded-full border-2 border-brand-500 border-t-transparent animate-spin" />
+        <div className="w-8 h-8 rounded-full border-2 border-brand-600 border-t-transparent animate-spin" />
       </div>
     }>
       <RegisterContent />

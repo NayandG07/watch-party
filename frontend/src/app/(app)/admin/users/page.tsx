@@ -53,9 +53,9 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const ROLE_COLORS: Record<string, string> = {
-  level1: "bg-content-muted/20 text-content-secondary",
-  level2: "bg-brand-500/15 text-brand-400",
-  super_admin: "bg-amber-500/15 text-amber-400",
+  level1: "bg-slate-100 text-slate-700 border border-slate-200",
+  level2: "bg-brand-50 text-brand-700 border border-brand-200",
+  super_admin: "bg-amber-50 text-amber-800 border border-amber-200 font-bold",
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -179,35 +179,39 @@ export default function AdminUsersPage() {
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="max-w-5xl mx-auto w-full animate-fade-in space-y-8">
+    <div className="max-w-6xl mx-auto w-full animate-fade-in space-y-8 px-4 sm:px-6 pt-4 pb-16">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-content-primary">
-          Admin Panel
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-brand-50 text-brand-700 border border-brand-200 mb-3">
+          <Shield className="w-3.5 h-3.5" />
+          <span>Administration</span>
+        </div>
+        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-content-primary">
+          User & Invite Management
         </h1>
-        <p className="text-content-secondary mt-1">
-          Manage users, roles, and invite links for your platform.
+        <p className="text-content-secondary text-sm mt-1">
+          Manage user accounts, platform access privileges, and invite links.
         </p>
       </div>
 
       {/* Error banner */}
       {errorMsg && (
-        <div className="glass border border-danger/30 bg-danger/5 text-danger px-4 py-3 rounded-xl text-sm flex justify-between items-center">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-2xl text-xs sm:text-sm flex justify-between items-center font-medium">
           <span>{errorMsg}</span>
-          <button onClick={() => setErrorMsg(null)} className="ml-4 text-danger/60 hover:text-danger">✕</button>
+          <button onClick={() => setErrorMsg(null)} className="ml-4 text-red-500 hover:text-red-800">✕</button>
         </div>
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 p-1 bg-surface-elevated rounded-xl w-fit">
+      <div className="flex gap-1.5 p-1 bg-slate-100 rounded-2xl w-fit border border-slate-200">
         {(["users", "invites"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={cn(
-              "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
+              "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 min-h-[38px]",
               tab === t
-                ? "bg-brand-500 text-white shadow-brand"
+                ? "bg-white text-brand-700 shadow-card border border-slate-200/80"
                 : "text-content-secondary hover:text-content-primary"
             )}
           >
@@ -221,168 +225,176 @@ export default function AdminUsersPage() {
       {tab === "users" && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-content-muted">
+            <p className="text-xs font-semibold text-content-muted">
               {users.length} registered user{users.length !== 1 ? "s" : ""}
             </p>
             <button
               onClick={fetchUsers}
               disabled={usersLoading}
-              className="p-2 rounded-lg text-content-secondary hover:text-content-primary hover:bg-surface-elevated transition-colors"
-              title="Refresh"
+              className="p-2 rounded-xl text-content-secondary hover:text-content-primary hover:bg-slate-100 transition-colors"
+              title="Refresh Users"
             >
               <RefreshCw className={cn("w-4 h-4", usersLoading && "animate-spin")} />
             </button>
           </div>
 
-          <div className="glass overflow-hidden rounded-2xl">
+          <div className="card overflow-hidden">
             {usersLoading ? (
-              <div className="p-8 text-center text-content-secondary">Loading users...</div>
+              <div className="p-12 text-center text-xs font-semibold text-content-secondary">Loading registered users...</div>
             ) : users.length === 0 ? (
               <div className="p-12 text-center text-content-secondary">
-                <Users className="w-12 h-12 mx-auto mb-4 text-brand-500/50" />
-                <p className="text-sm">No users found.</p>
+                <Users className="w-10 h-10 mx-auto mb-3 text-slate-300" />
+                <p className="text-sm font-bold text-content-primary">No users found</p>
               </div>
             ) : (
-              <div className="divide-y divide-surface-border">
-                {/* Table Header */}
-                <div className="grid grid-cols-[1fr_1fr_140px_100px_180px] gap-4 px-5 py-3 text-xs font-medium text-content-muted uppercase tracking-wider">
-                  <span>User</span>
-                  <span>Email</span>
-                  <span>Role</span>
-                  <span>Status</span>
-                  <span>Actions</span>
-                </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-[700px]">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold text-content-muted uppercase tracking-wider">
+                      <th className="px-5 py-3.5">User</th>
+                      <th className="px-5 py-3.5">Email</th>
+                      <th className="px-5 py-3.5">Role</th>
+                      <th className="px-5 py-3.5">Status</th>
+                      <th className="px-5 py-3.5 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs font-medium text-content-primary">
+                    {users.map((user) => (
+                      <tr
+                        key={user.id}
+                        className={cn(
+                          "hover:bg-slate-50/80 transition-colors",
+                          !user.is_active && "opacity-60 bg-slate-50/40"
+                        )}
+                      >
+                        {/* User */}
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center font-bold text-xs shrink-0 border border-brand-200">
+                              {user.username[0].toUpperCase()}
+                            </div>
+                            <span className="font-bold text-content-primary truncate">
+                              {user.username}
+                            </span>
+                          </div>
+                        </td>
 
-                {users.map((user) => (
-                  <div
-                    key={user.id}
-                    className={cn(
-                      "grid grid-cols-[1fr_1fr_140px_100px_180px] gap-4 px-5 py-4 items-center transition-colors hover:bg-white/2",
-                      !user.is_active && "opacity-50"
-                    )}
-                  >
-                    {/* Username */}
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-brand-500/20 flex items-center justify-center text-brand-400 font-bold text-sm shrink-0">
-                        {user.username[0].toUpperCase()}
-                      </div>
-                      <span className="font-medium text-content-primary truncate">
-                        {user.username}
-                      </span>
-                    </div>
+                        {/* Email */}
+                        <td className="px-5 py-4 text-content-secondary truncate">
+                          {user.email}
+                        </td>
 
-                    {/* Email */}
-                    <span className="text-sm text-content-secondary truncate">
-                      {user.email}
-                    </span>
-
-                    {/* Role Dropdown */}
-                    <div className="relative" onClick={(e) => e.stopPropagation()}>
-                      {user.role === "super_admin" ? (
-                        <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium", ROLE_COLORS[user.role])}>
-                          <Shield className="w-3.5 h-3.5" />
-                          Super Admin
-                        </span>
-                      ) : (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            e.nativeEvent.stopImmediatePropagation();
-                            setOpenRoleDropdown(openRoleDropdown === user.id ? null : user.id);
-                          }}
-                          disabled={updatingUserId === user.id}
-                          className={cn(
-                            "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all hover:ring-1 hover:ring-brand-500/50 cursor-pointer",
-                            ROLE_COLORS[user.role]
-                          )}
-                        >
-                          {updatingUserId === user.id ? (
-                            <div className="w-3.5 h-3.5 border-2 border-current/30 border-t-current rounded-full animate-spin" />
+                        {/* Role Dropdown */}
+                        <td className="px-5 py-4 relative" onClick={(e) => e.stopPropagation()}>
+                          {user.role === "super_admin" ? (
+                            <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold", ROLE_COLORS[user.role])}>
+                              <Shield className="w-3.5 h-3.5" />
+                              Super Admin
+                            </span>
                           ) : (
-                            <ShieldCheck className="w-3.5 h-3.5" />
-                          )}
-                          {ROLE_LABELS[user.role]}
-                          <ChevronDown className="w-3 h-3 ml-0.5" />
-                        </button>
-                      )}
-
-                      {/* Dropdown */}
-                      {openRoleDropdown === user.id && (
-                        <div className="absolute top-full left-0 mt-1 z-20 glass rounded-xl shadow-card border border-surface-border overflow-hidden min-w-[140px]">
-                          {["level1", "level2"].map((role) => (
                             <button
-                              key={role}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 e.nativeEvent.stopImmediatePropagation();
-                                handleRoleChange(user.id, role);
+                                setOpenRoleDropdown(openRoleDropdown === user.id ? null : user.id);
                               }}
+                              disabled={updatingUserId === user.id}
                               className={cn(
-                                "w-full px-3 py-2.5 text-left text-sm flex items-center gap-2 hover:bg-white/5 transition-colors",
-                                user.role === role ? "text-brand-400" : "text-content-secondary"
+                                "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all hover:border-brand-400 cursor-pointer min-h-[30px]",
+                                ROLE_COLORS[user.role]
                               )}
                             >
-                              <ShieldCheck className="w-4 h-4" />
-                              {ROLE_LABELS[role]}
-                              {user.role === role && (
-                                <Check className="w-3.5 h-3.5 ml-auto text-brand-400" />
+                              {updatingUserId === user.id ? (
+                                <div className="w-3.5 h-3.5 border-2 border-current/30 border-t-current rounded-full animate-spin" />
+                              ) : (
+                                <ShieldCheck className="w-3.5 h-3.5" />
                               )}
+                              {ROLE_LABELS[user.role]}
+                              <ChevronDown className="w-3 h-3 ml-0.5" />
                             </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Status badge */}
-                    <span
-                      className={cn(
-                        "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium w-fit",
-                        user.is_active
-                          ? "bg-success/15 text-success"
-                          : "bg-danger/15 text-danger"
-                      )}
-                    >
-                      {user.is_active ? (
-                        <UserCheck className="w-3.5 h-3.5" />
-                      ) : (
-                        <UserX className="w-3.5 h-3.5" />
-                      )}
-                      {user.is_active ? "Active" : "Inactive"}
-                    </span>
-
-                    {/* Actions */}
-                    {user.role !== "super_admin" && (
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleToggleActive(user)}
-                          disabled={updatingUserId === user.id}
-                          title={user.is_active ? "Deactivate user" : "Activate user"}
-                          className={cn(
-                            "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                            user.is_active
-                              ? "text-amber-500 hover:bg-amber-500/10"
-                              : "text-success hover:bg-success/10"
                           )}
-                        >
-                          {user.is_active ? (
-                            <><ShieldOff className="w-3.5 h-3.5" /> Suspend</>
-                          ) : (
-                            <><ShieldCheck className="w-3.5 h-3.5" /> Restore</>
+
+                          {/* Dropdown */}
+                          {openRoleDropdown === user.id && (
+                            <div className="absolute top-full left-0 mt-1 z-20 bg-white rounded-2xl shadow-card-hover border border-slate-200 overflow-hidden min-w-[140px] p-1 animate-fade-in">
+                              {["level1", "level2"].map((role) => (
+                                <button
+                                  key={role}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    e.nativeEvent.stopImmediatePropagation();
+                                    handleRoleChange(user.id, role);
+                                  }}
+                                  className={cn(
+                                    "w-full px-3 py-2 text-left text-xs font-semibold flex items-center gap-2 rounded-xl hover:bg-slate-50 transition-colors",
+                                    user.role === role ? "text-brand-700 bg-brand-50" : "text-content-secondary"
+                                  )}
+                                >
+                                  <ShieldCheck className="w-3.5 h-3.5" />
+                                  {ROLE_LABELS[role]}
+                                  {user.role === role && (
+                                    <Check className="w-3.5 h-3.5 ml-auto text-brand-700" />
+                                  )}
+                                </button>
+                              ))}
+                            </div>
                           )}
-                        </button>
-                        
-                        <button
-                          onClick={() => handleDeleteUser(user)}
-                          disabled={updatingUserId === user.id}
-                          title="Delete user permanently"
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors text-danger hover:bg-danger/10"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" /> Delete
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                        </td>
+
+                        {/* Status Badge */}
+                        <td className="px-5 py-4">
+                          <span
+                            className={cn(
+                              "badge font-bold",
+                              user.is_active ? "badge-success" : "bg-red-50 text-red-600 border border-red-200"
+                            )}
+                          >
+                            {user.is_active ? (
+                              <UserCheck className="w-3 h-3" />
+                            ) : (
+                              <UserX className="w-3 h-3" />
+                            )}
+                            {user.is_active ? "Active" : "Suspended"}
+                          </span>
+                        </td>
+
+                        {/* Actions */}
+                        <td className="px-5 py-4 text-right">
+                          {user.role !== "super_admin" && (
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => handleToggleActive(user)}
+                                disabled={updatingUserId === user.id}
+                                title={user.is_active ? "Suspend account" : "Restore account"}
+                                className={cn(
+                                  "btn-ghost h-8 px-2.5 text-xs font-bold rounded-xl",
+                                  user.is_active
+                                    ? "text-amber-600 hover:bg-amber-50"
+                                    : "text-emerald-600 hover:bg-emerald-50"
+                                )}
+                              >
+                                {user.is_active ? (
+                                  <><ShieldOff className="w-3.5 h-3.5 mr-1" /> Suspend</>
+                                ) : (
+                                  <><ShieldCheck className="w-3.5 h-3.5 mr-1" /> Restore</>
+                                )}
+                              </button>
+                              
+                              <button
+                                onClick={() => handleDeleteUser(user)}
+                                disabled={updatingUserId === user.id}
+                                title="Delete user"
+                                className="btn-ghost h-8 px-2.5 text-xs font-bold text-red-600 hover:bg-red-50 rounded-xl"
+                              >
+                                <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
@@ -393,75 +405,76 @@ export default function AdminUsersPage() {
       {tab === "invites" && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-content-muted">
+            <p className="text-xs font-semibold text-content-muted">
               {invites.filter((i) => i.is_valid).length} active invite link{invites.filter((i) => i.is_valid).length !== 1 ? "s" : ""}
             </p>
             <button
               onClick={handleGenerateInvite}
               disabled={generating}
-              className="btn-primary h-10"
+              className="btn-primary h-10 px-4 text-xs font-bold shadow-brand min-h-[40px]"
             >
               {generating ? (
-                <div className="w-4 h-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+                <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin mr-1.5" />
               ) : (
-                <Plus className="w-4 h-4" />
+                <Plus className="w-4 h-4 mr-1.5" />
               )}
-              Generate Link
+              Generate Invite Link
             </button>
           </div>
 
-          <div className="glass overflow-hidden rounded-2xl">
+          <div className="card overflow-hidden">
             {invitesLoading ? (
-              <div className="p-8 text-center text-content-secondary">Loading invites...</div>
+              <div className="p-12 text-center text-xs font-semibold text-content-secondary">Loading invite links...</div>
             ) : invites.length === 0 ? (
               <div className="p-12 text-center text-content-secondary">
-                <Link2 className="w-12 h-12 mx-auto mb-4 text-brand-500/50" />
-                <h3 className="text-lg font-medium text-content-primary mb-1">No invite links yet</h3>
-                <p className="text-sm">Generate a link to invite users to your platform.</p>
+                <Link2 className="w-10 h-10 mx-auto mb-3 text-slate-300" />
+                <h3 className="text-sm font-bold text-content-primary mb-1">No invite links generated</h3>
+                <p className="text-xs">Generate an invite link to invite users to your platform.</p>
               </div>
             ) : (
-              <div className="divide-y divide-surface-border">
+              <div className="divide-y divide-slate-100">
                 {invites.map((invite) => (
-                  <div key={invite.id} className="p-4 flex items-center gap-4 hover:bg-white/2 transition-colors">
+                  <div key={invite.id} className="p-4 sm:p-5 flex items-center gap-4 hover:bg-slate-50/80 transition-colors">
                     {/* Status dot */}
                     <div className={cn(
                       "w-2.5 h-2.5 rounded-full shrink-0",
-                      invite.is_valid ? "bg-success" : "bg-surface-border"
+                      invite.is_valid ? "bg-emerald-500" : "bg-slate-300"
                     )} />
 
                     {/* Info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-mono text-xs text-content-primary truncate max-w-md">
+                        <span className="font-mono text-xs text-content-primary truncate max-w-md bg-slate-50 px-2.5 py-1 rounded border border-slate-200">
                           {invite.invite_url}
                         </span>
                         {invite.is_valid ? (
-                          <span className="px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-success/20 text-success shrink-0">
+                          <span className="badge badge-success font-bold text-[10px]">
                             Active
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-surface-border text-content-muted shrink-0">
+                          <span className="badge bg-slate-100 text-slate-500 border-slate-200 font-bold text-[10px]">
                             Expired
                           </span>
                         )}
                       </div>
-                      <div className="text-xs text-content-muted flex gap-4">
+                      <div className="text-xs text-content-muted flex gap-4 mt-1 font-medium">
                         <span>Uses: {invite.use_count} / {invite.max_uses}</span>
-                        <span>Expires: {new Date(invite.expires_at).toLocaleString()}</span>
+                        <span>Expires: {new Date(invite.expires_at).toLocaleDateString()}</span>
                       </div>
                     </div>
 
                     {/* Copy Button */}
                     <button
                       onClick={() => copyToClipboard(invite.id, invite.invite_url)}
-                      className="p-2.5 rounded-xl hover:bg-surface-elevated text-content-secondary hover:text-content-primary transition-colors shrink-0"
-                      title="Copy Link"
+                      className="btn-secondary h-9 px-3 text-xs font-bold min-h-[36px]"
+                      title="Copy Invite URL"
                     >
                       {copiedId === invite.id ? (
-                        <Check className="w-4 h-4 text-success" />
+                        <Check className="w-4 h-4 text-emerald-600 mr-1" />
                       ) : (
-                        <Copy className="w-4 h-4" />
+                        <Copy className="w-4 h-4 mr-1" />
                       )}
+                      <span>{copiedId === invite.id ? "Copied" : "Copy"}</span>
                     </button>
                   </div>
                 ))}
