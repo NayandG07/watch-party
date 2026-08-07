@@ -57,6 +57,8 @@ class B2StorageProvider(StorageProviderBase):
                 # B2 S3 generate_presigned_url usually formats as https://endpoint/bucket/path
 
                 # Replace scheme and netloc with CDN
+                # Keep the original path. It may include the bucket name depending on
+                # Cloudflare/CDN path-style configuration.
                 new_parts = (
                     parsed_cdn.scheme,
                     parsed_cdn.netloc,
