@@ -63,6 +63,6 @@ tmp/
 processing/
 
 # Thumbnails / temp media
-*.ts
+# (Do NOT ignore *.ts globally, as it ignores TypeScript source files!)
 *.m3u8
 *.key
