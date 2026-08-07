@@ -1,5 +1,5 @@
 """
-Room Manager — in-memory WebSocket connection registry with DB-persisted state.
+Room Manager â€” in-memory WebSocket connection registry with DB-persisted state.
 
 Architecture:
   - One RoomManager singleton lives for the lifetime of the process.
@@ -15,9 +15,8 @@ Thread safety:
 
 from __future__ import annotations
 
-import asyncio
-import uuid
-from datetime import datetime, timezone
+import contextlib
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import structlog
@@ -31,7 +30,7 @@ if TYPE_CHECKING:
 logger = structlog.get_logger()
 
 
-class RoomState_Live:
+class RoomStateLive:
     """Lightweight in-memory snapshot of a room's playback state."""
 
     __slots__ = (
@@ -57,13 +56,13 @@ class RoomState_Live:
         self.position_seconds = position_seconds
         self.speed = speed
         self.host_id = host_id
-        self.updated_at = updated_at or datetime.now(timezone.utc)
+        self.updated_at = updated_at or datetime.now(UTC)
 
     def current_position(self) -> float:
         """Calculate the current playback position based on elapsed wall-clock time."""
         if self.state != RoomState.PLAYING:
             return self.position_seconds
-        elapsed = (datetime.now(timezone.utc) - self.updated_at).total_seconds()
+        elapsed = (datetime.now(UTC) - self.updated_at).total_seconds()
         return self.position_seconds + elapsed * self.speed
 
 
@@ -75,7 +74,7 @@ class ConnectionInfo:
     def __init__(self, ws: WebSocket, user_id: str) -> None:
         self.ws = ws
         self.user_id = user_id
-        self.joined_at = datetime.now(timezone.utc)
+        self.joined_at = datetime.now(UTC)
 
 
 class RoomManager:
@@ -85,11 +84,11 @@ class RoomManager:
         # room_id -> list of active connections
         self._connections: dict[str, list[ConnectionInfo]] = {}
         # room_id -> live room state
-        self._states: dict[str, RoomState_Live] = {}
+        self._states: dict[str, RoomStateLive] = {}
         # room_id -> {user_id: username} mapping for MEMBER_UPDATE broadcasts
         self._usernames: dict[str, dict[str, str]] = {}
 
-    # ── Connection lifecycle ───────────────────────────────────────────────────
+    # ── Connection lifecycle ───────────────────────────────────────────────────  # noqa: E501
 
     async def connect(self, room_id: str, user_id: str, ws: WebSocket, username: str = "") -> None:
         await ws.accept()
@@ -101,8 +100,9 @@ class RoomManager:
             self._usernames[room_id] = {}
         if username:
             self._usernames[room_id][user_id] = username
-        logger.info("ws_connected", room_id=room_id, user_id=user_id,
-                    total=len(self._connections[room_id]))
+        logger.info(
+            "ws_connected", room_id=room_id, user_id=user_id, total=len(self._connections[room_id])
+        )
 
     def disconnect(self, room_id: str, ws: WebSocket) -> None:
         if room_id not in self._connections:
@@ -113,9 +113,7 @@ class RoomManager:
             if c.ws is ws:
                 disconnecting_user_id = c.user_id
                 break
-        self._connections[room_id] = [
-            c for c in self._connections[room_id] if c.ws is not ws
-        ]
+        self._connections[room_id] = [c for c in self._connections[room_id] if c.ws is not ws]
         if not self._connections[room_id]:
             del self._connections[room_id]
             # Clean up username map when room empties
@@ -141,23 +139,25 @@ class RoomManager:
         for c in self._connections.get(room_id, []):
             if c.user_id not in seen:
                 seen.add(c.user_id)
-                result.append({
-                    "id": c.user_id,
-                    "username": username_map.get(c.user_id, ""),
-                })
+                result.append(
+                    {
+                        "id": c.user_id,
+                        "username": username_map.get(c.user_id, ""),
+                    }
+                )
         return result
 
-    # ── State management ──────────────────────────────────────────────────────
+    # ── State management ──────────────────────────────────────────────────────  # noqa: E501
 
-    def set_state(self, state: RoomState_Live) -> None:
+    def set_state(self, state: RoomStateLive) -> None:
         self._states[state.room_id] = state
 
-    def get_state(self, room_id: str) -> RoomState_Live | None:
+    def get_state(self, room_id: str) -> RoomStateLive | None:
         return self._states.get(room_id)
 
-    def seed_from_db(self, room: "Room") -> RoomState_Live:
+    def seed_from_db(self, room: Room) -> RoomStateLive:
         """Seed in-memory state from a DB Room row (on first connection or restart)."""
-        live = RoomState_Live(
+        live = RoomStateLive(
             room_id=str(room.id),
             state=room.state,
             position_seconds=room.position_seconds,
@@ -168,7 +168,7 @@ class RoomManager:
         self._states[str(room.id)] = live
         return live
 
-    # ── Broadcasting ──────────────────────────────────────────────────────────
+    # ── Broadcasting ──────────────────────────────────────────────────────────  # noqa: E501
 
     async def broadcast(self, room_id: str, message: dict) -> None:
         """Send a JSON message to all clients in a room."""
@@ -187,11 +187,9 @@ class RoomManager:
         """Send a message to a specific user in a room."""
         for conn in self._connections.get(room_id, []):
             if conn.user_id == user_id:
-                try:
+                with contextlib.suppress(Exception):
                     await conn.ws.send_json(message)
-                except Exception:
-                    pass
 
 
-# Module-level singleton — imported and used across the codebase
+# Module-level singleton â€” imported and used across the codebase
 room_manager = RoomManager()

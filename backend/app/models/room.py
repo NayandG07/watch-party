@@ -20,7 +20,6 @@ On reconnect, the WebSocket manager reloads state and re-broadcasts it.
 from __future__ import annotations
 
 import uuid
-
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -33,7 +32,6 @@ from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from app.models.enums import RoomState
 
 if TYPE_CHECKING:
-
     from app.models.chat_message import ChatMessage
     from app.models.invite import Invite
     from app.models.movie import Movie

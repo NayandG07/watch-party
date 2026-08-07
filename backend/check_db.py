@@ -1,11 +1,13 @@
 import asyncio
 import os
-from sqlalchemy.ext.asyncio import create_async_engine
-from sqlalchemy import text
+
 from dotenv import load_dotenv
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
 
 load_dotenv()
 db_url = os.getenv("DATABASE_URL")
+
 
 async def main():
     print(f"Connecting to {db_url}")
@@ -17,5 +19,6 @@ async def main():
         for u in users:
             print(dict(u._mapping))
     await engine.dispose()
+
 
 asyncio.run(main())

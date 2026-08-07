@@ -14,8 +14,8 @@ from app.schemas.base import WatchPartyModel
 from app.schemas.movie import MovieBrief
 from app.schemas.user import UserBrief
 
-
 # ── Chat ──────────────────────────────────────────────────────────────────────
+
 
 class ChatMessageCreate(WatchPartyModel):
     content: str = Field(..., min_length=1, max_length=2000)
@@ -34,6 +34,7 @@ class ChatMessageResponse(WatchPartyModel):
 
 # ── Room Member ───────────────────────────────────────────────────────────────
 
+
 class RoomMemberResponse(WatchPartyModel):
     user: UserBrief
     is_host: bool
@@ -43,6 +44,7 @@ class RoomMemberResponse(WatchPartyModel):
 
 
 # ── Room ──────────────────────────────────────────────────────────────────────
+
 
 class RoomCreate(WatchPartyModel):
     name: str = Field(..., min_length=1, max_length=100)
@@ -62,6 +64,7 @@ class RoomUpdate(WatchPartyModel):
 
 class RoomResponse(WatchPartyModel):
     """Full room detail."""
+
     id: uuid.UUID
     slug: str
     name: str
@@ -78,6 +81,7 @@ class RoomResponse(WatchPartyModel):
 
 class RoomBrief(WatchPartyModel):
     """Minimal room info for list views."""
+
     id: uuid.UUID
     slug: str
     name: str

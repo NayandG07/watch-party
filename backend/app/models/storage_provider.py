@@ -14,7 +14,6 @@ only the StorageProvider ABC implementation changes.
 from __future__ import annotations
 
 import uuid
-
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, ForeignKey, String, Text
@@ -26,7 +25,6 @@ from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from app.models.enums import StorageProviderType
 
 if TYPE_CHECKING:
-
     from app.models.library import Library
     from app.models.user import User
 
@@ -111,6 +109,5 @@ class StorageProvider(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     def __repr__(self) -> str:
         return (
-            f"<StorageProvider id={self.id} type={self.provider_type} "
-            f"bucket={self.bucket_name!r}>"
+            f"<StorageProvider id={self.id} type={self.provider_type} bucket={self.bucket_name!r}>"
         )

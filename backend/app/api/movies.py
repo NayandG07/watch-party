@@ -1,27 +1,31 @@
+import json
 import re
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 from urllib.parse import quote, urlencode
 
-import json
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status, Request
-from starlette.responses import RedirectResponse
 import boto3
 from botocore.client import Config
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from jose import JWTError
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
+from starlette.responses import RedirectResponse
 
 from app.core.config import Settings, get_settings
 from app.core.dependencies import CurrentUserRoleDep, DatabaseDep, RequireAdminDep, RequireLevel2Dep
-from app.core.security import create_hls_key_token, create_stream_token, decode_stream_token, decrypt_secret
+from app.core.security import (
+    create_hls_key_token,
+    create_stream_token,
+    decode_stream_token,
+    decrypt_secret,
+)
 from app.models.collection import Collection
 from app.models.library import Library
 from app.models.movie import Movie
 from app.models.room import Room
 from app.models.room_member import RoomMember
-from app.services.permission import PermissionService
 from app.schemas.movie import (
     MovieBrief,
     MovieCreate,
@@ -30,6 +34,7 @@ from app.schemas.movie import (
     MovieUploaderUpdate,
     PlaybackTokenResponse,
 )
+from app.services.permission import PermissionService
 
 router = APIRouter(prefix="/movies", tags=["movies"])
 
@@ -43,7 +48,7 @@ def _path_to_stream_url(
     """
     Convert a storage path like 'movies/UUID/poster.jpg' to a proxied
     backend stream URL like 'http://localhost:8000/api/movies/UUID/stream/poster.jpg'.
-    
+
     The full_path format is 'movies/{slug}/{filename}' or 'movies/{slug}/hls/{filename}'.
     We strip the 'movies/{slug}/' prefix to get the relative path from the movie root.
     """
@@ -133,7 +138,7 @@ async def create_movie(
     )
     db.add(new_movie)
     await db.commit()
-    
+
     # Reload with full relation chain needed for MovieResponse
     stmt = (
         select(Movie)
@@ -205,13 +210,16 @@ async def update_movie(
     )
     result = await db.execute(stmt)
     movie = result.scalar_one_or_none()
-    
+
     if not movie:
         raise HTTPException(status_code=404, detail="Movie not found")
 
     update_data = payload.model_dump(exclude_unset=True)
     if "enriched_metadata" in update_data and update_data["enriched_metadata"]:
-        movie.enriched_metadata = {**(movie.enriched_metadata or {}), **update_data["enriched_metadata"]}
+        movie.enriched_metadata = {
+            **(movie.enriched_metadata or {}),
+            **update_data["enriched_metadata"],
+        }
         del update_data["enriched_metadata"]
 
     for key, value in update_data.items():
@@ -251,29 +259,25 @@ async def complete_movie_upload(
     )
     result = await db.execute(stmt)
     movie = result.scalar_one_or_none()
-    
+
     if not movie:
         raise HTTPException(status_code=404, detail="Movie not found")
 
     update_data = payload.model_dump(exclude_unset=True)
 
     # In a real app we'd also store the HLS key hex, but that needs to be encrypted before saving.
-    # The security module has AES-256-GCM encryption we can use, but HLS Keys are in a separate table.
+    # The security module has AES-256-GCM encryption we can use, but HLS Keys are in a separate table.  # noqa: E501
     # For now, we will just update the movie fields. Let's add the HLS Key logic.
-    from app.models.hls_key import HLSKey
     from app.core.security import encrypt_secret
+    from app.models.hls_key import HLSKey
 
     # Encrypt the HLS AES-128 key (but leave the IV plaintext as it's not secret)
     key_hex = update_data.pop("hls_key_hex")
     iv_hex = update_data.pop("hls_iv_hex")
-    
+
     enc_key = encrypt_secret(key_hex)
 
-    new_hls_key = HLSKey(
-        movie_id=movie.id,
-        key_encrypted=enc_key,
-        iv_hex=iv_hex
-    )
+    new_hls_key = HLSKey(movie_id=movie.id, key_encrypted=enc_key, iv_hex=iv_hex)
     db.add(new_hls_key)
 
     for key, value in update_data.items():
@@ -305,7 +309,7 @@ async def delete_movie(
     movie = await db.get(Movie, movie_id)
     if not movie:
         raise HTTPException(status_code=404, detail="Movie not found")
-        
+
     await db.delete(movie)
     await db.commit()
 
@@ -354,7 +358,8 @@ async def get_hls_key_token(
             .join(RoomMember, RoomMember.room_id == Room.id, isouter=True)
             .where(
                 Room.movie_id == movie_id,
-                (RoomMember.user_id == uuid.UUID(user_id)) | (Room.creator_id == uuid.UUID(user_id)),
+                (RoomMember.user_id == uuid.UUID(user_id))
+                | (Room.creator_id == uuid.UUID(user_id)),
             )
             .limit(1)
         )
@@ -370,9 +375,9 @@ async def get_hls_key_token(
     # 4. Create signed token for HLS key access
     token = create_hls_key_token(movie_id=str(movie.id), user_id=user_id)
     stream_token = create_stream_token(movie_id=str(movie.id), user_id=user_id)
-    
+
     # Expires in the same time as the access token
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
+    expires_at = datetime.now(UTC) + timedelta(minutes=settings.access_token_expire_minutes)
 
     # In a production scenario, the StorageProvider should have a cdn_url configured
     # to proxy the B2 bucket via Cloudflare.
@@ -390,7 +395,6 @@ async def get_hls_key_token(
         hls_key_token=token,
         expires_at=expires_at,
     )
-
 
 
 @router.get("/{movie_id}/stream/{file_path:path}")
@@ -470,6 +474,7 @@ async def stream_movie_file(
             ExpiresIn=300,
         )
         import httpx
+
         async with httpx.AsyncClient() as client:
             r = await client.get(presigned)
             if r.status_code != 200:
@@ -490,15 +495,15 @@ async def stream_movie_file(
                     f'URI="{str(request.base_url).rstrip("/")}/api/movies/{movie_id}/hls-key"',
                     line,
                 )
-            elif line and not line.startswith("#"):
+            elif line and not line.startswith("#") and not line.startswith("http"):
                 # Relative segment filename → absolute proxy URL
                 # e.g. "seg_000.ts" → "http://localhost:8000/api/movies/<uuid>/stream/seg_000.ts"
-                if not line.startswith("http"):
-                    separator = "&" if "?" in line else "?"
-                    line = f"{proxy_base}{line}{separator}token={quote(token, safe='')}"
+                separator = "&" if "?" in line else "?"
+                line = f"{proxy_base}{line}{separator}token={quote(token, safe='')}"
             rewritten_lines.append(line)
 
         from starlette.responses import PlainTextResponse
+
         return PlainTextResponse(
             "\n".join(rewritten_lines),
             media_type="application/vnd.apple.mpegurl",
@@ -529,10 +534,11 @@ async def serve_hls_key(
     We validate it and return the raw key bytes so the player can decrypt
     the video segments.
     """
+    from jose import JWTError
+    from starlette.responses import Response
+
     from app.core.security import decode_hls_key_token
     from app.models.hls_key import HLSKey
-    from starlette.responses import Response
-    from jose import JWTError
 
     # Accept token from query param or Authorization header
     raw_token = token
@@ -546,8 +552,8 @@ async def serve_hls_key(
 
     try:
         payload = decode_hls_key_token(raw_token)
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid or expired HLS key token")
+    except JWTError as err:
+        raise HTTPException(status_code=401, detail="Invalid or expired HLS key token") from err
 
     # Verify the token is for THIS movie
     if payload.get("movie_id") != str(movie_id):

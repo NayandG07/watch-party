@@ -1,11 +1,10 @@
 import uuid
-from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.core.dependencies import CurrentUserRoleDep, DatabaseDep, RequireAdminDep, RequireLevel2Dep
+from app.core.dependencies import CurrentUserRoleDep, DatabaseDep, RequireLevel2Dep
 from app.models.collection import Collection
 from app.models.library import Library
 from app.schemas.library import CollectionCreate, CollectionResponse, CollectionUpdate
@@ -28,7 +27,7 @@ async def list_collections(
     )
     if library_id:
         stmt = stmt.where(Collection.library_id == library_id)
-        
+
     result = await db.execute(stmt)
     all_collections = list(result.scalars().all())
 
@@ -50,7 +49,7 @@ async def create_collection(
     library = await db.get(Library, payload.library_id)
     if not library:
         raise HTTPException(status_code=404, detail="Library not found")
-        
+
     if not await PermissionService.can_manage_library(library, user_id, user_role):
         raise HTTPException(status_code=403, detail="Access denied to this library")
     new_collection = Collection(
@@ -62,7 +61,7 @@ async def create_collection(
     )
     db.add(new_collection)
     await db.commit()
-    
+
     # Reload with relations to satisfy CollectionResponse
     stmt = (
         select(Collection)
@@ -90,7 +89,9 @@ async def get_collection(
     if not collection:
         raise HTTPException(status_code=404, detail="Collection not found")
 
-    if not await PermissionService.can_view_collection(collection, collection.library, user_id, user_role, db):
+    if not await PermissionService.can_view_collection(
+        collection, collection.library, user_id, user_role, db
+    ):
         raise HTTPException(status_code=403, detail="Access denied")
 
     return collection
@@ -104,15 +105,21 @@ async def update_collection(
     db: DatabaseDep,
 ) -> Collection:
     user_id, user_role = user_info
-    
-    stmt = select(Collection).where(Collection.id == collection_id).options(selectinload(Collection.library).selectinload(Library.owner))
+
+    stmt = (
+        select(Collection)
+        .where(Collection.id == collection_id)
+        .options(selectinload(Collection.library).selectinload(Library.owner))
+    )
     result = await db.execute(stmt)
     collection = result.scalar_one_or_none()
-    
+
     if not collection:
         raise HTTPException(status_code=404, detail="Collection not found")
-        
-    if not await PermissionService.can_manage_collection(collection, collection.library, user_id, user_role):
+
+    if not await PermissionService.can_manage_collection(
+        collection, collection.library, user_id, user_role
+    ):
         raise HTTPException(status_code=403, detail="Access denied")
 
     update_data = payload.model_dump(exclude_unset=True)
@@ -131,16 +138,22 @@ async def delete_collection(
     db: DatabaseDep,
 ) -> None:
     user_id, user_role = user_info
-    
-    stmt = select(Collection).where(Collection.id == collection_id).options(selectinload(Collection.library).selectinload(Library.owner))
+
+    stmt = (
+        select(Collection)
+        .where(Collection.id == collection_id)
+        .options(selectinload(Collection.library).selectinload(Library.owner))
+    )
     result = await db.execute(stmt)
     collection = result.scalar_one_or_none()
-    
+
     if not collection:
         raise HTTPException(status_code=404, detail="Collection not found")
-        
-    if not await PermissionService.can_manage_collection(collection, collection.library, user_id, user_role):
+
+    if not await PermissionService.can_manage_collection(
+        collection, collection.library, user_id, user_role
+    ):
         raise HTTPException(status_code=403, detail="Access denied")
-        
+
     await db.delete(collection)
     await db.commit()

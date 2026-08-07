@@ -15,16 +15,18 @@ from __future__ import annotations
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-
-from app.main import app
-from app.db.session import AsyncSessionLocal
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.session import AsyncSessionLocal
+from app.main import app
+
 
 @pytest_asyncio.fixture
 async def db_session() -> AsyncSession:
     async with AsyncSessionLocal() as session:
         yield session
         await session.rollback()
+
 
 @pytest.fixture(scope="session")
 def anyio_backend() -> str:

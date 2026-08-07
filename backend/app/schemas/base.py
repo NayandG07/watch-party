@@ -7,9 +7,7 @@ from_attributes=True for ORM compatibility) or from a simpler BaseModel.
 
 from __future__ import annotations
 
-import uuid
-from datetime import datetime
-from typing import Generic, TypeVar
+from typing import TypeVar
 
 from pydantic import BaseModel, ConfigDict
 
@@ -20,13 +18,13 @@ class WatchPartyModel(BaseModel):
     """Base for all schemas that may be populated from ORM instances."""
 
     model_config = ConfigDict(
-        from_attributes=True,       # Allow model_validate(orm_instance)
-        populate_by_name=True,      # Allow both alias and field name
-        use_enum_values=True,       # Serialise enums as their .value
+        from_attributes=True,  # Allow model_validate(orm_instance)
+        populate_by_name=True,  # Allow both alias and field name
+        use_enum_values=True,  # Serialise enums as their .value
     )
 
 
-class PaginatedResponse(WatchPartyModel, Generic[T]):
+class PaginatedResponse[T](WatchPartyModel):
     """Generic paginated list response."""
 
     items: list[T]

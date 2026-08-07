@@ -14,12 +14,12 @@ from __future__ import annotations
 
 import base64
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import bcrypt
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-import bcrypt
 from jose import JWTError, jwt
 
 from app.core.config import get_settings
@@ -28,9 +28,10 @@ settings = get_settings()
 
 # ── Password hashing ──────────────────────────────────────────────────────────
 
+
 def hash_password(password: str) -> str:
     """Return a bcrypt hash of *password*.
-    
+
     rounds=10 is OWASP-recommended for web authentication — secure and ~150ms
     instead of the ~300ms of the default 12 rounds.
     """
@@ -41,15 +42,13 @@ def hash_password(password: str) -> str:
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Return True if *plain_password* matches *hashed_password*."""
     try:
-        return bcrypt.checkpw(
-            plain_password.encode("utf-8"), 
-            hashed_password.encode("ascii")
-        )
+        return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("ascii"))
     except ValueError:
         return False
 
 
 # ── JWT ───────────────────────────────────────────────────────────────────────
+
 
 def create_access_token(
     subject: str,
@@ -67,9 +66,7 @@ def create_access_token(
     Returns:
         Signed JWT string.
     """
-    expire = datetime.now(timezone.utc) + timedelta(
-        minutes=settings.access_token_expire_minutes
-    )
+    expire = datetime.now(UTC) + timedelta(minutes=settings.access_token_expire_minutes)
     payload: dict[str, Any] = {
         "sub": subject,
         "exp": expire,
@@ -88,9 +85,7 @@ def create_refresh_token(subject: str) -> str:
 
     Stored as an httpOnly cookie; should NOT contain sensitive claims.
     """
-    expire = datetime.now(timezone.utc) + timedelta(
-        days=settings.refresh_token_expire_days
-    )
+    expire = datetime.now(UTC) + timedelta(days=settings.refresh_token_expire_days)
     payload: dict[str, Any] = {
         "sub": subject,
         "exp": expire,
@@ -110,6 +105,7 @@ def decode_token(token: str) -> dict[str, Any]:
 
 # ── WebSocket one-time tokens ─────────────────────────────────────────────────
 
+
 def create_ws_token(user_id: str, room_id: str) -> str:
     """Create a short-lived token for WebSocket upgrade authentication.
 
@@ -117,7 +113,7 @@ def create_ws_token(user_id: str, room_id: str) -> str:
     across CDN/proxy boundaries). This token is passed as a query param.
     It expires in 60 seconds — long enough to open the connection.
     """
-    expire = datetime.now(timezone.utc) + timedelta(minutes=5)
+    expire = datetime.now(UTC) + timedelta(minutes=5)
     payload: dict[str, Any] = {
         "sub": user_id,
         "room_id": room_id,
@@ -154,8 +150,8 @@ def _get_aes_key() -> bytes:
     if len(key_bytes) != 32:
         raise ValueError(
             f"ENCRYPTION_KEY must decode to exactly 32 bytes (got {len(key_bytes)}). "
-            "Generate with: python -c \"import secrets,base64; "
-            "print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())\""
+            'Generate with: python -c "import secrets,base64; '
+            'print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())"'
         )
     return key_bytes
 
@@ -206,6 +202,7 @@ def decrypt_secret(encrypted: str) -> str:
 
 # ── HLS AES-128 key signing ───────────────────────────────────────────────────
 
+
 def create_hls_key_token(movie_id: str, user_id: str) -> str:
     """Create a token authorizing the bearer to fetch a movie's HLS AES-128 key.
 
@@ -213,18 +210,14 @@ def create_hls_key_token(movie_id: str, user_id: str) -> str:
     fetches the ``#EXT-X-KEY`` URI from the backend.
     Expires at the same time as the access token to keep sessions consistent.
     """
-    expire = datetime.now(timezone.utc) + timedelta(
-        minutes=settings.access_token_expire_minutes
-    )
+    expire = datetime.now(UTC) + timedelta(minutes=settings.access_token_expire_minutes)
     payload: dict[str, Any] = {
         "sub": user_id,
         "movie_id": movie_id,
         "exp": expire,
         "type": "hls_key",
     }
-    return jwt.encode(
-        payload, settings.hls_key_signing_secret, algorithm=settings.algorithm
-    )
+    return jwt.encode(payload, settings.hls_key_signing_secret, algorithm=settings.algorithm)
 
 
 def decode_hls_key_token(token: str) -> dict[str, Any]:
@@ -233,9 +226,7 @@ def decode_hls_key_token(token: str) -> dict[str, Any]:
     Raises:
         jose.JWTError: If the token is invalid or expired.
     """
-    payload = jwt.decode(
-        token, settings.hls_key_signing_secret, algorithms=[settings.algorithm]
-    )
+    payload = jwt.decode(token, settings.hls_key_signing_secret, algorithms=[settings.algorithm])
     if payload.get("type") != "hls_key":
         raise JWTError("Invalid token type for HLS key")
     return payload
@@ -243,31 +234,26 @@ def decode_hls_key_token(token: str) -> dict[str, Any]:
 
 def create_stream_token(movie_id: str, user_id: str) -> str:
     """Create a short-lived token for proxied movie assets and playlists."""
-    expire = datetime.now(timezone.utc) + timedelta(
-        minutes=settings.access_token_expire_minutes
-    )
+    expire = datetime.now(UTC) + timedelta(minutes=settings.access_token_expire_minutes)
     payload: dict[str, Any] = {
         "sub": user_id,
         "movie_id": movie_id,
         "exp": expire,
         "type": "stream",
     }
-    return jwt.encode(
-        payload, settings.hls_key_signing_secret, algorithm=settings.algorithm
-    )
+    return jwt.encode(payload, settings.hls_key_signing_secret, algorithm=settings.algorithm)
 
 
 def decode_stream_token(token: str) -> dict[str, Any]:
     """Validate and decode a proxied stream/asset token."""
-    payload = jwt.decode(
-        token, settings.hls_key_signing_secret, algorithms=[settings.algorithm]
-    )
+    payload = jwt.decode(token, settings.hls_key_signing_secret, algorithms=[settings.algorithm])
     if payload.get("type") != "stream":
         raise JWTError("Invalid token type for stream")
     return payload
 
 
 # ── Invite token ──────────────────────────────────────────────────────────────
+
 
 def create_invite_token(
     invited_by: str,
@@ -279,7 +265,7 @@ def create_invite_token(
     Used for both platform registration invites and room join invites.
     The token is stored in the DB (Invite table) and validated on use.
     """
-    expire = datetime.now(timezone.utc) + timedelta(hours=expires_in_hours)
+    expire = datetime.now(UTC) + timedelta(hours=expires_in_hours)
     payload: dict[str, Any] = {
         "sub": invited_by,
         "exp": expire,

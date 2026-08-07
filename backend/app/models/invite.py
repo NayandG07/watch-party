@@ -14,8 +14,7 @@ Expiry, max_uses, and is_revoked are enforced in the invite service layer.
 from __future__ import annotations
 
 import uuid
-
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, func
@@ -25,7 +24,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
-
     from app.models.room import Room
     from app.models.user import User
 
@@ -106,11 +104,10 @@ class Invite(Base, UUIDPrimaryKeyMixin):
     @property
     def is_valid(self) -> bool:
         """Quick validity check (does not check DB revocation)."""
-        from datetime import timezone
         return (
             not self.is_revoked
             and self.use_count < self.max_uses
-            and datetime.now(timezone.utc) < self.expires_at
+            and datetime.now(UTC) < self.expires_at
         )
 
     def __repr__(self) -> str:

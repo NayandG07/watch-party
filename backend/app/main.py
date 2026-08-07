@@ -12,23 +12,37 @@ The backend NEVER proxies video. All media flows:
 
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
+import asyncio
 from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, collections, health, invites, libraries, movies, permissions, rooms, storage_providers, users
+from app.api import (
+    auth,
+    collections,
+    health,
+    invites,
+    libraries,
+    movies,
+    permissions,
+    rooms,
+    storage_providers,
+    users,
+)
+from app.api.rooms import cleanup_inactive_rooms
 from app.core.config import get_settings
-from app.core.exceptions import WatchPartyError, watchparty_exception_handler, unhandled_exception_handler
+from app.core.exceptions import (
+    WatchPartyError,
+    unhandled_exception_handler,
+    watchparty_exception_handler,
+)
 from app.core.log_config import configure_logging
 
 settings = get_settings()
 
-
-import asyncio
-from app.api.rooms import cleanup_inactive_rooms
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:  # noqa: ARG001
@@ -86,7 +100,7 @@ def create_app() -> FastAPI:
     # Subsequent phases add: auth, users, libraries, collections, movies,
     # rooms, sync (WebSocket), chat, storage.
     app.include_router(health.router)
-    
+
     # Phase 3: Auth & Users
     app.include_router(auth.router, prefix="/api")
     app.include_router(invites.router, prefix="/api")

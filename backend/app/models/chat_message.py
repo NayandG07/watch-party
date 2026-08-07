@@ -16,7 +16,6 @@ There is no public chat, no cross-room history.
 from __future__ import annotations
 
 import uuid
-
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -29,7 +28,6 @@ from app.db.base import Base, UUIDPrimaryKeyMixin
 from app.models.enums import MessageType
 
 if TYPE_CHECKING:
-
     from app.models.room import Room
     from app.models.user import User
 
@@ -57,7 +55,7 @@ class ChatMessage(Base, UUIDPrimaryKeyMixin):
         Text,
         nullable=False,
         comment="For TEXT: message text. For EMOJI_REACTION: emoji char. "
-                "For TIMESTAMP_SHARE: human-readable label e.g. '1:23:45'.",
+        "For TIMESTAMP_SHARE: human-readable label e.g. '1:23:45'.",
     )
     message_type: Mapped[MessageType] = mapped_column(
         SAEnum(MessageType, native_enum=False, length=20),
@@ -76,7 +74,7 @@ class ChatMessage(Base, UUIDPrimaryKeyMixin):
         DateTime(timezone=True),
         server_default=func.now(),
         nullable=False,
-        index=True,   # Messages are queried in chronological order
+        index=True,  # Messages are queried in chronological order
     )
 
     # ── Relationships ─────────────────────────────────────────────────────────

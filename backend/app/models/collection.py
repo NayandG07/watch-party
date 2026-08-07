@@ -11,11 +11,10 @@ Default visibility is always private.
 from __future__ import annotations
 
 import uuid
-
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Integer, String, Text
 from sqlalchemy import Enum as SAEnum
+from sqlalchemy import ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -23,7 +22,6 @@ from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from app.models.enums import Visibility
 
 if TYPE_CHECKING:
-
     from app.models.library import Library
     from app.models.movie import Movie
     from app.models.permission import Permission
@@ -84,7 +82,4 @@ class Collection(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
 
     def __repr__(self) -> str:
-        return (
-            f"<Collection id={self.id} name={self.name!r} "
-            f"visibility={self.visibility}>"
-        )
+        return f"<Collection id={self.id} name={self.name!r} visibility={self.visibility}>"

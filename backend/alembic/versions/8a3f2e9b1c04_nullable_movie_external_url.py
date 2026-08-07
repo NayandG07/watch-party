@@ -5,13 +5,15 @@ Revises: d8720b47c441
 Create Date: 2026-07-15 06:30:00.000000
 
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "8a3f2e9b1c04"
@@ -52,4 +54,6 @@ def downgrade() -> None:
         ondelete="CASCADE",
     )
 
-    op.alter_column("rooms", "movie_id", existing_type=postgresql.UUID(as_uuid=True), nullable=False)
+    op.alter_column(
+        "rooms", "movie_id", existing_type=postgresql.UUID(as_uuid=True), nullable=False
+    )

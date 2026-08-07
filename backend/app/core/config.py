@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://postgres:password@localhost:5432/watchparty"
 
     # ── Security ──────────────────────────────────────────────────────────────
-    # REQUIRED in production — generate with: python -c "import secrets; print(secrets.token_hex(32))"
+    # REQUIRED in production — generate with: python -c "import secrets; print(secrets.token_hex(32))"  # noqa: E501
     secret_key: str = "INSECURE_DEFAULT_CHANGE_IN_PRODUCTION"
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
@@ -53,7 +53,7 @@ class Settings(BaseSettings):
 
     # ── Storage Credential Encryption (AES-256-GCM) ───────────────────────────
     # Base64url-encoded 32-byte key.
-    # Generate: python -c "import secrets,base64; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())"
+    # Generate: python -c "import secrets,base64; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())"  # noqa: E501
     encryption_key: str = "INSECURE_DEFAULT_CHANGE_IN_PRODUCTION_base64_32_bytes"
 
     # ── HLS AES-128 Key Serving ───────────────────────────────────────────────
@@ -96,7 +96,7 @@ class Settings(BaseSettings):
         return upper
 
     @model_validator(mode="after")
-    def warn_insecure_defaults(self) -> "Settings":
+    def warn_insecure_defaults(self) -> Settings:
         """Raise hard error if production is started with insecure defaults."""
         insecure_markers = {"INSECURE_DEFAULT", "CHANGE_IN_PRODUCTION"}
         if self.environment == "production":

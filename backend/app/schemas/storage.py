@@ -10,13 +10,13 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import AnyHttpUrl, Field
+from pydantic import Field
 
 from app.models.enums import StorageProviderType
 from app.schemas.base import WatchPartyModel
 
-
 # ── Request schemas ───────────────────────────────────────────────────────────
+
 
 class StorageProviderCreate(WatchPartyModel):
     """Register a new storage provider bucket."""
@@ -46,6 +46,7 @@ class StorageProviderCreate(WatchPartyModel):
 
 class StorageProviderUpdate(WatchPartyModel):
     """Update mutable fields of a storage provider."""
+
     name: str | None = Field(default=None, max_length=100)
     cdn_url: str | None = None
     endpoint_url: str | None = None
@@ -58,8 +59,10 @@ class StorageProviderUpdate(WatchPartyModel):
 
 # ── Response schemas ──────────────────────────────────────────────────────────
 
+
 class StorageProviderResponse(WatchPartyModel):
     """Safe response — credentials are NEVER included."""
+
     id: uuid.UUID
     owner_id: uuid.UUID
     provider_type: StorageProviderType
@@ -73,6 +76,7 @@ class StorageProviderResponse(WatchPartyModel):
 
 class StorageProviderBrief(WatchPartyModel):
     """Minimal storage provider info for embedding in Library responses."""
+
     id: uuid.UUID
     provider_type: StorageProviderType
     name: str

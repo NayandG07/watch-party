@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, HTTPException, status, Response
+from fastapi import APIRouter, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -125,6 +125,7 @@ async def revoke_permission(
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 async def _assert_owner_or_admin(
     user_id: str,
