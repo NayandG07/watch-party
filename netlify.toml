@@ -1,0 +1,8 @@
+[build]
+  base = "frontend"
+  command = "npm run build"
+  # Netlify automatically detects Next.js, but defining the base directory is important
+
+[build.environment]
+  # IMPORTANT: Update this URL to match your Render backend URL once deployed
+  NEXT_PUBLIC_API_URL = "https://watch-party-backend.onrender.com"

@@ -15,7 +15,7 @@ interface VideoPlayerProps {
   isHost?: boolean;
   isLocked?: boolean;
   onChatMessage?: (msg: ChatMessageData) => void;
-  onMemberUpdate?: (count: number, userIds: string[]) => void;
+  onMemberUpdate?: (count: number, userIds: string[], members: import('@/hooks/useSyncedPlayer').RoomMember[]) => void;
   onConnectionChange?: (connected: boolean) => void;
   onRoomDeleted?: () => void;
   playerRef?: React.MutableRefObject<{

@@ -86,32 +86,66 @@ class RoomManager:
         self._connections: dict[str, list[ConnectionInfo]] = {}
         # room_id -> live room state
         self._states: dict[str, RoomState_Live] = {}
+        # room_id -> {user_id: username} mapping for MEMBER_UPDATE broadcasts
+        self._usernames: dict[str, dict[str, str]] = {}
 
     # ── Connection lifecycle ───────────────────────────────────────────────────
 
-    async def connect(self, room_id: str, user_id: str, ws: WebSocket) -> None:
+    async def connect(self, room_id: str, user_id: str, ws: WebSocket, username: str = "") -> None:
         await ws.accept()
         if room_id not in self._connections:
             self._connections[room_id] = []
         self._connections[room_id].append(ConnectionInfo(ws, user_id))
+        # Track username for this user
+        if room_id not in self._usernames:
+            self._usernames[room_id] = {}
+        if username:
+            self._usernames[room_id][user_id] = username
         logger.info("ws_connected", room_id=room_id, user_id=user_id,
                     total=len(self._connections[room_id]))
 
     def disconnect(self, room_id: str, ws: WebSocket) -> None:
         if room_id not in self._connections:
             return
+        # Find the user_id being disconnected before removing
+        disconnecting_user_id: str | None = None
+        for c in self._connections[room_id]:
+            if c.ws is ws:
+                disconnecting_user_id = c.user_id
+                break
         self._connections[room_id] = [
             c for c in self._connections[room_id] if c.ws is not ws
         ]
         if not self._connections[room_id]:
             del self._connections[room_id]
+            # Clean up username map when room empties
+            self._usernames.pop(room_id, None)
             logger.info("room_empty", room_id=room_id)
+        elif disconnecting_user_id:
+            # Only remove username if this user has fully disconnected
+            remaining_ids = {c.user_id for c in self._connections[room_id]}
+            if disconnecting_user_id not in remaining_ids:
+                self._usernames.get(room_id, {}).pop(disconnecting_user_id, None)
 
     def member_count(self, room_id: str) -> int:
         return len(self._connections.get(room_id, []))
 
     def connected_user_ids(self, room_id: str) -> list[str]:
         return [c.user_id for c in self._connections.get(room_id, [])]
+
+    def connected_members(self, room_id: str) -> list[dict]:
+        """Return list of {id, username} dicts for all connected members."""
+        username_map = self._usernames.get(room_id, {})
+        seen: set[str] = set()
+        result: list[dict] = []
+        for c in self._connections.get(room_id, []):
+            if c.user_id not in seen:
+                seen.add(c.user_id)
+                result.append({
+                    "id": c.user_id,
+                    "username": username_map.get(c.user_id, ""),
+                })
+        return result
 
     # ── State management ──────────────────────────────────────────────────────
 

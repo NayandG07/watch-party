@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Grid3X3, Search, Loader2, Plus, MoreVertical, Globe, Lock, Users, Trash2, Library as LibraryIcon } from "lucide-react";
+import { Search, Loader2, Plus, MoreVertical, Globe, Lock, Users, Trash2, Library as LibraryIcon, Film } from "lucide-react";
+import Link from "next/link";
 import api from "@/lib/api";
 import MovieCard from "@/components/media/MovieCard";
 import type { Movie } from "@/types";
@@ -45,6 +46,7 @@ export default function LibraryPage() {
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
   const [showCreateLibrary, setShowCreateLibrary] = useState(false);
   const [showCreateCollection, setShowCreateCollection] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -91,8 +93,7 @@ export default function LibraryPage() {
   };
 
   const handleDeleteCollection = async (collectionId: string) => {
-    if (!window.confirm("Are you sure you want to delete this collection? This action cannot be undone.")) return;
-    
+    setConfirmDeleteId(null);
     // Optimistic UI update
     setCollections((prev) => prev.filter(c => c.id !== collectionId));
     setIsUpdating(collectionId);
@@ -138,10 +139,6 @@ export default function LibraryPage() {
               className="input pl-9 w-48 focus:w-64 transition-all duration-300 h-9 text-sm"
             />
           </div>
-          {/* View toggle */}
-          <button className="btn-secondary h-9 px-3" aria-label="Grid view">
-            <Grid3X3 className="w-4 h-4" />
-          </button>
 
           {/* Create Dropdown (Level 2+) */}
           {(user?.role === "level2" || user?.role === "super_admin") && (
@@ -153,7 +150,7 @@ export default function LibraryPage() {
                 className="btn-primary h-9 px-3 gap-2 ml-2"
               >
                 <Plus className="w-4 h-4" />
-                <span className="hidden sm:inline">New...</span>
+                <span className="hidden sm:inline">Create</span>
               </button>
 
               {openDropdown === "create" && (
@@ -187,15 +184,24 @@ export default function LibraryPage() {
           <Loader2 className="w-8 h-8 animate-spin text-brand-500" />
         </div>
       ) : collections.length === 0 ? (
-        <div className="text-center py-20 text-content-secondary">
-          <p>No collections found in your library.</p>
+        <div className="text-center py-20 text-content-secondary flex flex-col items-center justify-center">
+          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-brand-500/20 to-brand-700/20 flex items-center justify-center mb-4 shadow-lg shadow-brand-500/10">
+            <Film className="w-8 h-8 text-brand-400" />
+          </div>
+          <h3 className="text-lg font-medium text-content-primary mb-2">No collections yet</h3>
+          <p>Your library is empty. Collections will appear here once they are created.</p>
         </div>
       ) : (
         collections.map((collection) => (
           <section key={collection.id} className="mb-10 animate-fade-in">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
-                <h2 className="section-title">{collection.name}</h2>
+                <h2 className="section-title flex items-baseline gap-2">
+                  {collection.name}
+                  {collection.library?.owner?.id !== user?.id && (
+                    <span className="text-content-muted text-sm font-normal">by {collection.library?.owner?.username}</span>
+                  )}
+                </h2>
                 {/* Visibility Badge */}
                 {collection.visibility === "shared" && (
                   <span title="Shared"><Globe className="w-3.5 h-3.5 text-brand-400" /></span>
@@ -210,7 +216,7 @@ export default function LibraryPage() {
 
               <div className="flex items-center gap-2 relative">
                 {collection.movies.length > 6 && (
-                  <button className="btn-ghost text-xs py-1.5 px-3">See all</button>
+                  <Link href={`/collection/${collection.id}`} className="btn-ghost text-xs py-1.5 px-3 rounded-md">See all</Link>
                 )}
 
                 {/* Edit Dropdown (owner or admin only) */}
@@ -219,6 +225,7 @@ export default function LibraryPage() {
                     <button
                       onClick={() => {
                         setOpenDropdown(openDropdown === collection.id ? null : collection.id);
+                        setConfirmDeleteId(null);
                       }}
                       disabled={isUpdating === collection.id}
                       className="btn-ghost p-1.5 text-content-secondary hover:text-content-primary"
@@ -232,34 +239,46 @@ export default function LibraryPage() {
 
                     {openDropdown === collection.id && (
                       <>
-                        <div className="fixed inset-0 z-10" onClick={() => setOpenDropdown(null)} />
+                        <div className="fixed inset-0 z-10" onClick={() => { setOpenDropdown(null); setConfirmDeleteId(null); }} />
                         <div className="absolute right-0 top-full mt-1 z-20 glass rounded-xl shadow-card border border-surface-border overflow-hidden w-48 animate-fade-in">
-                          <div className="px-3 py-2 text-xs font-semibold text-content-muted uppercase tracking-wider bg-black/20">
-                            Visibility
-                          </div>
-                          {["shared", "friends", "private"].map((vis) => (
-                            <button
-                              key={vis}
-                              onClick={() => handleUpdateVisibility(collection.id, vis)}
-                              className={cn(
-                                "w-full px-3 py-2.5 text-left text-sm flex items-center gap-2 hover:bg-white/5 transition-colors",
-                                collection.visibility === vis ? "text-brand-400" : "text-content-secondary"
-                              )}
-                            >
-                              {vis === "shared" && <Globe className="w-4 h-4" />}
-                              {vis === "friends" && <Users className="w-4 h-4" />}
-                              {vis === "private" && <Lock className="w-4 h-4" />}
-                              <span className="capitalize">{vis}</span>
-                            </button>
-                          ))}
-                          <div className="h-px bg-surface-border my-1" />
-                          <button
-                            onClick={() => handleDeleteCollection(collection.id)}
-                            className="w-full px-3 py-2.5 text-left text-sm flex items-center gap-2 hover:bg-red-500/10 text-red-400 transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                            Delete Collection
-                          </button>
+                          {confirmDeleteId === collection.id ? (
+                            <div className="p-3 bg-danger/10 border-t border-danger/20">
+                              <p className="text-xs text-danger mb-2 font-medium">Delete this collection?</p>
+                              <div className="flex gap-2">
+                                <button onClick={() => handleDeleteCollection(collection.id)} className="btn-danger flex-1 h-7 text-xs px-2 rounded-md">Yes</button>
+                                <button onClick={() => setConfirmDeleteId(null)} className="btn-ghost flex-1 h-7 text-xs px-2 rounded-md bg-surface-elevated">No</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="px-3 py-2 text-xs font-semibold text-content-muted uppercase tracking-wider bg-black/20">
+                                Visibility
+                              </div>
+                              {["shared", "friends", "private"].map((vis) => (
+                                <button
+                                  key={vis}
+                                  onClick={() => handleUpdateVisibility(collection.id, vis)}
+                                  className={cn(
+                                    "w-full px-3 py-2.5 text-left text-sm flex items-center gap-2 hover:bg-white/5 transition-colors",
+                                    collection.visibility === vis ? "text-brand-400" : "text-content-secondary"
+                                  )}
+                                >
+                                  {vis === "shared" && <Globe className="w-4 h-4" />}
+                                  {vis === "friends" && <Users className="w-4 h-4" />}
+                                  {vis === "private" && <Lock className="w-4 h-4" />}
+                                  <span className="capitalize">{vis}</span>
+                                </button>
+                              ))}
+                              <div className="h-px bg-surface-border my-1" />
+                              <button
+                                onClick={() => setConfirmDeleteId(collection.id)}
+                                className="w-full px-3 py-2.5 text-left text-sm flex items-center gap-2 hover:bg-red-500/10 text-red-400 transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                                Delete Collection
+                              </button>
+                            </>
+                          )}
                         </div>
                       </>
                     )}

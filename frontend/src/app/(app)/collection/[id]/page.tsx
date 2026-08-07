@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Loader2, MoreVertical, Edit2, Trash2 } from "lucide-react";
+import { ArrowLeft, Loader2, MoreVertical, Edit2, Trash2, ChevronRight, Terminal } from "lucide-react";
+import Link from "next/link";
 import api from "@/lib/api";
 import MovieCard from "@/components/media/MovieCard";
 import type { Collection, Movie } from "@/types";
@@ -22,6 +23,7 @@ export default function CollectionPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [openDropdown, setOpenDropdown] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -53,15 +55,15 @@ export default function CollectionPage() {
   }, []);
 
   const handleDelete = async () => {
-    if (!window.confirm("Are you sure you want to delete this collection?")) return;
     setIsDeleting(true);
     try {
       await api.delete(`/api/collections/${id}`);
       router.push("/library");
     } catch (err) {
       console.error(err);
-      alert("Failed to delete collection");
+      setError("Failed to delete collection");
       setIsDeleting(false);
+      setConfirmDelete(false);
     }
   };
 
@@ -79,8 +81,8 @@ export default function CollectionPage() {
     return (
       <div className="text-center py-20 text-content-secondary">
         <p>{error || "Collection not found"}</p>
-        <button onClick={() => router.back()} className="mt-4 btn-secondary">
-          Go Back
+        <button onClick={() => router.push("/library")} className="mt-4 btn-secondary">
+          Go to Library
         </button>
       </div>
     );
@@ -88,13 +90,22 @@ export default function CollectionPage() {
 
   return (
     <div className="animate-fade-in pb-10">
-      <button 
-        onClick={() => router.back()}
-        className="flex items-center gap-2 text-sm text-content-muted hover:text-content-primary transition-colors mb-6"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Back
-      </button>
+      {/* Breadcrumb */}
+      <nav className="flex items-center gap-2 text-sm text-content-muted mb-6">
+        <button 
+          onClick={() => router.back()}
+          className="hover:text-content-primary transition-colors flex items-center gap-1"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back
+        </button>
+        <ChevronRight className="w-4 h-4 opacity-50" />
+        <Link href="/library" className="hover:text-content-primary transition-colors">
+          Library
+        </Link>
+        <ChevronRight className="w-4 h-4 opacity-50" />
+        <span className="text-content-primary font-medium truncate max-w-[200px]">{collection.name}</span>
+      </nav>
       
       <header className="mb-8 flex items-start justify-between">
         <div>
@@ -136,7 +147,7 @@ export default function CollectionPage() {
                   onClick={(e) => {
                     e.stopPropagation();
                     setOpenDropdown(false);
-                    handleDelete();
+                    setConfirmDelete(true);
                   }}
                   className="w-full px-3 py-2.5 text-left text-sm flex items-center gap-2 hover:bg-red-500/10 transition-colors text-red-400"
                 >
@@ -149,13 +160,35 @@ export default function CollectionPage() {
         )}
       </header>
 
+      {/* Inline Confirmation for Delete */}
+      {confirmDelete && (
+        <div className="mb-6 p-4 rounded-xl bg-danger/10 border border-danger/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-scale-in">
+          <p className="text-sm text-danger font-medium">Delete this collection? This cannot be undone.</p>
+          <div className="flex gap-2">
+            <button onClick={() => setConfirmDelete(false)} className="btn-ghost h-8 px-4 text-xs font-medium">Cancel</button>
+            <button onClick={handleDelete} disabled={isDeleting} className="btn-danger h-8 px-4 text-xs font-medium">
+              {isDeleting ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
+              Yes, Delete
+            </button>
+          </div>
+        </div>
+      )}
+
       {movies.length === 0 ? (
-        <div className="text-center py-20 glass rounded-2xl border-dashed">
-          <p className="text-content-secondary">This collection is currently empty.</p>
+        <div className="py-20 glass rounded-2xl border-dashed flex flex-col items-center justify-center p-6 text-center">
+          <div className="w-16 h-16 rounded-full bg-surface-elevated flex items-center justify-center mb-4">
+            <Terminal className="w-8 h-8 text-content-muted" />
+          </div>
+          <h3 className="text-lg font-medium text-content-primary mb-2">This collection is empty</h3>
+          <p className="text-content-secondary mb-6">Movies need to be processed and added via the backend.</p>
+          
           {canManage && (
-            <p className="text-sm text-content-muted mt-2">
-              Use the uploader script (<code>scripts/uploader/process.py</code>) to add movies to this collection.
-            </p>
+            <div className="bg-black/30 rounded-lg p-4 w-full max-w-md text-left border border-white/5">
+              <p className="text-xs text-content-muted mb-2 font-medium uppercase tracking-wider">How to add movies</p>
+              <code className="text-xs text-brand-300 font-mono block break-all">
+                python scripts/uploader/process.py --collection {collection.id}
+              </code>
+            </div>
           )}
         </div>
       ) : (

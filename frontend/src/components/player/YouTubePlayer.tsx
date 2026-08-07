@@ -43,7 +43,7 @@ function useYouTubeSync({
   isHost: boolean;
   isLocked?: boolean;
   onChatMessage?: (msg: ChatMessageData) => void;
-  onMemberUpdate?: (count: number, userIds: string[]) => void;
+  onMemberUpdate?: (count: number, userIds: string[], members: { id: string; username: string }[]) => void;
   onConnectionChange?: (connected: boolean) => void;
   playerRef: React.MutableRefObject<ReactPlayerInstance | null>;
 }) {
@@ -96,7 +96,11 @@ function useYouTubeSync({
       } else if (msg.type === "CHAT_MESSAGE") {
         onChatMessageRef.current?.(msg as ChatMessageData);
       } else if (msg.type === "MEMBER_UPDATE") {
-        onMemberUpdateRef.current?.(msg.count, msg.user_ids ?? []);
+        const userIds: string[] = msg.user_ids ?? [];
+        const members: { id: string; username: string }[] =
+          (msg.members as { id: string; username: string }[] | undefined) ??
+          userIds.map((id) => ({ id, username: "" }));
+        onMemberUpdateRef.current?.(msg.count, userIds, members);
       }
     };
 

@@ -409,7 +409,11 @@ async def room_websocket(
 
     # 2. Load room from DB (short-lived DB session)
     async with AsyncSessionLocal() as db:
-        stmt = select(Room).where(Room.id == room_id).options(selectinload(Room.movie))
+        stmt = (
+            select(Room)
+            .where(Room.id == room_id)
+            .options(selectinload(Room.movie))
+        )
         result = await db.execute(stmt)
         room = result.scalar_one_or_none()
         if not room:
@@ -424,13 +428,17 @@ async def room_websocket(
         is_room_locked = room.is_locked
         media_duration_seconds = room.movie.duration_seconds if room.movie else None
 
+        # Fetch the connecting user's username for the member list
+        user_obj = await db.get(User, uuid.UUID(user_id))
+        current_username = user_obj.username if user_obj else ""
+
         # Seed live state if first connection
         live = room_manager.get_state(str(room_id))
         if live is None:
             live = room_manager.seed_from_db(room)
 
     # 4. Accept the connection
-    await room_manager.connect(str(room_id), user_id, ws)
+    await room_manager.connect(str(room_id), user_id, ws, username=current_username)
     is_host = (creator_id_str == user_id)
 
     # 5. Send initial state to the newly connected client
@@ -441,6 +449,7 @@ async def room_websocket(
         "type": "MEMBER_UPDATE",
         "count": room_manager.member_count(str(room_id)),
         "user_ids": room_manager.connected_user_ids(str(room_id)),
+        "members": room_manager.connected_members(str(room_id)),
     })
 
     # 6. Message loop
@@ -578,6 +587,7 @@ async def room_websocket(
             "type": "MEMBER_UPDATE",
             "count": room_manager.member_count(str(room_id)),
             "user_ids": room_manager.connected_user_ids(str(room_id)),
+            "members": room_manager.connected_members(str(room_id)),
         })
 
 

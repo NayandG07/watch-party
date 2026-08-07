@@ -5,8 +5,13 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   Users, MessageSquare, Share2, Loader2, Lock, Unlock,
   PlayCircle, Film, Link2, X, Check, Copy, Trash2,
-  ChevronLeft, Send,
+  ChevronLeft, Send, Crown
 } from "lucide-react";
+import api from "@/lib/api";
+import VideoPlayer from "@/components/player/VideoPlayer";
+import YouTubePlayer from "@/components/player/YouTubePlayer";
+import { useAuthStore } from "@/stores/authStore";
+import { ChatMessageData } from "@/hooks/useSyncedPlayer";
 
 // Inline YouTube icon
 function YoutubeIcon({ className }: { className?: string }) {
@@ -17,11 +22,15 @@ function YoutubeIcon({ className }: { className?: string }) {
   );
 }
 
-import api from "@/lib/api";
-import VideoPlayer from "@/components/player/VideoPlayer";
-import YouTubePlayer from "@/components/player/YouTubePlayer";
-import { useAuthStore } from "@/stores/authStore";
-import { ChatMessageData } from "@/hooks/useSyncedPlayer";
+function hashColor(str: string): string {
+  const colors = [
+    'bg-brand-600', 'bg-purple-600', 'bg-indigo-600',
+    'bg-violet-600', 'bg-fuchsia-700', 'bg-pink-700',
+  ];
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  return colors[Math.abs(hash) % colors.length];
+}
 
 interface MovieOption {
   id: string;
@@ -73,6 +82,11 @@ export default function RoomPage() {
   const [inviteLink, setInviteLink] = useState<string>("");
   const [isGeneratingInvite, setIsGeneratingInvite] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
+
+  // Delete room state
+  const [roomDeleteError, setRoomDeleteError] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [roomDeletedByHost, setRoomDeletedByHost] = useState(false);
 
   const playerRef = useRef<{
     sendChatMessage: (c: string, t?: "text" | "emoji_reaction" | "timestamp_share", r?: number) => void;
@@ -188,7 +202,6 @@ export default function RoomPage() {
       setShowInviteModal(true);
     } catch (err) {
       console.error("Failed to generate invite:", err);
-      alert("Failed to generate invite link. Please try again.");
     } finally {
       setIsGeneratingInvite(false);
     }
@@ -200,15 +213,19 @@ export default function RoomPage() {
     setTimeout(() => setInviteCopied(false), 2000);
   };
 
-  const handleDeleteRoom = async () => {
+  const handleDeleteRoom = () => {
     if (!room || !isHost) return;
-    if (!confirm("Are you sure you want to delete this room? Everyone will be disconnected.")) return;
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDeleteRoom = async () => {
+    if (!room || !isHost) return;
     try {
       await api.delete(`/api/rooms/${id}`);
       router.push("/rooms");
     } catch (err) {
       console.error("Failed to delete room:", err);
-      alert("Failed to delete room.");
+      setRoomDeleteError("Failed to delete room. Please try again.");
     }
   };
 
@@ -276,35 +293,58 @@ export default function RoomPage() {
             {messages.length === 0 ? (
               <p className="text-xs text-white/30 text-center py-12">No messages yet. Say hi!</p>
             ) : (
-              messages.map((msg) => (
-                <div key={msg.id} className="group">
-                  <div className="flex items-baseline gap-2 mb-0.5">
-                    <span className={`text-xs font-semibold ${msg.user.id === currentUser?.id ? "text-brand-400" : "text-white/80"}`}>
-                      {msg.user.username}
-                    </span>
-                    <span className="text-[10px] text-white/25 opacity-0 group-hover:opacity-100 transition-opacity">
-                      {formatTime(msg.created_at)}
-                    </span>
+              messages.map((msg, index) => {
+                const prevMsg = messages[index - 1];
+                const isGrouped = prevMsg && prevMsg.user.id === msg.user.id;
+                const isOwn = msg.user.id === currentUser?.id;
+
+                return (
+                  <div key={msg.id} className="group flex gap-2.5 items-start">
+                    {/* Avatar */}
+                    {isGrouped ? (
+                      <div className="w-8 h-8 shrink-0" /> // Empty space for grouped
+                    ) : (
+                      <div
+                        className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-white font-bold text-sm ${hashColor(msg.user.username)}`}
+                      >
+                        {msg.user.username.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+
+                    {/* Content */}
+                    <div className="flex-1 min-w-0 flex flex-col">
+                      {!isGrouped && (
+                        <div className="flex items-baseline gap-2 mb-0.5">
+                          <span className={`text-xs font-semibold ${isOwn ? "text-brand-300" : "text-white/80"}`}>
+                            {msg.user.username}
+                          </span>
+                          <span className="text-[10px] text-white/25">
+                            {formatTime(msg.created_at)}
+                          </span>
+                        </div>
+                      )}
+
+                      {msg.message_type === "timestamp_share" ? (
+                        <button
+                          onClick={() => {
+                            if (isHost && msg.timestamp_reference !== undefined) {
+                              playerRef.current?.seek(msg.timestamp_reference);
+                            }
+                          }}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-brand-500/20 text-brand-300 text-xs mt-0.5 transition-colors w-fit ${
+                            isHost ? "hover:bg-brand-500/30 cursor-pointer" : "cursor-default"
+                          }`}
+                        >
+                          <PlayCircle className="w-3 h-3" />
+                          <span>{msg.content}</span>
+                        </button>
+                      ) : (
+                        <p className="text-sm text-white/70 break-words leading-relaxed">{msg.content}</p>
+                      )}
+                    </div>
                   </div>
-                  {msg.message_type === "timestamp_share" ? (
-                    <button
-                      onClick={() => {
-                        if (isHost && msg.timestamp_reference !== undefined) {
-                          playerRef.current?.seek(msg.timestamp_reference);
-                        }
-                      }}
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-brand-500/20 text-brand-300 text-xs mt-0.5 transition-colors ${
-                        isHost ? "hover:bg-brand-500/30 cursor-pointer" : "cursor-default"
-                      }`}
-                    >
-                      <PlayCircle className="w-3 h-3" />
-                      <span>{msg.content}</span>
-                    </button>
-                  ) : (
-                    <p className="text-sm text-white/70 break-words leading-relaxed">{msg.content}</p>
-                  )}
-                </div>
-              ))
+                );
+              })
             )}
             <div ref={messagesEndRef} />
           </div>
@@ -333,11 +373,14 @@ export default function RoomPage() {
         <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
           {/* Host */}
           <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5">
-            <div className="w-8 h-8 rounded-full bg-brand-500 flex items-center justify-center text-white font-bold text-sm shrink-0">
-              {room.creator.username[0].toUpperCase()}
+            <div className={`w-8 h-8 rounded-full ${hashColor(room.creator.id)} flex items-center justify-center text-white font-bold text-sm shrink-0`}>
+              {room.creator.id.substring(0, 2).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-white truncate">{room.creator.username}</p>
+              <p className="text-sm font-semibold text-white truncate flex items-center gap-1.5">
+                {room.creator.username}
+                <Crown className="w-3.5 h-3.5 text-brand-400" />
+              </p>
               <p className="text-[11px] text-brand-400">Host</p>
             </div>
             <div className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
@@ -346,13 +389,13 @@ export default function RoomPage() {
           {connectedMembers.filter(mid => mid !== room.creator.id).length > 0 ? (
             connectedMembers
               .filter(mid => mid !== room.creator.id)
-              .map((memberId, idx) => (
+              .map((memberId) => (
                 <div key={memberId} className="flex items-center gap-3 p-3 rounded-xl bg-white/5">
-                  <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/60 font-semibold text-sm shrink-0">
-                    {String.fromCharCode(65 + idx)}
+                  <div className={`w-8 h-8 rounded-full ${hashColor(memberId)} flex items-center justify-center text-white font-bold text-sm shrink-0`}>
+                    {memberId.substring(0, 2).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white/80 truncate">Viewer {idx + 1}</p>
+                    <p className="text-sm font-medium text-white/80 truncate">Member</p>
                     <p className="text-[11px] text-white/40">Guest</p>
                   </div>
                   <div className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
@@ -373,8 +416,8 @@ export default function RoomPage() {
     <div className="h-full flex flex-col bg-[#0d0d0f] overflow-hidden">
 
       {/* ── Top Bar ────────────────────────────────────────────────────────── */}
-      <header className="flex items-center gap-3 px-3 md:px-5 h-12 shrink-0 bg-[#141417] border-b border-white/8 z-20">
-        {/* Back */}
+      <header className="flex items-center gap-3 px-3 md:px-5 h-14 shrink-0 bg-[#0d0d14] border-b border-white/[0.06] z-20">
+        {/* Left: Back */}
         <button
           onClick={() => router.push("/rooms")}
           className="w-8 h-8 rounded-lg hover:bg-white/8 flex items-center justify-center text-white/50 hover:text-white transition-colors shrink-0"
@@ -383,30 +426,33 @@ export default function RoomPage() {
           <ChevronLeft className="w-4 h-4" />
         </button>
 
-        {/* Room info */}
-        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-          {/* Connection dot */}
+        {/* Room info (Left side) */}
+        <div className="flex items-center gap-2.5 shrink-0">
           <div className={`w-2 h-2 rounded-full shrink-0 transition-colors ${isConnected ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]" : "bg-red-500"}`} />
-          <h1 className="text-sm font-semibold text-white truncate">{room.name}</h1>
-          <span className="text-xs text-white/35 shrink-0 hidden sm:block">
-            {isHost ? "You are the host" : `Hosted by ${room.creator.username}`}
-          </span>
-          {isHost && (
-            <button
-              onClick={handleToggleLock}
-              title={room.is_locked ? "Room locked — click to unlock" : "Room unlocked — click to lock"}
-              className="hidden sm:flex items-center gap-1 text-[11px] text-white/40 hover:text-white/70 transition-colors shrink-0"
-            >
-              {room.is_locked ? <Lock className="w-3 h-3 text-amber-400" /> : <Unlock className="w-3 h-3" />}
-              <span className="hidden md:block">{room.is_locked ? "Locked" : "Unlocked"}</span>
-            </button>
+          <h1 className="text-sm font-semibold text-white truncate max-w-[120px] sm:max-w-xs">{room.name}</h1>
+        </div>
+
+        {/* Center: Movie title (desktop only) */}
+        <div className="hidden md:flex flex-1 items-center justify-center min-w-0 px-4">
+          {room.movie && (
+            <span className="truncate max-w-xs text-white/50 text-xs text-center">
+              Watching: {room.movie.title}
+            </span>
           )}
         </div>
 
-        {/* Action buttons */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        {/* Action buttons (Right) */}
+        <div className="flex items-center justify-end gap-2 shrink-0 ml-auto md:ml-0">
           {isHost && (
             <>
+              <button
+                onClick={handleToggleLock}
+                title={room.is_locked ? "Unlock Room" : "Lock Room"}
+                className="hidden sm:flex w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 items-center justify-center text-white/60 hover:text-white transition-all shrink-0"
+              >
+                {room.is_locked ? <Lock className="w-3.5 h-3.5 text-amber-400" /> : <Unlock className="w-3.5 h-3.5" />}
+              </button>
+              
               <button
                 onClick={handleOpenMediaPicker}
                 className="hidden sm:flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white/8 hover:bg-white/12 text-white/70 hover:text-white text-xs font-medium transition-all"
@@ -427,15 +473,16 @@ export default function RoomPage() {
           <button
             onClick={handleGenerateInvite}
             disabled={isGeneratingInvite}
-            className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-brand-500/20 hover:bg-brand-500/30 text-brand-300 hover:text-brand-200 text-xs font-medium transition-all disabled:opacity-50"
+            className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-brand-500/20 hover:bg-brand-500/35 text-brand-300 border border-brand-500/25 text-xs font-medium transition-all disabled:opacity-50"
           >
             {isGeneratingInvite ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Share2 className="w-3.5 h-3.5" />}
             <span className="hidden sm:block">Invite</span>
           </button>
+          
           {/* Mobile: chat toggle */}
           <button
             onClick={() => setMobileChatOpen(true)}
-            className="flex xl:hidden items-center gap-1 h-8 px-2.5 rounded-lg bg-white/8 hover:bg-white/12 text-white/60 hover:text-white text-xs transition-all relative"
+            className="flex lg:hidden items-center gap-1 h-8 px-2.5 rounded-lg bg-white/8 hover:bg-white/12 text-white/60 hover:text-white text-xs transition-all relative"
           >
             <MessageSquare className="w-3.5 h-3.5" />
             {memberCount > 1 && (
@@ -452,21 +499,21 @@ export default function RoomPage() {
 
         {/* Player column */}
         <div className="flex-1 flex flex-col min-w-0 bg-black overflow-hidden">
-          {/* Mobile: host controls row */}
+          {/* Mobile: compact host controls row */}
           {isHost && (
-            <div className="flex sm:hidden items-center gap-2 px-3 py-2 bg-[#141417] border-b border-white/8 shrink-0">
+            <div className="flex sm:hidden items-center justify-between gap-2 px-3 py-2 bg-[#141417] border-b border-white/8 shrink-0">
               <button
                 onClick={handleOpenMediaPicker}
-                className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white/8 hover:bg-white/12 text-white/70 hover:text-white text-xs font-medium transition-all"
+                className="flex flex-1 items-center justify-center gap-1.5 h-9 rounded-lg bg-white/8 hover:bg-white/12 text-white/70 hover:text-white text-xs font-medium transition-all"
               >
                 <Film className="w-3.5 h-3.5" />
                 {hasMedia ? "Change Media" : "Select Media"}
               </button>
               <button
                 onClick={handleToggleLock}
-                className="flex items-center gap-1 h-8 px-3 rounded-lg bg-white/8 hover:bg-white/12 text-white/50 hover:text-white text-xs transition-all"
+                className="flex items-center justify-center gap-1.5 h-9 px-4 rounded-lg bg-white/8 hover:bg-white/12 text-white/50 hover:text-white text-xs transition-all shrink-0"
               >
-                {room.is_locked ? <Lock className="w-3 h-3 text-amber-400" /> : <Unlock className="w-3 h-3" />}
+                {room.is_locked ? <Lock className="w-3.5 h-3.5 text-amber-400" /> : <Unlock className="w-3.5 h-3.5" />}
                 {room.is_locked ? "Locked" : "Unlocked"}
               </button>
             </div>
@@ -476,8 +523,11 @@ export default function RoomPage() {
           <div className="flex-1 flex items-center justify-center min-h-0 overflow-hidden">
             {!hasMedia ? (
               <div className="text-center text-white/40 px-4">
-                <div className="w-20 h-20 rounded-2xl bg-white/5 flex items-center justify-center mx-auto mb-5 border border-white/8">
-                  <Film className="w-10 h-10 text-brand-500/40" />
+                <div className="relative w-24 h-24 mx-auto mb-6">
+                  <div className="w-24 h-24 rounded-2xl bg-white/5 border border-white/8 flex items-center justify-center">
+                    <Film className="w-12 h-12 text-brand-500/30 animate-pulse" />
+                  </div>
+                  <div className="absolute inset-0 rounded-2xl bg-brand-500/5 animate-ping" style={{ animationDuration: '3s' }} />
                 </div>
                 <h2 className="text-xl font-bold text-white/60 mb-2">No media selected</h2>
                 <p className="text-sm mb-6 max-w-xs mx-auto">
@@ -519,10 +569,7 @@ export default function RoomPage() {
                   setConnectedMembers(userIds);
                 }}
                 onConnectionChange={(connected) => setIsConnected(connected)}
-                onRoomDeleted={() => {
-                  alert("This room has been deleted by the host.");
-                  router.push("/rooms");
-                }}
+                onRoomDeleted={() => setRoomDeletedByHost(true)}
                 playerRef={playerRef}
               />
             ) : null}
@@ -530,7 +577,7 @@ export default function RoomPage() {
         </div>
 
         {/* ── Desktop Sidebar ────────────────────────────────────────────────── */}
-        <aside className="hidden xl:flex w-72 2xl:w-80 shrink-0 flex-col border-l border-white/8 bg-[#141417] overflow-hidden">
+        <aside className="hidden lg:flex w-72 shrink-0 flex-col border-l border-white/8 bg-[#141417] overflow-hidden">
           <SidebarPanel />
         </aside>
       </div>
@@ -540,11 +587,11 @@ export default function RoomPage() {
         <>
           {/* Backdrop */}
           <div
-            className="fixed inset-0 z-40 bg-black/60 xl:hidden"
+            className="fixed inset-0 z-40 bg-black/60 lg:hidden modal-backdrop"
             onClick={() => setMobileChatOpen(false)}
           />
           {/* Drawer */}
-          <div className="fixed inset-y-0 right-0 z-50 w-[min(340px,90vw)] bg-[#141417] border-l border-white/10 flex flex-col xl:hidden shadow-2xl">
+          <div className="fixed inset-y-0 right-0 z-50 w-[min(340px,90vw)] bg-[#141417] border-l border-white/10 flex flex-col lg:hidden shadow-2xl animate-slide-in-right">
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 shrink-0">
               <span className="text-sm font-semibold text-white">Room Chat</span>
               <button
@@ -566,7 +613,10 @@ export default function RoomPage() {
         <div className="fixed inset-0 z-[60] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
           <div className="w-full max-w-md rounded-2xl bg-[#1a1a1f] border border-white/10 shadow-2xl p-6">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-base font-bold text-white">Share Invite Link</h2>
+              <div className="flex items-center gap-2">
+                <Share2 className="w-5 h-5 text-brand-400" />
+                <h2 className="text-lg font-bold text-gradient">Share Invite Link</h2>
+              </div>
               <button
                 onClick={() => { setShowInviteModal(false); setInviteCopied(false); }}
                 className="w-7 h-7 rounded-lg hover:bg-white/10 flex items-center justify-center text-white/40 hover:text-white transition-colors"
@@ -574,18 +624,20 @@ export default function RoomPage() {
                 <X className="w-4 h-4" />
               </button>
             </div>
+            
             <p className="text-sm text-white/50 mb-4">Share this link to invite others to your watch party:</p>
+            
             <div className="flex gap-2 mb-4">
               <input
                 type="text"
                 value={inviteLink}
                 readOnly
-                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white/80 font-mono focus:outline-none focus:border-brand-500/50 transition-colors"
+                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3.5 py-3 text-sm text-white/80 font-mono focus:outline-none focus:border-brand-500/50 transition-colors"
                 onClick={(e) => e.currentTarget.select()}
               />
               <button
                 onClick={handleCopyInvite}
-                className={`h-10 px-4 rounded-xl text-sm font-medium flex items-center gap-1.5 shrink-0 transition-all ${
+                className={`h-[46px] px-5 rounded-xl text-sm font-medium flex items-center gap-2 shrink-0 transition-all ${
                   inviteCopied
                     ? "bg-emerald-600 text-white"
                     : "bg-brand-500 hover:bg-brand-600 text-white"
@@ -594,7 +646,10 @@ export default function RoomPage() {
                 {inviteCopied ? <><Check className="w-4 h-4" />Copied!</> : <><Copy className="w-4 h-4" />Copy</>}
               </button>
             </div>
-            <p className="text-xs text-white/30">Expires in 48 hours · Up to 10 uses</p>
+            
+            <div className="mt-4 flex items-center">
+              <span className="badge-brand">48 hours · 10 uses</span>
+            </div>
           </div>
         </div>
       )}
@@ -658,9 +713,12 @@ export default function RoomPage() {
                       key={m.id}
                       onClick={() => handleSetMovie(m.id)}
                       disabled={isSettingMedia}
-                      className="w-full text-left px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors text-sm text-white/80 hover:text-white border border-transparent hover:border-white/10"
+                      className="w-full flex gap-3 items-center text-left px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 transition-colors border border-transparent hover:border-white/10"
                     >
-                      {m.title}
+                      <div className="w-8 h-11 rounded-md bg-gradient-to-br from-brand-800 to-brand-950 shrink-0 flex items-center justify-center">
+                        <Film className="w-3 h-3 text-brand-400/50" />
+                      </div>
+                      <span className="flex-1 text-sm text-white/80">{m.title}</span>
                     </button>
                   ))}
                 </div>
@@ -669,6 +727,53 @@ export default function RoomPage() {
           </div>
         </div>
       )}
+
+      {/* ── Room Delete Confirmation Modal ─────────────────────────────────── */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-[100] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+          <div className="w-full max-w-sm rounded-2xl bg-[#1a1a1f] border border-white/10 shadow-2xl p-6">
+            <h2 className="text-lg font-bold text-white mb-2">Delete Room?</h2>
+            <p className="text-sm text-white/60 mb-6">
+              Are you sure you want to delete this room? Everyone will be disconnected immediately. This action cannot be undone.
+            </p>
+            {roomDeleteError && (
+              <div className="text-red-400 text-sm mb-4 bg-red-500/10 p-2.5 rounded-lg border border-red-500/20">
+                {roomDeleteError}
+              </div>
+            )}
+            <div className="flex items-center gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setRoomDeleteError(null);
+                }}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteRoom}
+                className="btn-danger flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Room Deleted Overlay ───────────────────────────────────────────── */}
+      {roomDeletedByHost && (
+        <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center">
+          <div className="glass p-8 rounded-2xl text-center max-w-sm animate-scale-in">
+            <p className="text-lg font-bold text-white mb-2">Room Closed</p>
+            <p className="text-content-secondary mb-6 text-sm">The host has ended the watch party.</p>
+            <button onClick={() => router.push('/rooms')} className="btn-primary">Back to Rooms</button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

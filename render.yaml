@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: watch-party-backend
+    env: python
+    buildCommand: "cd backend && pip install ."
+    startCommand: "cd backend && alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: CORS_ORIGINS
+        # UPDATE THIS with your actual Netlify frontend URL once it's deployed
+        value: '["https://your-frontend.netlify.app"]'
+      - key: DATABASE_URL
+        # Set this manually in the Render Dashboard (get the Connection String from Supabase)
+        sync: false
+      - key: SECRET_KEY
+        # Set manually (generate with: python -c "import secrets; print(secrets.token_hex(32))")
+        sync: false
+      - key: ENCRYPTION_KEY
+        # Set manually (generate with: python -c "import secrets,base64; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())")
+        sync: false
+      - key: HLS_KEY_SIGNING_SECRET
+        # Set manually (generate with: python -c "import secrets; print(secrets.token_hex(32))")
+        sync: false
