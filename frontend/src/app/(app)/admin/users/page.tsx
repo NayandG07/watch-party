@@ -53,9 +53,9 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const ROLE_COLORS: Record<string, string> = {
-  level1: "bg-slate-100 text-slate-700 border border-slate-200",
-  level2: "bg-brand-50 text-brand-700 border border-brand-200",
-  super_admin: "bg-amber-50 text-amber-800 border border-amber-200 font-bold",
+  level1: "bg-stone-100 dark:bg-neutral-900 text-stone-700 dark:text-zinc-300 border border-stone-200 dark:border-neutral-800",
+  level2: "text-amber-500 bg-amber-500/10 border border-amber-500/20",
+  super_admin: "bg-amber-500 text-[#050505] border border-amber-500 font-bold",
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -182,37 +182,37 @@ export default function AdminUsersPage() {
     <div className="max-w-6xl mx-auto w-full animate-fade-in space-y-8 px-4 sm:px-6 pt-4 pb-16">
       {/* Header */}
       <div>
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-brand-50 text-brand-700 border border-brand-200 mb-3">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider text-amber-500 bg-amber-500/10 border border-amber-500/20 mb-4">
           <Shield className="w-3.5 h-3.5" />
           <span>Administration</span>
         </div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-content-primary">
+        <h1 className="font-display text-2xl font-bold tracking-tight text-stone-900 dark:text-white">
           User & Invite Management
         </h1>
-        <p className="text-content-secondary text-sm mt-1">
+        <p className="text-stone-500 dark:text-zinc-400 text-sm mt-1">
           Manage user accounts, platform access privileges, and invite links.
         </p>
       </div>
 
       {/* Error banner */}
       {errorMsg && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-2xl text-xs sm:text-sm flex justify-between items-center font-medium">
+        <div className="bg-rose-500/10 border border-rose-500/20 text-rose-500 px-4 py-3 rounded-2xl text-xs sm:text-sm flex justify-between items-center font-medium">
           <span>{errorMsg}</span>
-          <button onClick={() => setErrorMsg(null)} className="ml-4 text-red-500 hover:text-red-800">✕</button>
+          <button onClick={() => setErrorMsg(null)} className="ml-4 hover:text-rose-400">✕</button>
         </div>
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1.5 p-1 bg-slate-100 rounded-2xl w-fit border border-slate-200">
+      <div className="flex gap-6 border-b border-stone-200 dark:border-neutral-900 mb-6">
         {(["users", "invites"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={cn(
-              "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 min-h-[38px]",
+              "flex items-center gap-2 py-3 text-xs font-bold uppercase tracking-widest transition-colors",
               tab === t
-                ? "bg-white text-brand-700 shadow-card border border-slate-200/80"
-                : "text-content-secondary hover:text-content-primary"
+                ? "border-b-2 border-amber-500 text-amber-500"
+                : "border-b-2 border-transparent text-stone-400 dark:text-zinc-400 hover:text-stone-700 dark:hover:text-zinc-200"
             )}
           >
             {t === "users" ? <Users className="w-4 h-4" /> : <Link2 className="w-4 h-4" />}
@@ -225,32 +225,32 @@ export default function AdminUsersPage() {
       {tab === "users" && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-content-muted">
+            <p className="text-xs font-mono font-bold text-stone-500 dark:text-zinc-400">
               {users.length} registered user{users.length !== 1 ? "s" : ""}
             </p>
             <button
               onClick={fetchUsers}
               disabled={usersLoading}
-              className="p-2 rounded-xl text-content-secondary hover:text-content-primary hover:bg-slate-100 transition-colors"
+              className="p-2 rounded-xl text-stone-400 hover:text-stone-900 dark:text-zinc-500 dark:hover:text-zinc-200 hover:bg-stone-100 dark:hover:bg-neutral-900 transition-colors"
               title="Refresh Users"
             >
               <RefreshCw className={cn("w-4 h-4", usersLoading && "animate-spin")} />
             </button>
           </div>
 
-          <div className="card overflow-hidden">
+          <div className="bg-white dark:bg-neutral-950/40 border border-stone-200 dark:border-neutral-900 rounded-2xl overflow-hidden shadow-xl">
             {usersLoading ? (
-              <div className="p-12 text-center text-xs font-semibold text-content-secondary">Loading registered users...</div>
+              <div className="p-12 text-center text-xs font-semibold text-stone-500 dark:text-zinc-400">Loading registered users...</div>
             ) : users.length === 0 ? (
-              <div className="p-12 text-center text-content-secondary">
-                <Users className="w-10 h-10 mx-auto mb-3 text-slate-300" />
-                <p className="text-sm font-bold text-content-primary">No users found</p>
+              <div className="p-12 text-center text-stone-500 dark:text-zinc-400">
+                <Users className="w-10 h-10 mx-auto mb-3 text-stone-300 dark:text-zinc-600" />
+                <p className="font-display text-sm font-bold text-stone-900 dark:text-white">No users found</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse min-w-[700px]">
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold text-content-muted uppercase tracking-wider">
+                    <tr className="border-b border-stone-200 dark:border-neutral-900 bg-stone-50 dark:bg-neutral-900/40 text-[11px] font-bold uppercase tracking-wider text-stone-500 dark:text-zinc-500">
                       <th className="px-5 py-3.5">User</th>
                       <th className="px-5 py-3.5">Email</th>
                       <th className="px-5 py-3.5">Role</th>
@@ -258,36 +258,36 @@ export default function AdminUsersPage() {
                       <th className="px-5 py-3.5 text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 text-xs font-medium text-content-primary">
+                  <tbody className="divide-y divide-stone-100 dark:divide-neutral-900 text-sm text-stone-800 dark:text-zinc-200">
                     {users.map((user) => (
                       <tr
                         key={user.id}
                         className={cn(
-                          "hover:bg-slate-50/80 transition-colors",
-                          !user.is_active && "opacity-60 bg-slate-50/40"
+                          "hover:bg-stone-50 dark:hover:bg-neutral-900/20 transition-colors",
+                          !user.is_active && "opacity-60"
                         )}
                       >
                         {/* User */}
                         <td className="px-5 py-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center font-bold text-xs shrink-0 border border-brand-200">
+                            <div className="w-8 h-8 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center font-bold text-xs shrink-0 border border-amber-500/20">
                               {user.username[0].toUpperCase()}
                             </div>
-                            <span className="font-bold text-content-primary truncate">
+                            <span className="font-bold text-stone-900 dark:text-white truncate">
                               {user.username}
                             </span>
                           </div>
                         </td>
 
                         {/* Email */}
-                        <td className="px-5 py-4 text-content-secondary truncate">
+                        <td className="px-5 py-4 text-stone-500 dark:text-zinc-400 truncate">
                           {user.email}
                         </td>
 
                         {/* Role Dropdown */}
                         <td className="px-5 py-4 relative" onClick={(e) => e.stopPropagation()}>
                           {user.role === "super_admin" ? (
-                            <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold", ROLE_COLORS[user.role])}>
+                            <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] uppercase tracking-wider font-bold", ROLE_COLORS[user.role])}>
                               <Shield className="w-3.5 h-3.5" />
                               Super Admin
                             </span>
@@ -300,7 +300,7 @@ export default function AdminUsersPage() {
                               }}
                               disabled={updatingUserId === user.id}
                               className={cn(
-                                "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all hover:border-brand-400 cursor-pointer min-h-[30px]",
+                                "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] uppercase tracking-wider font-bold transition-all cursor-pointer min-h-[30px] hover:border-amber-500",
                                 ROLE_COLORS[user.role]
                               )}
                             >
@@ -316,7 +316,7 @@ export default function AdminUsersPage() {
 
                           {/* Dropdown */}
                           {openRoleDropdown === user.id && (
-                            <div className="absolute top-full left-0 mt-1 z-20 bg-white rounded-2xl shadow-card-hover border border-slate-200 overflow-hidden min-w-[140px] p-1 animate-fade-in">
+                            <div className="absolute top-full left-0 mt-1 z-20 bg-white dark:bg-neutral-950 border border-stone-200 dark:border-neutral-900 rounded-xl shadow-2xl overflow-hidden min-w-[140px] p-1 animate-fade-in">
                               {["level1", "level2"].map((role) => (
                                 <button
                                   key={role}
@@ -326,14 +326,14 @@ export default function AdminUsersPage() {
                                     handleRoleChange(user.id, role);
                                   }}
                                   className={cn(
-                                    "w-full px-3 py-2 text-left text-xs font-semibold flex items-center gap-2 rounded-xl hover:bg-slate-50 transition-colors",
-                                    user.role === role ? "text-brand-700 bg-brand-50" : "text-content-secondary"
+                                    "w-full px-3 py-2 text-left text-xs font-bold flex items-center gap-2 rounded-lg transition-colors",
+                                    user.role === role ? "text-amber-500 bg-amber-500/10" : "text-stone-600 dark:text-zinc-400 hover:bg-stone-50 dark:hover:bg-neutral-900"
                                   )}
                                 >
                                   <ShieldCheck className="w-3.5 h-3.5" />
                                   {ROLE_LABELS[role]}
                                   {user.role === role && (
-                                    <Check className="w-3.5 h-3.5 ml-auto text-brand-700" />
+                                    <Check className="w-3.5 h-3.5 ml-auto text-amber-500" />
                                   )}
                                 </button>
                               ))}
@@ -345,8 +345,8 @@ export default function AdminUsersPage() {
                         <td className="px-5 py-4">
                           <span
                             className={cn(
-                              "badge font-bold",
-                              user.is_active ? "badge-success" : "bg-red-50 text-red-600 border border-red-200"
+                              "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider border",
+                              user.is_active ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-rose-500/10 text-rose-500 border-rose-500/20"
                             )}
                           >
                             {user.is_active ? (
@@ -367,10 +367,10 @@ export default function AdminUsersPage() {
                                 disabled={updatingUserId === user.id}
                                 title={user.is_active ? "Suspend account" : "Restore account"}
                                 className={cn(
-                                  "btn-ghost h-8 px-2.5 text-xs font-bold rounded-xl",
+                                  "h-8 px-2.5 text-[11px] font-bold uppercase tracking-wider rounded-xl flex items-center transition-colors border border-transparent",
                                   user.is_active
-                                    ? "text-amber-600 hover:bg-amber-50"
-                                    : "text-emerald-600 hover:bg-emerald-50"
+                                    ? "text-amber-500 hover:bg-amber-500/10 hover:border-amber-500/20"
+                                    : "text-emerald-500 hover:bg-emerald-500/10 hover:border-emerald-500/20"
                                 )}
                               >
                                 {user.is_active ? (
@@ -384,7 +384,7 @@ export default function AdminUsersPage() {
                                 onClick={() => handleDeleteUser(user)}
                                 disabled={updatingUserId === user.id}
                                 title="Delete user"
-                                className="btn-ghost h-8 px-2.5 text-xs font-bold text-red-600 hover:bg-red-50 rounded-xl"
+                                className="h-8 px-2.5 text-[11px] font-bold uppercase tracking-wider rounded-xl flex items-center transition-colors border border-transparent text-rose-500 hover:bg-rose-500/10 hover:border-rose-500/20"
                               >
                                 <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete
                               </button>
@@ -405,16 +405,16 @@ export default function AdminUsersPage() {
       {tab === "invites" && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-content-muted">
+            <p className="text-xs font-mono font-bold text-stone-500 dark:text-zinc-400">
               {invites.filter((i) => i.is_valid).length} active invite link{invites.filter((i) => i.is_valid).length !== 1 ? "s" : ""}
             </p>
             <button
               onClick={handleGenerateInvite}
               disabled={generating}
-              className="btn-primary h-10 px-4 text-xs font-bold shadow-brand min-h-[40px]"
+              className="bg-amber-500 hover:bg-amber-600 text-[#050505] font-display font-bold text-xs uppercase tracking-wider active:scale-[0.98] h-10 px-4 rounded-xl flex items-center justify-center transition-all min-h-[40px]"
             >
               {generating ? (
-                <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin mr-1.5" />
+                <div className="w-4 h-4 rounded-full border-2 border-[#050505]/30 border-t-[#050505] animate-spin mr-1.5" />
               ) : (
                 <Plus className="w-4 h-4 mr-1.5" />
               )}
@@ -422,42 +422,42 @@ export default function AdminUsersPage() {
             </button>
           </div>
 
-          <div className="card overflow-hidden">
+          <div className="bg-white dark:bg-neutral-950/40 border border-stone-200 dark:border-neutral-900 rounded-2xl overflow-hidden shadow-xl">
             {invitesLoading ? (
-              <div className="p-12 text-center text-xs font-semibold text-content-secondary">Loading invite links...</div>
+              <div className="p-12 text-center text-xs font-semibold text-stone-500 dark:text-zinc-400">Loading invite links...</div>
             ) : invites.length === 0 ? (
-              <div className="p-12 text-center text-content-secondary">
-                <Link2 className="w-10 h-10 mx-auto mb-3 text-slate-300" />
-                <h3 className="text-sm font-bold text-content-primary mb-1">No invite links generated</h3>
+              <div className="p-12 text-center text-stone-500 dark:text-zinc-400">
+                <Link2 className="w-10 h-10 mx-auto mb-3 text-stone-300 dark:text-zinc-600" />
+                <h3 className="font-display text-sm font-bold text-stone-900 dark:text-white mb-1">No invite links generated</h3>
                 <p className="text-xs">Generate an invite link to invite users to your platform.</p>
               </div>
             ) : (
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-stone-100 dark:divide-neutral-900">
                 {invites.map((invite) => (
-                  <div key={invite.id} className="p-4 sm:p-5 flex items-center gap-4 hover:bg-slate-50/80 transition-colors">
+                  <div key={invite.id} className="p-4 sm:p-5 flex items-center gap-4 hover:bg-stone-50 dark:hover:bg-neutral-900/20 transition-colors">
                     {/* Status dot */}
                     <div className={cn(
                       "w-2.5 h-2.5 rounded-full shrink-0",
-                      invite.is_valid ? "bg-emerald-500" : "bg-slate-300"
+                      invite.is_valid ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-stone-300 dark:bg-neutral-700"
                     )} />
 
                     {/* Info */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-mono text-xs text-content-primary truncate max-w-md bg-slate-50 px-2.5 py-1 rounded border border-slate-200">
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="font-mono text-[11px] text-stone-800 dark:text-zinc-300 truncate max-w-md bg-stone-100 dark:bg-neutral-900 px-2.5 py-1 rounded border border-stone-200 dark:border-neutral-800">
                           {invite.invite_url}
                         </span>
                         {invite.is_valid ? (
-                          <span className="badge badge-success font-bold text-[10px]">
+                          <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase tracking-wider">
                             Active
                           </span>
                         ) : (
-                          <span className="badge bg-slate-100 text-slate-500 border-slate-200 font-bold text-[10px]">
+                          <span className="bg-stone-100 dark:bg-neutral-900 text-stone-500 dark:text-zinc-500 border border-stone-200 dark:border-neutral-800 px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase tracking-wider">
                             Expired
                           </span>
                         )}
                       </div>
-                      <div className="text-xs text-content-muted flex gap-4 mt-1 font-medium">
+                      <div className="text-[11px] text-stone-500 dark:text-zinc-500 flex gap-4 font-mono">
                         <span>Uses: {invite.use_count} / {invite.max_uses}</span>
                         <span>Expires: {new Date(invite.expires_at).toLocaleDateString()}</span>
                       </div>
@@ -466,11 +466,11 @@ export default function AdminUsersPage() {
                     {/* Copy Button */}
                     <button
                       onClick={() => copyToClipboard(invite.id, invite.invite_url)}
-                      className="btn-secondary h-9 px-3 text-xs font-bold min-h-[36px]"
+                      className="bg-stone-100 dark:bg-neutral-900 hover:bg-stone-200 dark:hover:bg-neutral-800 text-stone-700 dark:text-zinc-300 border border-stone-200 dark:border-neutral-800 h-9 px-3 rounded-xl flex items-center justify-center font-bold text-[11px] uppercase tracking-wider transition-all min-h-[36px]"
                       title="Copy Invite URL"
                     >
                       {copiedId === invite.id ? (
-                        <Check className="w-4 h-4 text-emerald-600 mr-1" />
+                        <Check className="w-4 h-4 text-emerald-500 mr-1" />
                       ) : (
                         <Copy className="w-4 h-4 mr-1" />
                       )}

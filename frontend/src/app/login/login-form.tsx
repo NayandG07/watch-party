@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2, Mail, Lock } from "lucide-react";
 import api, { getErrorMessage, tokenStorage } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
-import { cn } from "@/lib/utils";
+
 
 interface LoginResponse {
   access_token: string;
@@ -58,33 +58,37 @@ export default function LoginForm() {
       <div className="space-y-1.5">
         <label
           htmlFor="login-username"
-          className="text-sm font-medium text-content-secondary"
+          className="block text-[11px] font-bold uppercase tracking-wider text-stone-500 dark:text-zinc-400 mb-1.5"
         >
           Username
         </label>
-        <input
-          id="login-username"
-          type="text"
-          autoComplete="username"
-          autoFocus
-          required
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          placeholder="Enter your username"
-          className="input"
-          disabled={isLoading}
-        />
+        <div className="relative">
+          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 dark:text-zinc-500" />
+          <input
+            id="login-username"
+            type="text"
+            autoComplete="username"
+            autoFocus
+            required
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="Enter your username"
+            className="w-full pl-10 pr-4 py-3 bg-stone-100 dark:bg-neutral-900 border border-stone-200 dark:border-neutral-800 rounded-xl text-sm text-stone-900 dark:text-white placeholder-stone-400 dark:placeholder-zinc-600 outline-none focus:border-amber-500 transition-all"
+            disabled={isLoading}
+          />
+        </div>
       </div>
 
       {/* Password */}
       <div className="space-y-1.5">
         <label
           htmlFor="login-password"
-          className="text-sm font-medium text-content-secondary"
+          className="block text-[11px] font-bold uppercase tracking-wider text-stone-500 dark:text-zinc-400 mb-1.5"
         >
           Password
         </label>
         <div className="relative">
+          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 dark:text-zinc-500" />
           <input
             id="login-password"
             type={showPassword ? "text" : "password"}
@@ -93,13 +97,13 @@ export default function LoginForm() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Enter your password"
-            className={cn("input pr-11")}
+            className="w-full pl-10 pr-11 py-3 bg-stone-100 dark:bg-neutral-900 border border-stone-200 dark:border-neutral-800 rounded-xl text-sm text-stone-900 dark:text-white placeholder-stone-400 dark:placeholder-zinc-600 outline-none focus:border-amber-500 transition-all"
             disabled={isLoading}
           />
           <button
             type="button"
             onClick={() => setShowPassword((v) => !v)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-content-muted hover:text-content-secondary transition-colors"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-zinc-500 hover:text-stone-600 dark:hover:text-zinc-300 transition-colors"
             aria-label={showPassword ? "Hide password" : "Show password"}
           >
             {showPassword ? (
@@ -115,7 +119,7 @@ export default function LoginForm() {
       {error && (
         <div
           role="alert"
-          className="rounded-xl bg-danger/10 border border-danger/20 px-4 py-3 text-sm text-danger animate-fade-in"
+          className="rounded-xl bg-rose-500/10 border border-rose-500/20 px-4 py-3 text-sm text-rose-500 dark:text-rose-400 animate-fade-in"
         >
           {error}
         </div>
@@ -126,15 +130,15 @@ export default function LoginForm() {
         id="login-submit"
         type="submit"
         disabled={isLoading || !username.trim() || !password}
-        className="btn-primary w-full mt-2 h-11 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:opacity-50"
+        className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-[#050505] font-display font-bold text-sm tracking-wide uppercase transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2"
       >
         {isLoading ? (
           <>
             <Loader2 className="w-4 h-4 animate-spin" />
-            Signing in…
+            SIGNING IN…
           </>
         ) : (
-          "Sign in"
+          "SIGN IN"
         )}
       </button>
     </form>

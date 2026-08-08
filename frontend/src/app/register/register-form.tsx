@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Loader2, Check } from "lucide-react";
+import { Eye, EyeOff, Loader2, Check, User, Mail, Lock, Key } from "lucide-react";
 import api, { getErrorMessage, tokenStorage } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
@@ -71,45 +71,52 @@ export default function RegisterForm({ inviteToken }: Props) {
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-4">
       <div className="space-y-1.5">
-        <label htmlFor="reg-username" className="text-sm font-medium text-content-secondary">
+        <label htmlFor="reg-username" className="block text-[11px] font-bold uppercase tracking-wider text-stone-500 dark:text-zinc-400 mb-1.5">
           Username
         </label>
-        <input
-          id="reg-username"
-          type="text"
-          autoComplete="username"
-          autoFocus
-          required
-          value={form.username}
-          onChange={update("username")}
-          placeholder="Choose a username"
-          className="input"
-          disabled={isLoading}
-        />
+        <div className="relative">
+          <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 dark:text-zinc-500" />
+          <input
+            id="reg-username"
+            type="text"
+            autoComplete="username"
+            autoFocus
+            required
+            value={form.username}
+            onChange={update("username")}
+            placeholder="Choose a username"
+            className="w-full pl-10 pr-4 py-3 bg-stone-100 dark:bg-neutral-900 border border-stone-200 dark:border-neutral-800 rounded-xl text-sm text-stone-900 dark:text-white placeholder-stone-400 dark:placeholder-zinc-600 outline-none focus:border-amber-500 transition-all"
+            disabled={isLoading}
+          />
+        </div>
       </div>
 
       <div className="space-y-1.5">
-        <label htmlFor="reg-email" className="text-sm font-medium text-content-secondary">
+        <label htmlFor="reg-email" className="block text-[11px] font-bold uppercase tracking-wider text-stone-500 dark:text-zinc-400 mb-1.5">
           Email
         </label>
-        <input
-          id="reg-email"
-          type="email"
-          autoComplete="email"
-          required
-          value={form.email}
-          onChange={update("email")}
-          placeholder="your@email.com"
-          className="input"
-          disabled={isLoading}
-        />
+        <div className="relative">
+          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 dark:text-zinc-500" />
+          <input
+            id="reg-email"
+            type="email"
+            autoComplete="email"
+            required
+            value={form.email}
+            onChange={update("email")}
+            placeholder="your@email.com"
+            className="w-full pl-10 pr-4 py-3 bg-stone-100 dark:bg-neutral-900 border border-stone-200 dark:border-neutral-800 rounded-xl text-sm text-stone-900 dark:text-white placeholder-stone-400 dark:placeholder-zinc-600 outline-none focus:border-amber-500 transition-all"
+            disabled={isLoading}
+          />
+        </div>
       </div>
 
       <div className="space-y-1.5">
-        <label htmlFor="reg-password" className="text-sm font-medium text-content-secondary">
+        <label htmlFor="reg-password" className="block text-[11px] font-bold uppercase tracking-wider text-stone-500 dark:text-zinc-400 mb-1.5">
           Password
         </label>
         <div className="relative">
+          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 dark:text-zinc-500" />
           <input
             id="reg-password"
             type={showPassword ? "text" : "password"}
@@ -119,13 +126,13 @@ export default function RegisterForm({ inviteToken }: Props) {
             value={form.password}
             onChange={update("password")}
             placeholder="At least 8 characters"
-            className="input pr-11"
+            className="w-full pl-10 pr-11 py-3 bg-stone-100 dark:bg-neutral-900 border border-stone-200 dark:border-neutral-800 rounded-xl text-sm text-stone-900 dark:text-white placeholder-stone-400 dark:placeholder-zinc-600 outline-none focus:border-amber-500 transition-all"
             disabled={isLoading}
           />
           <button
             type="button"
             onClick={() => setShowPassword((v) => !v)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-content-muted hover:text-content-secondary transition-colors"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-zinc-500 hover:text-stone-600 dark:hover:text-zinc-300 transition-colors"
             aria-label={showPassword ? "Hide password" : "Show password"}
           >
             {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -134,10 +141,11 @@ export default function RegisterForm({ inviteToken }: Props) {
       </div>
 
       <div className="space-y-1.5">
-        <label htmlFor="reg-confirm" className="text-sm font-medium text-content-secondary">
+        <label htmlFor="reg-confirm" className="block text-[11px] font-bold uppercase tracking-wider text-stone-500 dark:text-zinc-400 mb-1.5">
           Confirm Password
         </label>
         <div className="relative">
+          <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 dark:text-zinc-500" />
           <input
             id="reg-confirm"
             type={showPassword ? "text" : "password"}
@@ -147,24 +155,24 @@ export default function RegisterForm({ inviteToken }: Props) {
             onChange={update("confirmPassword")}
             placeholder="Repeat your password"
             className={cn(
-              "input pr-11",
+              "w-full pl-10 pr-11 py-3 bg-stone-100 dark:bg-neutral-900 border border-stone-200 dark:border-neutral-800 rounded-xl text-sm text-stone-900 dark:text-white placeholder-stone-400 dark:placeholder-zinc-600 outline-none focus:border-amber-500 transition-all",
               form.confirmPassword.length > 0 &&
                 !passwordsMatch &&
-                "border-danger/50 focus:border-danger focus:ring-danger/30"
+                "border-rose-500 dark:border-rose-500 focus:border-rose-500"
             )}
             disabled={isLoading}
           />
           {passwordsMatch && (
-            <Check className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-success" />
+            <Check className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500" />
           )}
         </div>
         {form.confirmPassword.length > 0 && !passwordsMatch && (
-          <p className="text-xs text-danger">Passwords do not match</p>
+          <p className="text-xs text-rose-500 dark:text-rose-400">Passwords do not match</p>
         )}
       </div>
 
       {error && (
-        <div role="alert" className="rounded-xl bg-danger/10 border border-danger/20 px-4 py-3 text-sm text-danger animate-fade-in">
+        <div role="alert" className="rounded-xl bg-rose-500/10 border border-rose-500/20 px-4 py-3 text-sm text-rose-500 dark:text-rose-400 animate-fade-in">
           {error}
         </div>
       )}
@@ -173,15 +181,15 @@ export default function RegisterForm({ inviteToken }: Props) {
         id="register-submit"
         type="submit"
         disabled={isLoading || !form.username || !form.email || !form.password || !passwordsMatch}
-        className="btn-primary w-full mt-2 h-11 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-[#050505] font-display font-bold text-sm uppercase tracking-wider transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2"
       >
         {isLoading ? (
           <>
             <Loader2 className="w-4 h-4 animate-spin" />
-            Creating account…
+            CREATING ACCOUNT…
           </>
         ) : (
-          "Create Account"
+          "CREATE ACCOUNT"
         )}
       </button>
     </form>

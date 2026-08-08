@@ -10,8 +10,11 @@ import {
   Tv2,
   Menu,
   X,
+  Sun,
+  Moon,
+  Bell
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/authStore";
@@ -35,213 +38,212 @@ const CREATOR_NAV_ITEMS: NavItem[] = [
   { href: "/admin/settings/storage", label: "Storage", icon: Settings },
 ];
 
-function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
-  const pathname = usePathname();
-  const isActive = pathname?.startsWith(item.href);
-  const Icon = item.icon;
+function ThemeToggle() {
+  const [isDark, setIsDark] = useState(true);
+
+  useEffect(() => {
+    setIsDark(document.documentElement.classList.contains("dark"));
+  }, []);
+
+  const toggle = () => {
+    const next = !isDark;
+    setIsDark(next);
+    if (next) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  };
 
   return (
-    <Link
-      href={item.href}
-      onClick={onClick}
-      className={cn(
-        "nav-item group/item",
-        isActive ? "nav-item-active" : "nav-item-inactive"
-      )}
+    <button
+      onClick={toggle}
+      className="w-8 h-8 rounded-full flex items-center justify-center text-stone-600 hover:text-stone-900 dark:text-zinc-400 dark:hover:text-white transition-colors"
+      aria-label="Toggle theme"
     >
-      <Icon className={cn("w-5 h-5 shrink-0", isActive ? "text-brand-400" : "text-content-muted group-hover/item:text-content-primary")} />
-      <span className="truncate whitespace-nowrap transition-opacity duration-200 md:opacity-0 md:group-hover/sidebar:opacity-100 lg:opacity-100 font-medium">
-        {item.label}
-      </span>
-    </Link>
-  );
-}
-
-function Sidebar({ onClose }: { onClose?: () => void }) {
-  const router = useRouter();
-  const { user, logout } = useAuthStore();
-
-  async function handleLogout() {
-    await logout();
-    router.push("/login");
-  }
-
-  return (
-    <aside className="flex flex-col h-full py-6 overflow-hidden">
-      {/* Logo */}
-      <Link
-        href="/library"
-        onClick={onClose}
-        className="flex items-center gap-3 px-5 mb-8 group shrink-0"
-      >
-        <div className="w-8 h-8 rounded-lg bg-gradient-brand shadow-brand flex items-center justify-center shrink-0 group-hover:shadow-glow transition-shadow duration-300">
-          <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M8 5v14l11-7z" />
-          </svg>
-        </div>
-        <span className="text-base font-bold text-content-primary tracking-tight transition-opacity duration-200 md:opacity-0 md:group-hover/sidebar:opacity-100 lg:opacity-100 whitespace-nowrap">
-          Watch Party
-        </span>
-      </Link>
-
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto no-scrollbar space-y-6 px-3" aria-label="Main navigation">
-        <div>
-          <h2 className="sidebar-label px-2 mb-2 transition-opacity duration-200 md:opacity-0 md:group-hover/sidebar:opacity-100 lg:opacity-100">
-            NAVIGATE
-          </h2>
-          <div className="space-y-1">
-            {NAV_ITEMS.map((item) => (
-              <NavLink key={item.href} item={item} onClick={onClose} />
-            ))}
-          </div>
-        </div>
-
-        {/* Manage section */}
-        {((user?.role === "level2" || user?.role === "super_admin" || user?.role === "super_admin") && (CREATOR_NAV_ITEMS.length > 0 || ADMIN_NAV_ITEMS.length > 0)) && (
-          <div>
-            <h2 className="sidebar-label px-2 mb-2 transition-opacity duration-200 md:opacity-0 md:group-hover/sidebar:opacity-100 lg:opacity-100">
-              MANAGE
-            </h2>
-            <div className="space-y-1">
-              {(user?.role === "level2" || user?.role === "super_admin") && CREATOR_NAV_ITEMS.map((item) => (
-                <NavLink key={item.href} item={item} onClick={onClose} />
-              ))}
-              {user?.role === "super_admin" && ADMIN_NAV_ITEMS.map((item) => (
-                <NavLink key={item.href} item={item} onClick={onClose} />
-              ))}
-            </div>
-          </div>
-        )}
-      </nav>
-
-      {/* User section */}
-      <div className="border-t border-surface-border pt-4 px-3 shrink-0">
-        {user && (
-          <div className="flex items-center gap-3 px-2 py-2 mb-2 overflow-hidden">
-            {/* Avatar */}
-            <div className="w-9 h-9 rounded-full bg-surface-elevated border border-surface-border flex items-center justify-center shrink-0">
-              <span className="text-sm font-bold text-content-primary">
-                {user.username.charAt(0).toUpperCase()}
-              </span>
-            </div>
-            <div className="flex-1 min-w-0 transition-opacity duration-200 md:opacity-0 md:group-hover/sidebar:opacity-100 lg:opacity-100">
-              <p className="text-sm font-medium text-content-primary truncate">{user.username}</p>
-              <div className="mt-0.5">
-                <span className={cn(
-                  "inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider",
-                  user.role === "super_admin" ? "bg-brand-500/20 text-brand-400" :
-                  user.role === "level2" ? "bg-indigo-500/20 text-indigo-400" :
-                  "bg-surface-elevated text-content-muted"
-                )}>
-                  {user.role.replace("_", " ")}
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-        <button
-          onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-content-muted hover:text-danger hover:bg-danger/10 transition-colors group/logout"
-        >
-          <LogOut className="w-5 h-5 shrink-0" />
-          <span className="truncate whitespace-nowrap transition-opacity duration-200 md:opacity-0 md:group-hover/sidebar:opacity-100 lg:opacity-100">
-            Sign out
-          </span>
-        </button>
-      </div>
-    </aside>
+      {isDark ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+    </button>
   );
 }
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
-  // Room pages need the full viewport — no padding/scrolling wrapper
-  const isRoomPage = pathname?.startsWith("/room/");
+  const router = useRouter();
+  const { user, logout } = useAuthStore();
   
-  const getPageTitle = () => {
-    if (pathname?.startsWith("/library")) return "Library";
-    if (pathname?.startsWith("/rooms")) return "Rooms";
-    if (pathname?.startsWith("/admin/settings")) return "Storage Settings";
-    if (pathname?.startsWith("/admin/users")) return "Users";
-    return "";
-  };
+  const isRoomPage = pathname?.startsWith("/room/");
+
+  async function handleLogout() {
+    await logout();
+    router.push("/login");
+  }
+
+  const allNavItems = [
+    ...NAV_ITEMS,
+    ...(user?.role === "level2" || user?.role === "super_admin" ? CREATOR_NAV_ITEMS : []),
+    ...(user?.role === "super_admin" ? ADMIN_NAV_ITEMS : [])
+  ];
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-surface-default">
-      {/* Desktop sidebar */}
-      <div className="hidden md:flex flex-col border-r border-surface-border bg-white w-16 lg:w-[256px] hover:w-[256px] transition-[width] duration-300 ease-out z-40 group/sidebar shrink-0 absolute lg:relative h-full shadow-sm">
-        <Sidebar />
-      </div>
-      
-      {/* Spacer for absolute sidebar on tablet */}
-      <div className="hidden md:block lg:hidden w-16 shrink-0 h-full border-r border-transparent" aria-hidden="true" />
+    <div className="flex flex-col min-h-dvh bg-stone-50 dark:bg-[#050505] transition-colors duration-300">
+      {/* Top Header Navigation */}
+      <header className="sticky top-0 z-50 w-full border-b border-stone-200 dark:border-neutral-800/40 bg-white/85 dark:bg-[#050505]/85 backdrop-blur-md transition-colors duration-300">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex h-16 items-center justify-between">
+            {/* Left section: Logo & Status */}
+            <div className="flex items-center space-x-4">
+              <Link href="/library" className="flex items-center space-x-3 group outline-none">
+                <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center text-[#050505] font-black text-sm group-hover:bg-amber-600 transition-colors">
+                  W
+                </div>
+                <span className="font-display text-lg font-extrabold tracking-tight bg-gradient-to-r from-stone-900 via-stone-800 to-stone-700 dark:from-neutral-50 dark:via-neutral-200 dark:to-neutral-400 bg-clip-text text-transparent">
+                  WatchParty
+                </span>
+              </Link>
+              <span className="hidden md:block text-stone-300 dark:text-neutral-800">·</span>
+              <div className="hidden md:flex items-center space-x-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
+                  Synced
+                </span>
+              </div>
+            </div>
 
-      {/* Mobile sidebar overlay */}
+            {/* Center section: Links (Desktop) */}
+            <nav className="hidden lg:flex items-center space-x-1">
+              {allNavItems.map((item) => {
+                const isActive = pathname?.startsWith(item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      "text-xs font-semibold uppercase tracking-wider px-4 py-2 rounded-lg transition-all duration-200",
+                      isActive
+                        ? "bg-stone-100 dark:bg-neutral-900 text-amber-500 font-bold"
+                        : "text-stone-600 dark:text-neutral-400 hover:text-stone-900 dark:hover:text-neutral-200 hover:bg-stone-100 dark:hover:bg-neutral-900/40"
+                    )}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+
+            {/* Right section: Controls */}
+            <div className="flex items-center space-x-2 md:space-x-4">
+              <div className="flex items-center space-x-1 md:space-x-2 mr-2">
+                <button className="w-8 h-8 rounded-full flex items-center justify-center text-stone-600 hover:text-stone-900 dark:text-zinc-400 dark:hover:text-white transition-colors relative">
+                  <Bell className="w-4 h-4" />
+                  <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-500 border border-white dark:border-[#050505]" />
+                </button>
+                <ThemeToggle />
+              </div>
+
+              {/* User Avatar & Mobile Menu Toggle */}
+              {user && (
+                <div className="flex items-center space-x-3 border-l border-stone-200 dark:border-neutral-800/40 pl-4">
+                  <div className="group relative">
+                    <button className="w-8 h-8 rounded-full bg-stone-100 dark:bg-neutral-800 border border-stone-200 dark:border-neutral-800 text-xs font-black text-stone-900 dark:text-neutral-100 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-amber-500/50">
+                      {user.username.charAt(0).toUpperCase()}
+                    </button>
+                    {/* Simple Dropdown for Logout */}
+                    <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-neutral-950 border border-stone-200 dark:border-neutral-900 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform origin-top-right">
+                      <div className="px-4 py-3 border-b border-stone-100 dark:border-neutral-900">
+                        <p className="text-sm font-medium text-stone-900 dark:text-zinc-100 truncate">{user.username}</p>
+                        <p className="text-xs text-stone-500 dark:text-zinc-500 truncate">{user.role.replace("_", " ")}</p>
+                      </div>
+                      <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center space-x-2 px-4 py-2 text-sm text-rose-600 dark:text-rose-500 hover:bg-stone-50 dark:hover:bg-neutral-900/40 transition-colors text-left rounded-b-xl"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        <span>Sign out</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <button
+                className="lg:hidden w-8 h-8 flex items-center justify-center text-stone-600 dark:text-zinc-400"
+                onClick={() => setMobileOpen(true)}
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Mobile drawer backdrop */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm md:hidden animate-fade-in"
+          className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm lg:hidden"
           onClick={() => setMobileOpen(false)}
-          aria-hidden="true"
         />
       )}
 
-      {/* Mobile sidebar drawer */}
+      {/* Mobile drawer panel */}
       <div
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-surface-border shadow-2xl",
-          "transform transition-transform duration-300 ease-out-expo md:hidden flex flex-col",
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
+          "fixed inset-y-0 right-0 z-[70] w-[280px] bg-white dark:bg-neutral-950 border-l border-stone-200 dark:border-neutral-800 shadow-2xl transform transition-transform duration-300 ease-in-out lg:hidden flex flex-col",
+          mobileOpen ? "translate-x-0" : "translate-x-full"
         )}
       >
-        <button
-          className="absolute top-4 right-4 btn-ghost w-10 h-10 p-0 rounded-full flex items-center justify-center text-content-secondary hover:text-content-primary focus-visible:ring-2 focus-visible:ring-brand-500"
-          onClick={() => setMobileOpen(false)}
-          aria-label="Close navigation"
-          id="mobile-nav-close"
-        >
-          <X className="w-5 h-5" />
-        </button>
-        <Sidebar onClose={() => setMobileOpen(false)} />
-      </div>
+        <div className="flex items-center justify-between px-6 py-5 border-b border-stone-100 dark:border-neutral-900">
+          <span className="font-display font-bold text-stone-900 dark:text-white">Menu</span>
+          <button onClick={() => setMobileOpen(false)} className="text-stone-500 dark:text-zinc-500">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto py-6 px-4 flex flex-col space-y-2">
+          {allNavItems.map((item) => {
+            const isActive = pathname?.startsWith(item.href);
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setMobileOpen(false)}
+                className={cn(
+                  "flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold transition-colors",
+                  isActive
+                    ? "bg-stone-100 dark:bg-neutral-900 text-amber-500"
+                    : "text-stone-600 dark:text-zinc-400 hover:bg-stone-50 dark:hover:bg-neutral-900/40"
+                )}
+              >
+                <Icon className="w-5 h-5" />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </div>
 
-      {/* Main content area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-        {/* Mobile top bar — hidden on room pages (room has its own header) */}
-        {!isRoomPage && (
-          <header className="md:hidden flex items-center justify-between px-4 h-14 border-b border-surface-border bg-white shrink-0 z-10 shadow-xs">
+        {user && (
+          <div className="p-4 border-t border-stone-100 dark:border-neutral-900">
             <button
-              onClick={() => setMobileOpen(true)}
-              className="btn-ghost w-10 h-10 p-0 rounded-xl flex items-center justify-center text-content-primary"
-              aria-label="Open navigation"
-              id="mobile-nav-toggle"
+              onClick={handleLogout}
+              className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold text-rose-600 dark:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors"
             >
-              <Menu className="w-5 h-5" />
+              <LogOut className="w-5 h-5" />
+              <span>Sign out</span>
             </button>
-            <div className="flex-1 flex items-center justify-center pointer-events-none">
-              <span className="text-base font-bold text-content-primary">{getPageTitle()}</span>
-            </div>
-            <div className="w-10" />
-          </header>
-        )}
-
-        {/* Page content */}
-        {isRoomPage ? (
-          // Room pages: full-bleed, no padding, no overflow scroll
-          <div id="main-content" className="flex-1 overflow-hidden flex flex-col">
-            {children}
           </div>
-        ) : (
-          <main
-            id="main-content"
-            className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8"
-            tabIndex={-1}
-          >
-            {children}
-          </main>
         )}
       </div>
+
+      {/* Main Content Area */}
+      <main
+        className={cn(
+          "flex-1 flex flex-col w-full",
+          isRoomPage ? "" : "max-w-7xl mx-auto px-6 sm:px-8 py-8"
+        )}
+      >
+        {children}
+      </main>
     </div>
   );
 }

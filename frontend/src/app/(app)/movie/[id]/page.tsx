@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Loader2, Play, Users, Clock, Calendar, Tv, Film, ListVideo, Sparkles, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Loader2, Play, Users, Film, ListVideo, Sparkles, ShieldCheck } from "lucide-react";
 import api from "@/lib/api";
 import type { Movie } from "@/types";
 import { formatDuration } from "@/lib/utils";
@@ -50,8 +50,8 @@ export default function MoviePage() {
   if (isLoading) {
     return (
       <div className="flex flex-col justify-center items-center h-[65vh] gap-3">
-        <Loader2 className="w-10 h-10 animate-spin text-brand-600" />
-        <p className="text-sm font-medium text-content-secondary">Loading movie details...</p>
+        <Loader2 className="w-10 h-10 animate-spin text-amber-500" />
+        <p className="text-sm font-medium text-stone-500 dark:text-zinc-400">Loading movie details...</p>
       </div>
     );
   }
@@ -59,12 +59,12 @@ export default function MoviePage() {
   if (error || !movie) {
     return (
       <div className="text-center py-24 max-w-md mx-auto">
-        <div className="w-16 h-16 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto mb-4 border border-red-100">
+        <div className="w-16 h-16 rounded-2xl bg-rose-500/10 text-rose-500 flex items-center justify-center mx-auto mb-4 border border-rose-500/20">
           <Film className="w-8 h-8" />
         </div>
-        <h2 className="text-xl font-bold text-content-primary mb-2">{error || "Movie not found"}</h2>
-        <p className="text-sm text-content-secondary mb-6">The requested title may have been moved or removed from your library.</p>
-        <button onClick={() => router.push("/library")} className="btn-secondary">
+        <h2 className="font-display text-xl font-bold text-stone-900 dark:text-white mb-2">{error || "Movie not found"}</h2>
+        <p className="text-sm text-stone-500 dark:text-zinc-400 mb-6">The requested title may have been moved or removed from your library.</p>
+        <button onClick={() => router.push("/library")} className="bg-white/10 hover:bg-white/20 text-stone-800 dark:text-white border border-stone-300 dark:border-white/10 backdrop-blur-sm h-11 px-6 rounded-xl font-display font-bold text-xs uppercase tracking-wider transition-colors">
           Return to Library
         </button>
       </div>
@@ -73,70 +73,81 @@ export default function MoviePage() {
 
   return (
     <div className="animate-fade-in pb-24 max-w-7xl mx-auto px-4 sm:px-6 pt-4">
-      {/* Hero Backdrop Banner */}
-      <div className="relative w-full aspect-[21/9] max-h-[500px] min-h-[340px] bg-slate-900 rounded-3xl overflow-hidden shadow-card border border-slate-200/80">
+      {/* Hero card */}
+      <div className="relative rounded-3xl border border-stone-200 dark:border-neutral-900 overflow-hidden bg-stone-900 dark:bg-neutral-950 p-6 sm:p-10 min-h-[460px] flex flex-col lg:flex-row gap-8 items-center justify-end shadow-2xl">
+        
+        {/* Backdrop image */}
         {movie.backdrop_url ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img 
             src={movie.backdrop_url} 
             alt={movie.title} 
-            className="absolute inset-0 w-full h-full object-cover"
+            className="absolute inset-0 w-full h-full object-cover opacity-35"
           />
         ) : (
-          <div className="absolute inset-0 bg-gradient-brand opacity-40" />
+          <div className="absolute inset-0 bg-stone-900 dark:bg-neutral-950 opacity-40" />
         )}
         
         {/* Gradient overlays */}
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-r from-slate-950/80 via-slate-950/40 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-stone-900 dark:from-neutral-950 via-stone-900/70 dark:via-neutral-950/70 to-transparent" />
+        <div className="absolute inset-0 lg:bg-gradient-to-r lg:from-stone-900 dark:lg:from-neutral-950 lg:via-stone-900/80 dark:lg:via-neutral-950/80 lg:to-transparent" />
         
         {/* Back navigation */}
         <button 
           onClick={() => router.push("/library")}
-          className="absolute top-6 left-6 z-10 w-11 h-11 flex items-center justify-center rounded-2xl bg-slate-900/60 backdrop-blur-md text-white hover:bg-slate-900 transition-colors border border-white/10 focus-visible:ring-2 focus-visible:ring-brand-500"
+          className="absolute top-6 left-6 z-20 w-11 h-11 flex items-center justify-center rounded-2xl bg-black/40 backdrop-blur-md text-zinc-400 hover:text-white transition-colors border border-white/10"
           title="Back to Library"
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
 
+        {/* Poster */}
+        <div className="z-10 w-44 sm:w-56 shrink-0 aspect-[2/3] rounded-2xl overflow-hidden border-2 border-amber-500/80 shadow-2xl mr-auto lg:mr-0 lg:order-last">
+          {movie.poster_url ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img 
+              src={movie.poster_url} 
+              alt={movie.title}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full bg-stone-800 dark:bg-neutral-900 flex flex-col items-center justify-center p-6 text-center">
+              <Film className="w-12 h-12 text-stone-500 dark:text-neutral-700 mb-2" />
+            </div>
+          )}
+        </div>
+
         {/* Content overlaid on backdrop */}
-        <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-10 z-10">
-          <div className="max-w-3xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-brand-500/20 text-brand-200 border border-brand-400/30 mb-3 backdrop-blur-md">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Cinematic Title</span>
+        <div className="z-10 w-full lg:flex-1">
+          <div className="max-w-2xl lg:ml-auto lg:mr-10 lg:text-right">
+            
+            <div className="flex flex-wrap items-center gap-2 mb-4 lg:justify-end">
+              {movie.year && (
+                <span className="px-3 py-1 bg-white/10 border border-white/10 rounded-lg text-xs font-mono text-zinc-300">
+                  {movie.year}
+                </span>
+              )}
+              {movie.duration_seconds > 0 && (
+                <span className="px-3 py-1 bg-white/10 border border-white/10 rounded-lg text-xs font-mono text-zinc-300">
+                  {formatDuration(movie.duration_seconds)}
+                </span>
+              )}
+              {movie.resolution && (
+                <span className="px-3 py-1 bg-white/10 border border-white/10 rounded-lg text-xs font-mono text-amber-400 uppercase font-bold tracking-wider">
+                  {movie.resolution}
+                </span>
+              )}
             </div>
 
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-white tracking-tight mb-3 drop-shadow-md">
+            <h1 className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-white mb-6 drop-shadow-lg">
               {movie.title}
             </h1>
             
-            <div className="flex flex-wrap items-center gap-4 text-xs sm:text-sm font-medium text-slate-200 mb-6">
-              {movie.year && (
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 backdrop-blur-md">
-                  <Calendar className="w-4 h-4 text-brand-300" />
-                  <span>{movie.year}</span>
-                </div>
-              )}
-              {movie.duration_seconds > 0 && (
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 backdrop-blur-md">
-                  <Clock className="w-4 h-4 text-brand-300" />
-                  <span>{formatDuration(movie.duration_seconds)}</span>
-                </div>
-              )}
-              {movie.resolution && (
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 backdrop-blur-md uppercase tracking-wide text-xs font-bold text-amber-300">
-                  <Tv className="w-4 h-4" />
-                  <span>{movie.resolution}</span>
-                </div>
-              )}
-            </div>
-            
-            <div className="hidden md:flex flex-wrap gap-4">
+            <div className="flex flex-wrap gap-4 lg:justify-end">
               <button 
                 onClick={handleCreateRoom}
                 disabled={isCreatingRoom}
-                className="btn-primary h-12 px-8 shadow-brand text-sm font-bold min-h-[44px]"
+                className="bg-amber-500 hover:bg-amber-600 text-[#050505] font-display font-bold text-xs uppercase tracking-wider h-12 px-8 rounded-xl flex items-center justify-center transition-transform active:scale-[0.98] shadow-lg"
               >
                 {isCreatingRoom ? (
                   <Loader2 className="w-5 h-5 mr-2 animate-spin" />
@@ -148,10 +159,10 @@ export default function MoviePage() {
               
               <button 
                 onClick={() => router.push(`/watch/${movie.id}`)}
-                className="btn-secondary h-12 px-8 bg-white/15 hover:bg-white/25 text-white backdrop-blur-md border-white/20 text-sm font-bold min-h-[44px]"
+                className="bg-white/10 hover:bg-white/20 text-white border border-white/10 backdrop-blur-sm h-12 px-8 rounded-xl font-display font-bold text-xs uppercase tracking-wider transition-colors shadow-lg flex items-center justify-center"
               >
                 <Play className="w-5 h-5 mr-2 fill-current" />
-                Solo Watch
+                Watch Alone
               </button>
             </div>
           </div>
@@ -159,47 +170,31 @@ export default function MoviePage() {
       </div>
 
       {/* Details Section */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mt-10">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
         
-        {/* Poster Column */}
-        <div className="hidden md:block col-span-1">
-          <div className="sticky top-24">
-            {movie.poster_url ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img 
-                src={movie.poster_url} 
-                alt={movie.title}
-                className="rounded-2xl shadow-card hover:shadow-card-hover transition-all duration-300 aspect-[2/3] object-cover w-full border border-slate-200/80"
-              />
-            ) : (
-              <div className="rounded-2xl shadow-card aspect-[2/3] w-full bg-slate-100 border border-slate-200 flex flex-col items-center justify-center p-6 text-center">
-                <Film className="w-12 h-12 text-slate-400 mb-2" />
-                <span className="text-xs font-semibold text-slate-500">{movie.title}</span>
-              </div>
-            )}
-          </div>
-        </div>
-
         {/* Main Content Area */}
-        <div className="md:col-span-2 space-y-8">
-          <section className="card p-6 sm:p-8">
-            <h2 className="text-lg font-bold text-content-primary mb-3">Synopsis</h2>
-            <p className="text-content-secondary leading-relaxed text-sm sm:text-base">
+        <div className="md:col-span-2 space-y-6">
+          <section className="bg-white dark:bg-neutral-950/40 border border-stone-200 dark:border-neutral-900 p-5 rounded-2xl shadow-xl">
+            <h2 className="font-display text-lg font-bold text-stone-900 dark:text-white mb-3 flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-amber-500" />
+              Synopsis
+            </h2>
+            <p className="text-stone-800 dark:text-zinc-200 leading-relaxed text-sm sm:text-base">
               {movie.description || "No synopsis available for this title. Host a room to watch together in synchronized real-time playback."}
             </p>
           </section>
 
           {movie.chapters && movie.chapters.length > 0 && (
-            <section className="card p-6 sm:p-8">
-              <h2 className="text-lg font-bold text-content-primary mb-4 flex items-center gap-2">
-                <ListVideo className="w-5 h-5 text-brand-600" />
-                <span>Chapters</span>
+            <section className="bg-white dark:bg-neutral-950/40 border border-stone-200 dark:border-neutral-900 p-5 rounded-2xl shadow-xl">
+              <h2 className="font-display text-lg font-bold text-stone-900 dark:text-white mb-4 flex items-center gap-2">
+                <ListVideo className="w-5 h-5 text-amber-500" />
+                Chapters
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {movie.chapters.map((chapter, i) => (
-                  <div key={i} className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/70 flex items-center justify-between hover:border-brand-300 transition-colors">
-                    <span className="text-xs font-bold text-content-primary truncate mr-2">{chapter.title}</span>
-                    <span className="text-xs font-semibold text-content-muted tabular-nums bg-white px-2 py-0.5 rounded border border-slate-200">
+                  <div key={i} className="p-3.5 rounded-xl bg-stone-50 dark:bg-neutral-900/50 border border-stone-200 dark:border-neutral-800 flex items-center justify-between hover:border-amber-500/50 transition-colors">
+                    <span className="text-xs font-bold text-stone-900 dark:text-zinc-100 truncate mr-2">{chapter.title}</span>
+                    <span className="text-[10px] font-mono font-bold text-stone-500 dark:text-zinc-400 tabular-nums bg-white dark:bg-neutral-900 px-2 py-0.5 rounded border border-stone-200 dark:border-neutral-800">
                       {formatDuration(chapter.time)}
                     </span>
                   </div>
@@ -211,24 +206,24 @@ export default function MoviePage() {
         
         {/* Sidebar Metadata */}
         <div className="md:col-span-1">
-          <section className="card p-6 sticky top-24 space-y-4">
-            <h3 className="text-xs font-bold text-content-muted uppercase tracking-wider border-b border-slate-100 pb-3">
+          <section className="bg-white dark:bg-neutral-950/40 border border-stone-200 dark:border-neutral-900 p-5 rounded-2xl shadow-xl space-y-4">
+            <h3 className="text-[10px] font-mono font-bold uppercase tracking-wider text-stone-400 dark:text-zinc-500 border-b border-stone-200 dark:border-neutral-800 pb-3">
               Media Information
             </h3>
             
-            <div className="space-y-3.5 text-xs">
+            <div className="space-y-4 text-xs">
               <div className="flex items-center justify-between">
-                <span className="text-content-secondary font-medium">Status</span>
-                <span className="badge badge-success font-bold">
+                <span className="text-stone-500 dark:text-zinc-400 font-medium">Status</span>
+                <span className="px-3 py-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg font-mono font-semibold">
                   {movie.is_processed ? "Ready to Stream" : "Processing"}
                 </span>
               </div>
               
               <div className="flex items-center justify-between">
-                <span className="text-content-secondary font-medium">Storage Host</span>
-                <span className="font-semibold text-content-primary flex items-center gap-1">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                  Encrypted Storage
+                <span className="text-stone-500 dark:text-zinc-400 font-medium">Storage Host</span>
+                <span className="font-semibold text-stone-900 dark:text-zinc-100 flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-amber-500" />
+                  Encrypted
                 </span>
               </div>
             </div>
@@ -237,11 +232,11 @@ export default function MoviePage() {
       </div>
 
       {/* Mobile Sticky CTA Bar */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 p-3.5 bg-white/95 backdrop-blur-md border-t border-slate-200 flex gap-3 z-50 shadow-card">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 p-3.5 bg-white/95 dark:bg-neutral-950/95 backdrop-blur-md border-t border-stone-200 dark:border-neutral-800 flex gap-3 z-50">
         <button 
           onClick={handleCreateRoom}
           disabled={isCreatingRoom}
-          className="btn-primary flex-1 h-12 text-sm font-bold min-h-[44px]"
+          className="bg-amber-500 hover:bg-amber-600 text-[#050505] font-display font-bold text-xs uppercase tracking-wider h-12 flex-1 rounded-xl flex items-center justify-center transition-transform active:scale-[0.98]"
         >
           {isCreatingRoom ? (
             <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
@@ -252,7 +247,7 @@ export default function MoviePage() {
         </button>
         <button 
           onClick={() => router.push(`/watch/${movie.id}`)}
-          className="btn-secondary flex-1 h-12 text-sm font-bold min-h-[44px]"
+          className="bg-white/10 hover:bg-white/20 text-stone-900 dark:text-white border border-stone-300 dark:border-white/10 backdrop-blur-sm h-12 flex-1 rounded-xl font-display font-bold text-xs uppercase tracking-wider transition-colors flex items-center justify-center"
         >
           <Play className="w-4 h-4 mr-1.5 fill-current" />
           Solo Watch

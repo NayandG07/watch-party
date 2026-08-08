@@ -1,12 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: {
@@ -16,7 +9,7 @@ export const metadata: Metadata = {
   description:
     "A private synchronized watch-party platform for a trusted group of friends.",
   robots: {
-    index: false,   // This is a private platform — never index
+    index: false,
     follow: false,
   },
 };
@@ -28,7 +21,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
-      <body className={`${inter.variable} font-sans bg-surface-default text-content-primary antialiased`}>
+      <body className="min-h-screen bg-stone-50 dark:bg-[#050505] text-stone-900 dark:text-zinc-100 font-sans antialiased select-none transition-colors duration-300">
         {children}
       </body>
     </html>

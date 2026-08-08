@@ -145,25 +145,25 @@ export default function LibraryPage() {
   const totalMovies = collections.reduce((acc, c) => acc + c.movies.length, 0);
 
   return (
-    <div className="space-y-8 animate-fade-in max-w-7xl mx-auto">
+    <div className="space-y-8 animate-fade-in max-w-7xl mx-auto px-4 py-8">
       {/* Page Header */}
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-surface-border">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-stone-200 dark:border-neutral-800">
         <div>
-          <h1 className="text-3xl font-extrabold text-content-primary tracking-tight">Library</h1>
-          <p className="text-sm text-content-secondary mt-1">Browse collections and pick media for your watch party.</p>
+          <h1 className="font-display text-2xl font-bold tracking-tight text-stone-900 dark:text-white">Library</h1>
+          <p className="text-sm text-stone-500 dark:text-zinc-400 mt-1">Browse collections and pick media for your watch party.</p>
         </div>
 
         <div className="flex items-center gap-3">
           {/* Search bar */}
           <div className="relative flex-1 md:w-64">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-content-muted" />
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 dark:text-zinc-500" />
             <input
               id="library-search"
               type="search"
               placeholder="Search titles…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="input pl-10 h-10 text-sm w-full"
+              className="pl-10 h-10 w-full bg-stone-50 dark:bg-neutral-900/40 border border-stone-200 dark:border-neutral-800 rounded-lg text-xs text-stone-900 dark:text-zinc-100 placeholder:text-stone-400 dark:placeholder:text-zinc-500 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-colors"
             />
           </div>
 
@@ -172,7 +172,7 @@ export default function LibraryPage() {
             <div className="relative">
               <button 
                 onClick={() => setOpenDropdown(openDropdown === "create" ? null : "create")} 
-                className="btn-primary h-10 px-4 text-sm font-bold shadow-brand gap-2 shrink-0"
+                className="bg-amber-500 hover:bg-amber-600 text-[#050505] font-display font-bold text-xs uppercase tracking-wider h-10 px-4 rounded-xl flex items-center gap-2 shrink-0 transition-transform active:scale-[0.98]"
               >
                 <Plus className="w-4 h-4" />
                 <span>Create</span>
@@ -181,19 +181,19 @@ export default function LibraryPage() {
               {openDropdown === "create" && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setOpenDropdown(null)} />
-                  <div className="absolute right-0 top-full mt-2 z-20 bg-white rounded-xl shadow-2xl border border-surface-border overflow-hidden w-52 animate-fade-in py-1">
+                  <div className="absolute right-0 top-full mt-2 z-20 bg-white dark:bg-neutral-950 rounded-xl shadow-2xl border border-stone-200 dark:border-neutral-900 overflow-hidden w-52 animate-fade-in py-1">
                     <button
                       onClick={() => { setShowCreateLibrary(true); setOpenDropdown(null); }}
-                      className="w-full px-4 py-3 text-left text-sm flex items-center gap-2.5 hover:bg-slate-50 transition-colors text-content-primary font-medium"
+                      className="w-full px-4 py-3 text-left text-sm flex items-center gap-2.5 hover:bg-stone-50 dark:hover:bg-neutral-900 transition-colors text-stone-800 dark:text-zinc-200 font-medium"
                     >
-                      <LibraryIcon className="w-4 h-4 text-brand-600" />
+                      <LibraryIcon className="w-4 h-4 text-amber-500" />
                       New Library
                     </button>
                     <button
                       onClick={() => { setShowCreateCollection(true); setOpenDropdown(null); }}
-                      className="w-full px-4 py-3 text-left text-sm flex items-center gap-2.5 hover:bg-slate-50 transition-colors text-content-primary font-medium"
+                      className="w-full px-4 py-3 text-left text-sm flex items-center gap-2.5 hover:bg-stone-50 dark:hover:bg-neutral-900 transition-colors text-stone-800 dark:text-zinc-200 font-medium"
                     >
-                      <Plus className="w-4 h-4 text-accent-600" />
+                      <Plus className="w-4 h-4 text-amber-500" />
                       New Collection
                     </button>
                   </div>
@@ -211,10 +211,10 @@ export default function LibraryPage() {
             key={tab}
             onClick={() => setActiveFilter(tab)}
             className={cn(
-              "px-4 py-2 rounded-xl text-sm font-bold capitalize transition-all whitespace-nowrap min-h-[40px] border",
+              "px-4 py-2 rounded-full text-xs font-semibold uppercase tracking-wider transition-all whitespace-nowrap min-h-[32px]",
               activeFilter === tab
-                ? "bg-brand-50 text-brand-700 border-brand-200 shadow-xs"
-                : "bg-white text-content-secondary border-surface-border hover:bg-slate-50 hover:text-content-primary"
+                ? "bg-amber-500/15 text-amber-500 font-bold"
+                : "text-stone-500 dark:text-zinc-400 hover:text-stone-700 dark:hover:text-zinc-200"
             )}
           >
             {tab.replace("_", " ")}
@@ -224,13 +224,14 @@ export default function LibraryPage() {
 
       {/* Prominent Continue Watching Section */}
       {activeSessions.length > 0 && (
-        <section className="space-y-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-card">
+        <section className="space-y-4 bg-white dark:bg-neutral-950/40 p-6 rounded-2xl border border-stone-200 dark:border-neutral-900 shadow-xl relative overflow-hidden">
+          <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-amber-500/80 via-yellow-400 to-emerald-500/80" />
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-extrabold text-content-primary flex items-center gap-2">
-              <Clock className="w-5 h-5 text-accent-500" />
+            <h2 className="font-display text-lg font-bold text-stone-900 dark:text-white flex items-center gap-2">
+              <Clock className="w-5 h-5 text-amber-500" />
               Continue Watching
             </h2>
-            <Link href="/rooms" className="text-xs font-bold text-brand-600 hover:text-brand-700 flex items-center gap-1">
+            <Link href="/rooms" className="text-[10px] font-mono font-bold uppercase tracking-wider text-amber-500 hover:text-amber-600 flex items-center gap-1">
               All Rooms →
             </Link>
           </div>
@@ -240,25 +241,24 @@ export default function LibraryPage() {
               <Link
                 key={session.id}
                 href={`/room/${session.id}`}
-                className="group flex items-center gap-4 p-3 rounded-2xl bg-slate-50 border border-slate-200 hover:bg-white hover:border-brand-300 hover:shadow-card transition-all"
+                className="group flex items-center gap-4 p-3 rounded-xl bg-stone-50 dark:bg-neutral-900/50 border border-stone-200 dark:border-neutral-800 hover:border-amber-500/50 hover:bg-stone-100 dark:hover:bg-neutral-800/50 transition-all"
               >
-                <div className="w-16 h-20 rounded-xl bg-slate-200 overflow-hidden shrink-0 relative">
+                <div className="w-16 h-20 rounded-lg bg-stone-200 dark:bg-neutral-800 overflow-hidden shrink-0 relative border border-stone-200 dark:border-neutral-700">
                   {session.movie?.backdrop_url ? (
-                    /* eslint-disable-next-line @next/next/no-img-element */
                     <img src={session.movie.backdrop_url} alt="" className="w-full h-full object-cover" />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-slate-300">
-                      <Film className="w-6 h-6 text-slate-500" />
+                    <div className="w-full h-full flex items-center justify-center bg-stone-200 dark:bg-neutral-800">
+                      <Film className="w-6 h-6 text-stone-400 dark:text-zinc-600" />
                     </div>
                   )}
-                  <div className="absolute inset-0 bg-slate-900/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                     <Play className="w-6 h-6 text-white fill-white" />
                   </div>
                 </div>
                 <div className="min-w-0 flex-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-accent-600 bg-accent-50 px-2 py-0.5 rounded-full">Active Party</span>
-                  <h3 className="text-sm font-bold text-content-primary truncate mt-1">{session.name}</h3>
-                  <p className="text-xs text-content-secondary truncate">{session.movie?.title}</p>
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">Active Party</span>
+                  <h3 className="text-sm font-bold text-stone-900 dark:text-zinc-100 truncate mt-1">{session.name}</h3>
+                  <p className="text-xs text-stone-500 dark:text-zinc-400 truncate">{session.movie?.title}</p>
                 </div>
               </Link>
             ))}
@@ -269,30 +269,30 @@ export default function LibraryPage() {
       {/* Main Content Area */}
       {isLoading ? (
         <div className="flex flex-col items-center justify-center h-64 gap-3">
-          <Loader2 className="w-8 h-8 animate-spin text-brand-600" />
-          <p className="text-sm text-content-secondary font-medium">Loading your media library…</p>
+          <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
+          <p className="text-sm text-stone-500 dark:text-zinc-400 font-medium">Loading your media library…</p>
         </div>
       ) : totalMovies === 0 && collections.length === 0 ? (
         /* Strong Empty State */
-        <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center max-w-2xl mx-auto space-y-6 shadow-card my-12">
-          <div className="w-20 h-20 rounded-full bg-brand-50 text-brand-600 flex items-center justify-center mx-auto shadow-sm">
+        <div className="bg-white dark:bg-neutral-950/40 rounded-2xl border border-stone-200 dark:border-neutral-900 p-12 text-center max-w-2xl mx-auto space-y-6 shadow-xl my-12">
+          <div className="w-20 h-20 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 flex items-center justify-center mx-auto shadow-sm">
             <HardDrive className="w-10 h-10 stroke-[1.5]" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-content-primary mb-2">Your library is empty</h2>
-            <p className="text-sm text-content-secondary max-w-md mx-auto leading-relaxed">
+            <h2 className="font-display text-2xl font-bold text-stone-900 dark:text-white mb-2">Your library is empty</h2>
+            <p className="text-sm text-stone-500 dark:text-zinc-400 max-w-md mx-auto leading-relaxed">
               Connect a cloud storage provider (like Backblaze B2) or create your first collection to start adding titles.
             </p>
           </div>
           <div className="flex items-center justify-center gap-3 pt-2">
             {(user?.role === "level2" || user?.role === "super_admin") && (
-              <Link href="/admin/settings/storage" className="btn-primary h-11 px-6 font-bold shadow-brand">
+              <Link href="/admin/settings/storage" className="bg-amber-500 hover:bg-amber-600 text-[#050505] font-display font-bold text-xs uppercase tracking-wider h-11 px-6 rounded-xl flex items-center justify-center transition-transform active:scale-[0.98]">
                 Connect Storage
               </Link>
             )}
             <button
               onClick={() => setShowCreateCollection(true)}
-              className="btn-secondary h-11 px-6 font-semibold"
+              className="bg-white/10 hover:bg-white/20 text-stone-800 dark:text-white border border-stone-300 dark:border-white/10 backdrop-blur-sm h-11 px-6 rounded-xl font-display font-bold text-xs uppercase tracking-wider transition-colors"
             >
               Create Collection
             </button>
@@ -301,13 +301,13 @@ export default function LibraryPage() {
       ) : (
         /* Collections Shelves */
         filteredCollections.map((collection) => (
-          <section key={collection.id} className="space-y-4">
+          <section key={collection.id} className="bg-white dark:bg-neutral-950/40 border border-stone-200 dark:border-neutral-900 rounded-2xl p-6 shadow-xl space-y-6 relative overflow-hidden">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <h2 className="text-2xl font-extrabold text-content-primary tracking-tight flex items-center gap-2">
+                <h2 className="font-display text-xl font-bold text-stone-900 dark:text-white tracking-tight flex items-center gap-2">
                   {collection.name}
                   {collection.library?.owner?.username && (
-                    <span className="text-xs font-semibold text-content-muted">
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-stone-400 dark:text-zinc-500">
                       by {collection.library.owner.username}
                     </span>
                   )}
@@ -325,7 +325,7 @@ export default function LibraryPage() {
 
               <div className="flex items-center gap-2">
                 {collection.movies.length > 6 && (
-                  <Link href={`/collection/${collection.id}`} className="btn-ghost text-xs font-bold h-8 px-3">
+                  <Link href={`/collection/${collection.id}`} className="text-[10px] font-mono font-bold uppercase tracking-wider text-stone-500 dark:text-zinc-400 hover:text-amber-500 px-3">
                     See all ({collection.movies.length})
                   </Link>
                 )}
@@ -335,7 +335,7 @@ export default function LibraryPage() {
                     <button
                       onClick={() => setOpenDropdown(openDropdown === collection.id ? null : collection.id)}
                       disabled={isUpdating === collection.id}
-                      className="btn-ghost w-8 h-8 p-0 rounded-xl flex items-center justify-center text-content-secondary"
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-stone-500 dark:text-zinc-400 hover:bg-stone-100 dark:hover:bg-neutral-800 transition-colors"
                       aria-label="Collection menu"
                     >
                       <MoreVertical className="w-4 h-4" />
@@ -344,8 +344,8 @@ export default function LibraryPage() {
                     {openDropdown === collection.id && (
                       <>
                         <div className="fixed inset-0 z-10" onClick={() => setOpenDropdown(null)} />
-                        <div className="absolute right-0 top-full mt-2 z-20 bg-white rounded-xl shadow-2xl border border-surface-border overflow-hidden w-48 animate-fade-in py-1">
-                          <div className="px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-content-muted bg-slate-50">
+                        <div className="absolute right-0 top-full mt-2 z-20 bg-white dark:bg-neutral-950 rounded-xl shadow-2xl border border-stone-200 dark:border-neutral-900 overflow-hidden w-48 animate-fade-in py-1">
+                          <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-stone-400 dark:text-zinc-500 bg-stone-50 dark:bg-neutral-900/50">
                             Visibility
                           </div>
                           {["shared", "friends", "private"].map((vis) => (
@@ -353,17 +353,17 @@ export default function LibraryPage() {
                               key={vis}
                               onClick={() => handleUpdateVisibility(collection.id, vis)}
                               className={cn(
-                                "w-full px-3 py-2 text-left text-xs font-semibold flex items-center gap-2 hover:bg-slate-50 transition-colors",
-                                collection.visibility === vis ? "text-brand-600 font-bold" : "text-content-secondary"
+                                "w-full px-3 py-2 text-left text-xs font-semibold flex items-center gap-2 hover:bg-stone-50 dark:hover:bg-neutral-900 transition-colors",
+                                collection.visibility === vis ? "text-amber-500 font-bold" : "text-stone-600 dark:text-zinc-400"
                               )}
                             >
                               <span className="capitalize">{vis}</span>
                             </button>
                           ))}
-                          <div className="h-px bg-slate-100 my-1" />
+                          <div className="h-px bg-stone-200 dark:bg-neutral-800 my-1" />
                           <button
                             onClick={() => handleDeleteCollection(collection.id)}
-                            className="w-full px-3 py-2 text-left text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center gap-2"
+                            className="w-full px-3 py-2 text-left text-xs font-semibold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 flex items-center gap-2"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                             Delete Collection
@@ -377,7 +377,7 @@ export default function LibraryPage() {
             </div>
 
             {collection.movies.length === 0 ? (
-              <p className="text-sm text-content-muted italic bg-white p-6 rounded-2xl border border-slate-200">This collection has no movies yet.</p>
+              <p className="text-sm text-stone-500 dark:text-zinc-500 italic bg-stone-50 dark:bg-neutral-900/30 p-6 rounded-xl border border-stone-200 dark:border-neutral-800/50">This collection has no movies yet.</p>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                 {collection.movies.slice(0, 6).map((movie, index) => (
