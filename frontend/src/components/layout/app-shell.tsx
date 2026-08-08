@@ -11,8 +11,7 @@ import {
   Menu,
   X,
   Sun,
-  Moon,
-  Bell
+  Moon
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -134,10 +133,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             {/* Right section: Controls */}
             <div className="flex items-center space-x-2 md:space-x-4">
               <div className="flex items-center space-x-1 md:space-x-2 mr-2">
-                <button className="w-8 h-8 rounded-full flex items-center justify-center text-stone-600 hover:text-stone-900 dark:text-zinc-400 dark:hover:text-white transition-colors relative">
-                  <Bell className="w-4 h-4" />
-                  <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-500 border border-white dark:border-[#050505]" />
-                </button>
                 <ThemeToggle />
               </div>
 

@@ -1,6 +1,0 @@
-{
-  "name": "Private Watch-Party Platform",
-  "description": "A premium, cinematic, private synchronized watch-party platform designed for small groups of trusted friends.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
