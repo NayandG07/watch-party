@@ -233,7 +233,7 @@ export default function YouTubePlayer({
     <div ref={containerRef} className="relative w-full aspect-video bg-black group rounded-2xl overflow-hidden shadow-2xl">
       {!isReady && (
         <div className="absolute inset-0 flex items-center justify-center z-10 bg-black">
-          <Loader2 className="w-8 h-8 animate-spin text-brand-500" />
+          <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
         </div>
       )}
 

@@ -455,7 +455,7 @@ export default function VideoPlayer({
     >
       {(isLoading || isSeeking) && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-20">
-          <Loader2 className="w-10 h-10 animate-spin text-brand-500" />
+          <Loader2 className="w-10 h-10 animate-spin text-amber-500" />
         </div>
       )}
 

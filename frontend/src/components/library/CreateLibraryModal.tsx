@@ -117,8 +117,8 @@ export function CreateLibraryModal({ onClose, onSuccess }: CreateLibraryModalPro
               Storage Provider
             </label>
             {isLoadingProviders ? (
-              <div className="flex items-center gap-2 text-sm text-content-muted h-10 px-3 bg-surface-base rounded-lg border border-surface-border">
-                <Loader2 className="w-4 h-4 animate-spin" />
+              <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-zinc-400 h-10 px-3 bg-stone-100 dark:bg-neutral-900 rounded-lg border border-stone-200 dark:border-neutral-800">
+                <Loader2 className="w-4 h-4 animate-spin text-amber-500" />
                 Loading providers...
               </div>
             ) : providers.length === 0 ? (
@@ -151,7 +151,7 @@ export function CreateLibraryModal({ onClose, onSuccess }: CreateLibraryModalPro
                 type="checkbox"
                 checked={isPrivate}
                 onChange={(e) => setIsPrivate(e.target.checked)}
-                className="w-4 h-4 rounded border-surface-border bg-surface-base text-brand-500 focus:ring-brand-500 focus:ring-offset-surface-elevated transition-colors cursor-pointer"
+                className="w-4 h-4 rounded border-neutral-800 bg-neutral-900 text-amber-500 focus:ring-amber-500 transition-colors cursor-pointer"
               />
             </div>
             <div>

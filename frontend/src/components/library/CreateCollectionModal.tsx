@@ -114,8 +114,8 @@ export function CreateCollectionModal({ onClose, onSuccess }: CreateCollectionMo
               Parent Library
             </label>
             {isLoadingLibraries ? (
-              <div className="flex items-center gap-2 text-sm text-content-muted h-10 px-3 bg-surface-base rounded-lg border border-surface-border">
-                <Loader2 className="w-4 h-4 animate-spin" />
+              <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-zinc-400 h-10 px-3 bg-stone-100 dark:bg-neutral-900 rounded-lg border border-stone-200 dark:border-neutral-800">
+                <Loader2 className="w-4 h-4 animate-spin text-amber-500" />
                 Loading libraries...
               </div>
             ) : libraries.length === 0 ? (

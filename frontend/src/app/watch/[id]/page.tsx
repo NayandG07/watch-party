@@ -36,7 +36,7 @@ export default function WatchPage() {
     return (
       <ProtectedRoute>
         <div className="w-screen h-screen bg-black flex flex-col items-center justify-center">
-          <Loader2 className="w-10 h-10 animate-spin text-brand-500 mb-4" />
+          <Loader2 className="w-10 h-10 animate-spin text-amber-500 mb-4" />
           <p className="text-content-muted">Loading player...</p>
         </div>
       </ProtectedRoute>

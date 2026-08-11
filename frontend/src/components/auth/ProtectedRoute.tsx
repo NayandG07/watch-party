@@ -30,8 +30,9 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   if (isInitializing || !isAuthenticated) {
     return (
-      <div className="min-h-screen bg-surface-base flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-brand-500" />
+      <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center gap-3 select-none">
+        <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
+        <span className="text-xs font-mono font-bold uppercase tracking-widest text-zinc-500">Authenticating…</span>
       </div>
     );
   }
