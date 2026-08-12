@@ -245,6 +245,7 @@ export default function LibraryPage() {
               >
                 <div className="w-16 h-20 rounded-lg bg-stone-200 dark:bg-neutral-800 overflow-hidden shrink-0 relative border border-stone-200 dark:border-neutral-700">
                   {session.movie?.backdrop_url ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
                     <img src={session.movie.backdrop_url} alt="" className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-stone-200 dark:bg-neutral-800">
