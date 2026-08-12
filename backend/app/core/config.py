@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     # ── Server ───────────────────────────────────────────────────────────────
     host: str = "0.0.0.0"
     port: int = 8000
-    frontend_url: str = "http://localhost:3000"
+    frontend_url: str = "https://binge2gether.netlify.app"
 
     # ── Database (Supabase PostgreSQL) ────────────────────────────────────────
     # Must use postgresql+asyncpg:// scheme for async operation
@@ -62,7 +62,7 @@ class Settings(BaseSettings):
     hls_key_signing_secret: str = "INSECURE_DEFAULT_CHANGE_IN_PRODUCTION"
 
     # ── CORS ──────────────────────────────────────────────────────────────────
-    cors_origins: list[str] = ["http://localhost:3000"]
+    cors_origins: list[str] = ["http://localhost:3000", "https://binge2gether.netlify.app"]
 
     # ── Logging ───────────────────────────────────────────────────────────────
     log_level: str = "INFO"
