@@ -70,6 +70,13 @@ export default function RegisterForm({ inviteToken }: Props) {
 
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-4">
+      {/* Invite-required notice */}
+      {!inviteToken && (
+        <div role="alert" className="rounded-xl bg-amber-500/10 border border-amber-500/20 px-4 py-3 text-sm text-amber-400 animate-fade-in">
+          ⚠️ This is a private platform. You need a valid invite link to register.
+          Please ask an admin for an invite.
+        </div>
+      )}
       <div className="space-y-1.5">
         <label htmlFor="reg-username" className="text-sm font-medium text-content-secondary">
           Username

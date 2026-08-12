@@ -10,6 +10,7 @@ import {
   Tv2,
   Menu,
   X,
+  User,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -118,9 +119,13 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
       {/* User section */}
       <div className="border-t border-surface-border pt-4 px-3 shrink-0">
         {user && (
-          <div className="flex items-center gap-3 px-2 py-2 mb-2 overflow-hidden">
+          <Link
+            href="/profile"
+            onClick={onClose}
+            className="flex items-center gap-3 px-2 py-2 mb-2 overflow-hidden rounded-xl hover:bg-white/5 transition-colors group/profile"
+          >
             {/* Avatar */}
-            <div className="w-9 h-9 rounded-full bg-surface-elevated border border-surface-border flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-full bg-surface-elevated border border-surface-border flex items-center justify-center shrink-0 group-hover/profile:border-brand-500/50 transition-colors">
               <span className="text-sm font-bold text-content-primary">
                 {user.username.charAt(0).toUpperCase()}
               </span>
@@ -138,7 +143,8 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
                 </span>
               </div>
             </div>
-          </div>
+            <User className="w-4 h-4 text-content-muted shrink-0 transition-opacity duration-200 md:opacity-0 md:group-hover/sidebar:opacity-100 lg:opacity-100" />
+          </Link>
         )}
         <button
           onClick={handleLogout}
@@ -165,6 +171,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     if (pathname?.startsWith("/rooms")) return "Rooms";
     if (pathname?.startsWith("/admin/settings")) return "Settings";
     if (pathname?.startsWith("/admin/users")) return "Users";
+    if (pathname?.startsWith("/profile")) return "Profile";
     return "";
   };
 

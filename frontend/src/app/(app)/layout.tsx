@@ -3,7 +3,7 @@ import AppShell from "@/components/layout/app-shell";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 
 export const metadata: Metadata = {
-  title: { default: "Library", template: "%s | Watch Party" },
+  title: { default: "Watch Party", template: "%s | Watch Party" },
 };
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {

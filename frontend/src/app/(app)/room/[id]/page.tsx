@@ -361,6 +361,7 @@ export default function RoomPage() {
               <button
                 type="submit"
                 disabled={!chatInput.trim()}
+                aria-label="Send message"
                 className="w-9 h-9 shrink-0 rounded-xl bg-brand-500 hover:bg-brand-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
               >
                 <Send className="w-3.5 h-3.5 text-white" />
@@ -482,6 +483,7 @@ export default function RoomPage() {
           {/* Mobile: chat toggle */}
           <button
             onClick={() => setMobileChatOpen(true)}
+            aria-label="Open chat"
             className="flex lg:hidden items-center gap-1 h-8 px-2.5 rounded-lg bg-white/8 hover:bg-white/12 text-white/60 hover:text-white text-xs transition-all relative"
           >
             <MessageSquare className="w-3.5 h-3.5" />
@@ -684,6 +686,8 @@ export default function RoomPage() {
                 <button
                   onClick={handleSetYouTube}
                   disabled={!youtubeInput.trim() || isSettingMedia}
+                  aria-label="Set YouTube URL as media"
+                  title="Use this YouTube URL"
                   className="h-10 px-4 rounded-xl bg-brand-500 hover:bg-brand-600 disabled:opacity-40 text-white flex items-center gap-1.5 text-sm shrink-0 transition-all"
                 >
                   {isSettingMedia ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
