@@ -12,6 +12,7 @@ import VideoPlayer from "@/components/player/VideoPlayer";
 import YouTubePlayer from "@/components/player/YouTubePlayer";
 import { useAuthStore } from "@/stores/authStore";
 import { ChatMessageData } from "@/hooks/useSyncedPlayer";
+import { toast } from "sonner";
 
 // Inline YouTube icon
 function YoutubeIcon({ className }: { className?: string }) {
@@ -193,12 +194,15 @@ export default function RoomPage() {
     if (!room) return;
     setIsGeneratingInvite(true);
     try {
-      const { data } = await api.post<{ invite_url: string }>("/api/invites", {
+      const { data } = await api.post<{ invite_url: string; token: string }>("/api/invites", {
         room_id: room.id,
         expires_in_hours: 48,
         max_uses: 10,
       });
-      setInviteLink(data.invite_url);
+      // Use frontend origin to guarantee correct domain in production
+      const token = (data as unknown as { token: string }).token;
+      const link = `${window.location.origin}/room/${id}?invite=${token}`;
+      setInviteLink(link);
       setShowInviteModal(true);
     } catch (err) {
       console.error("Failed to generate invite:", err);
@@ -209,6 +213,10 @@ export default function RoomPage() {
 
   const handleCopyInvite = () => {
     navigator.clipboard.writeText(inviteLink);
+    toast.success("Invite link copied!", {
+      description: "Share it with friends to join your Watch Party.",
+      duration: 3000,
+    });
     setInviteCopied(true);
     setTimeout(() => setInviteCopied(false), 2000);
   };

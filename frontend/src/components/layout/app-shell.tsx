@@ -10,7 +10,7 @@ import {
   Tv2,
   Menu,
   X,
-  User,
+  ChevronRight,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -122,11 +122,11 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
           <Link
             href="/profile"
             onClick={onClose}
-            className="flex items-center gap-3 px-2 py-2 mb-2 overflow-hidden rounded-xl hover:bg-white/5 transition-colors group/profile"
+            className="flex items-center gap-3 px-2 py-2 mb-2 overflow-hidden rounded-xl hover:bg-brand-500/10 hover:border-brand-500/20 border border-transparent transition-all duration-200 group/profile"
           >
             {/* Avatar */}
-            <div className="w-9 h-9 rounded-full bg-surface-elevated border border-surface-border flex items-center justify-center shrink-0 group-hover/profile:border-brand-500/50 transition-colors">
-              <span className="text-sm font-bold text-content-primary">
+            <div className="w-9 h-9 rounded-full bg-gradient-brand flex items-center justify-center shrink-0 shadow-sm group-hover/profile:shadow-brand transition-shadow">
+              <span className="text-sm font-bold text-white">
                 {user.username.charAt(0).toUpperCase()}
               </span>
             </div>
@@ -143,7 +143,7 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
                 </span>
               </div>
             </div>
-            <User className="w-4 h-4 text-content-muted shrink-0 transition-opacity duration-200 md:opacity-0 md:group-hover/sidebar:opacity-100 lg:opacity-100" />
+            <ChevronRight className="w-4 h-4 text-content-muted group-hover/profile:text-brand-400 shrink-0 transition-all duration-200 group-hover/profile:translate-x-0.5 md:opacity-0 md:group-hover/sidebar:opacity-100 lg:opacity-100" />
           </Link>
         )}
         <button

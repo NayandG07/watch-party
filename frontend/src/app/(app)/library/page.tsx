@@ -180,8 +180,18 @@ export default function LibraryPage() {
       </header>
 
       {isLoading ? (
-        <div className="flex justify-center items-center h-64">
-          <Loader2 className="w-8 h-8 animate-spin text-brand-500" />
+        // Skeleton loader grid
+        <div className="mb-10 space-y-4">
+          <div className="h-6 w-40 rounded-lg bg-surface-elevated animate-pulse" />
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="animate-pulse">
+                <div className="aspect-[2/3] rounded-xl bg-surface-elevated" />
+                <div className="mt-2 h-3.5 rounded bg-surface-elevated w-3/4" />
+                <div className="mt-1.5 h-3 rounded bg-surface-elevated w-1/2" />
+              </div>
+            ))}
+          </div>
         </div>
       ) : collections.length === 0 ? (
         <div className="text-center py-20 text-content-secondary flex flex-col items-center justify-center">

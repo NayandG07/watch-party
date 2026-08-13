@@ -231,7 +231,7 @@ export default function VideoPlayer({
         if (isPlaying && !isHoveringControlsRef.current) {
           setShowControls(false);
         }
-      }, 3000);
+      }, 5000);
     };
 
     const container = containerRef.current;

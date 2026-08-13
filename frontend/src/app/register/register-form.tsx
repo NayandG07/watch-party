@@ -3,14 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Loader2, Check } from "lucide-react";
-import api, { getErrorMessage, tokenStorage } from "@/lib/api";
-import { useAuthStore } from "@/stores/authStore";
+import api, { getErrorMessage } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 interface RegisterResponse {
-  access_token: string;
-  token_type: string;
-  user: { id: string; username: string; role: string };
+  message: string;
+  email: string;
+  requires_verification: boolean;
 }
 
 interface Props {
@@ -55,11 +54,13 @@ export default function RegisterForm({ inviteToken }: Props) {
         password: form.password,
       });
 
-      tokenStorage.set(data.access_token);
-      
-      // Update auth store with the newly fetched user
-      useAuthStore.getState().setUser(data.user as unknown as import("@/stores/authStore").User);
-      
+      // Account created — redirect to email verification
+      if (data.requires_verification) {
+        router.push(`/verify-email?email=${encodeURIComponent(data.email)}`);
+        return;
+      }
+
+      // Fallback (should not happen with email verification enabled)
       router.push("/library");
     } catch (err) {
       setError(getErrorMessage(err));
@@ -72,9 +73,16 @@ export default function RegisterForm({ inviteToken }: Props) {
     <form onSubmit={handleSubmit} noValidate className="space-y-4">
       {/* Invite-required notice */}
       {!inviteToken && (
-        <div role="alert" className="rounded-xl bg-amber-500/10 border border-amber-500/20 px-4 py-3 text-sm text-amber-400 animate-fade-in">
-          ⚠️ This is a private platform. You need a valid invite link to register.
-          Please ask an admin for an invite.
+        <div role="alert" className="rounded-2xl overflow-hidden border border-amber-500/20 animate-fade-in">
+          <div className="bg-amber-500/10 px-4 py-3 flex items-center gap-2 border-b border-amber-500/15">
+            <svg className="w-4 h-4 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+            <span className="text-xs font-bold uppercase tracking-wider text-amber-400">Invite Required</span>
+          </div>
+          <div className="bg-amber-500/5 px-4 py-3 text-sm text-amber-200/80">
+            This is a <span className="font-semibold text-amber-300">private platform</span>. Registration requires a valid invite link from an admin. Please ask a platform admin to send you one.
+          </div>
         </div>
       )}
       <div className="space-y-1.5">

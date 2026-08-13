@@ -46,7 +46,13 @@ export default function LoginForm() {
       router.push("/library");
       router.refresh();
     } catch (err) {
-      setError(getErrorMessage(err));
+      // If account exists but email not verified, redirect to OTP page
+      const raw = getErrorMessage(err);
+      if (raw === "EMAIL_NOT_VERIFIED") {
+        router.push("/verify-email");
+        return;
+      }
+      setError(raw);
     } finally {
       setIsLoading(false);
     }

@@ -72,6 +72,15 @@ class Settings(BaseSettings):
     tmdb_api_key: str = ""
     omdb_api_key: str = ""
 
+    # ── SMTP (Email OTP verification) ─────────────────────────────────────────
+    # Leave empty to use console-log fallback (development mode)
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = "noreply@watchparty.app"
+    smtp_starttls: bool = True
+
     # ── Derived properties ────────────────────────────────────────────────────
 
     @property
