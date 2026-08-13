@@ -71,20 +71,7 @@ export default function RegisterForm({ inviteToken }: Props) {
 
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-4">
-      {/* Invite-required notice */}
-      {!inviteToken && (
-        <div role="alert" className="rounded-2xl overflow-hidden border border-amber-500/20 animate-fade-in">
-          <div className="bg-amber-500/10 px-4 py-3 flex items-center gap-2 border-b border-amber-500/15">
-            <svg className="w-4 h-4 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-            </svg>
-            <span className="text-xs font-bold uppercase tracking-wider text-amber-400">Invite Required</span>
-          </div>
-          <div className="bg-amber-500/5 px-4 py-3 text-sm text-amber-200/80">
-            This is a <span className="font-semibold text-amber-300">private platform</span>. Registration requires a valid invite link from an admin. Please ask a platform admin to send you one.
-          </div>
-        </div>
-      )}
+
       <div className="space-y-1.5">
         <label htmlFor="reg-username" className="text-sm font-medium text-content-secondary">
           Username

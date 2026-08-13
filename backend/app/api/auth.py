@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import random
 import secrets
@@ -165,7 +165,7 @@ async def register(
             detail="Disposable email addresses are not allowed. Please use a permanent email.",
         )
 
-    # 2. Validate Invite Token (required for all registrations)
+    # 2. Validate Invite Token (optional)
     if payload.invite_token:
         stmt = select(Invite).where(Invite.token == payload.invite_token)
         result = await db.execute(stmt)
@@ -176,11 +176,6 @@ async def register(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid, expired, or room-specific invite token",
             )
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="An invite token is required to register on this platform.",
-        )
 
     # 3. Check if username/email exists
     stmt = select(User).where((User.username == payload.username) | (User.email == payload.email))
