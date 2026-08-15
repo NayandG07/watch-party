@@ -557,8 +557,7 @@ async def stream_movie_file(
                     f'URI="{key_url}"',
                     line,
                 )
-                logger.info(f"Original EXT-X-KEY: {original_line}")
-                logger.info(f"Rewritten EXT-X-KEY: {line}")
+                logger.debug(f"Rewrote EXT-X-KEY URI → {key_url[:60]}...")
             elif line and not line.startswith("#") and not line.startswith("http"):
                 # Relative segment/playlist filename → absolute proxy URL
                 # Pass both the stream token and key_token so sub-playlists
@@ -569,11 +568,7 @@ async def stream_movie_file(
             rewritten_lines.append(line)
 
         rewritten_playlist = "\n".join(rewritten_lines)
-        logger.info(f"Rewritten playlist {file_path}, lines: {len(rewritten_lines)}")
-        
-        # Log first 20 non-comment lines to see segment references
-        sample_lines = [l for l in rewritten_lines if l and not l.startswith('#')][:20]
-        logger.info(f"First segment references: {sample_lines[:5]}")
+        logger.debug(f"Rewritten playlist {file_path}, {len(rewritten_lines)} lines")
 
         from starlette.responses import PlainTextResponse
 
