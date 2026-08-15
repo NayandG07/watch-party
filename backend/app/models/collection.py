@@ -55,7 +55,7 @@ class Collection(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     # ── Visibility ────────────────────────────────────────────────────────────
     visibility: Mapped[Visibility] = mapped_column(
-        SAEnum(Visibility, native_enum=False, length=10),
+        SAEnum(Visibility, native_enum=False, length=10, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
         default=Visibility.PRIVATE,
         server_default=Visibility.PRIVATE.value,

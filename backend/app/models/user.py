@@ -1,8 +1,9 @@
 """
 User ORM model.
 
-Represents a platform member. There is exactly one super_admin.
-All other accounts are created via invite tokens.
+Represents a platform member. Authentication (password, session, OTP) is
+delegated to Supabase Auth. The user.id UUID maps 1:1 with auth.users.id
+and is populated via a PostgreSQL trigger on new Supabase signup.
 
 Privacy: User profiles are never exposed publicly.
          Presence, activity, and last-seen are never tracked.
@@ -10,10 +11,9 @@ Privacy: User profiles are never exposed publicly.
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, String
+from sqlalchemy import Boolean, String
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -35,6 +35,8 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "users"
 
     # ── Identity ──────────────────────────────────────────────────────────────
+    # NOTE: id is NOT auto-generated here. It is set explicitly from
+    # Supabase auth.users.id via a PostgreSQL trigger on signup.
     username: Mapped[str] = mapped_column(
         String(50),
         unique=True,
@@ -47,15 +49,10 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         nullable=False,
         index=True,
     )
-    hashed_password: Mapped[str] = mapped_column(
-        String(255),
-        nullable=False,
-        # Never select this column unless explicitly needed (Phase 3)
-    )
 
     # ── Role & status ─────────────────────────────────────────────────────────
     role: Mapped[UserRole] = mapped_column(
-        SAEnum(UserRole, native_enum=False, length=20),
+        SAEnum(UserRole, native_enum=False, length=20, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
         default=UserRole.LEVEL1,
         server_default=UserRole.LEVEL1.value,
@@ -65,22 +62,6 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         nullable=False,
         default=True,
         server_default="true",
-    )
-
-    # ── Email verification ────────────────────────────────────────────────────
-    is_email_verified: Mapped[bool] = mapped_column(
-        Boolean,
-        nullable=False,
-        default=False,
-        server_default="false",
-    )
-    email_otp_hash: Mapped[str | None] = mapped_column(
-        String(255),
-        nullable=True,
-    )
-    email_otp_expires_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
-        nullable=True,
     )
 
     # ── Relationships ─────────────────────────────────────────────────────────

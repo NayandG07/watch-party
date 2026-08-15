@@ -8,6 +8,7 @@ from urllib.parse import quote, urlencode
 import boto3
 from botocore.client import Config
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
+from fastapi.responses import Response
 from jose import JWTError
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -37,6 +38,36 @@ from app.schemas.movie import (
 from app.services.permission import PermissionService
 
 router = APIRouter(prefix="/movies", tags=["movies"])
+
+
+# Add OPTIONS handler for streaming endpoint
+@router.options("/{movie_id}/stream/{file_path:path}")
+async def stream_options():
+    """Handle CORS preflight requests for streaming endpoint."""
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Max-Age": "3600",
+        },
+    )
+
+
+# Add OPTIONS handler for HLS key endpoint
+@router.options("/{movie_id}/hls-key")
+async def hls_key_options():
+    """Handle CORS preflight requests for HLS key endpoint."""
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Max-Age": "3600",
+        },
+    )
 
 
 def _path_to_stream_url(
@@ -129,6 +160,7 @@ async def create_movie(
 
     new_movie = Movie(
         collection_id=payload.collection_id,
+        storage_provider_id=payload.storage_provider_id,
         title=payload.title,
         slug=slug,
         description=payload.description,
@@ -144,6 +176,7 @@ async def create_movie(
         select(Movie)
         .where(Movie.id == new_movie.id)
         .options(
+            selectinload(Movie.storage_provider),
             selectinload(Movie.collection)
             .selectinload(Collection.library)
             .selectinload(Library.owner)
@@ -165,6 +198,7 @@ async def get_movie(
         select(Movie)
         .where(Movie.id == movie_id)
         .options(
+            selectinload(Movie.storage_provider),
             selectinload(Movie.collection)
             .selectinload(Collection.library)
             .selectinload(Library.owner)
@@ -206,7 +240,10 @@ async def update_movie(
     stmt = (
         select(Movie)
         .where(Movie.id == movie_id)
-        .options(selectinload(Movie.collection).selectinload(Collection.library))
+        .options(
+            selectinload(Movie.storage_provider),
+            selectinload(Movie.collection).selectinload(Collection.library)
+        )
     )
     result = await db.execute(stmt)
     movie = result.scalar_one_or_none()
@@ -232,6 +269,7 @@ async def update_movie(
         select(Movie)
         .where(Movie.id == movie_id)
         .options(
+            selectinload(Movie.storage_provider),
             selectinload(Movie.collection)
             .selectinload(Collection.library)
             .selectinload(Library.owner)
@@ -252,6 +290,7 @@ async def complete_movie_upload(
         select(Movie)
         .where(Movie.id == movie_id)
         .options(
+            selectinload(Movie.storage_provider),
             selectinload(Movie.collection)
             .selectinload(Collection.library)
             .selectinload(Library.owner)
@@ -291,6 +330,7 @@ async def complete_movie_upload(
         select(Movie)
         .where(Movie.id == movie_id)
         .options(
+            selectinload(Movie.storage_provider),
             selectinload(Movie.collection)
             .selectinload(Collection.library)
             .selectinload(Library.owner)
@@ -329,9 +369,8 @@ async def get_hls_key_token(
         select(Movie)
         .where(Movie.id == movie_id)
         .options(
-            selectinload(Movie.collection)
-            .selectinload(Collection.library)
-            .selectinload(Library.storage_provider)
+            selectinload(Movie.storage_provider),
+            selectinload(Movie.collection).selectinload(Collection.library)
         )
     )
     result = await db.execute(stmt)
@@ -381,7 +420,7 @@ async def get_hls_key_token(
 
     # In a production scenario, the StorageProvider should have a cdn_url configured
     # to proxy the B2 bucket via Cloudflare.
-    sp = movie.collection.library.storage_provider
+    sp = movie.storage_provider
     if sp.cdn_url:
         base_url = sp.cdn_url.rstrip("/")
         hls_url = f"{base_url}/{movie.hls_master_path}"
@@ -404,6 +443,7 @@ async def stream_movie_file(
     file_path: str,
     db: DatabaseDep,
     token: str | None = Query(None),
+    key_token: str | None = Query(None),
 ):
     """
     Backend streaming proxy for private B2 buckets.
@@ -431,9 +471,8 @@ async def stream_movie_file(
         select(Movie)
         .where(Movie.id == movie_id)
         .options(
-            selectinload(Movie.collection)
-            .selectinload(Collection.library)
-            .selectinload(Library.storage_provider)
+            selectinload(Movie.storage_provider),
+            selectinload(Movie.collection).selectinload(Collection.library)
         )
     )
     result = await db.execute(stmt)
@@ -441,7 +480,7 @@ async def stream_movie_file(
     if not movie:
         raise HTTPException(status_code=404, detail="Movie not found")
 
-    sp = movie.collection.library.storage_provider
+    sp = movie.storage_provider
     creds = json.loads(decrypt_secret(sp.credentials_encrypted))
 
     s3 = boto3.client(
@@ -467,60 +506,149 @@ async def stream_movie_file(
 
     if file_path.endswith(".m3u8"):
         # ── Rewriting proxy for playlists ─────────────────────────────────────
+        import httpx
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        logger.info(f"Fetching playlist {s3_key} from B2")
+        
         # Download the raw playlist text from S3 using a presigned URL
         presigned = s3.generate_presigned_url(
             ClientMethod="get_object",
             Params={"Bucket": sp.bucket_name, "Key": s3_key},
             ExpiresIn=300,
         )
-        import httpx
 
         async with httpx.AsyncClient() as client:
             r = await client.get(presigned)
             if r.status_code != 200:
+                logger.error(f"Failed to fetch playlist {s3_key}: status {r.status_code}")
                 raise HTTPException(status_code=502, detail="Failed to fetch playlist from storage")
             playlist_text = r.text
+            logger.info(f"Fetched playlist {s3_key}, length: {len(playlist_text)} chars")
 
         # Build the base URL for this proxy so we can rewrite relative URIs
-        # e.g. "http://localhost:8000/api/movies/<uuid>/stream/"
-        proxy_base = str(request.url).rsplit("/", 1)[0] + "/"
+        # e.g. "http://localhost:8000/api/movies/<uuid>/stream/hls/"
+        # Get the directory of the current file_path
+        current_dir = "/".join(file_path.split("/")[:-1])
+        if current_dir:
+            proxy_base = str(request.url).rsplit(f"/{file_path}", 1)[0] + "/" + current_dir + "/"
+        else:
+            proxy_base = str(request.url).rsplit(f"/{file_path}", 1)[0] + "/"
 
         rewritten_lines = []
         for line in playlist_text.splitlines():
             line = line.strip()
             if line.startswith("#EXT-X-KEY:"):
                 # Rewrite URI="watchparty://key" → our /hls-key endpoint
+                # Embed the hls_key_token directly in the URI so HLS.js fetches
+                # the key with auth — xhrSetup does NOT fire for key requests.
+                original_line = line
+                key_url = f"{str(request.base_url).rstrip('/')}/api/movies/{movie_id}/hls-key"
+                if key_token:
+                    key_url = f"{key_url}?token={quote(key_token, safe='')}"
                 line = re.sub(
                     r'URI="[^"]*"',
-                    f'URI="{str(request.base_url).rstrip("/")}/api/movies/{movie_id}/hls-key"',
+                    f'URI="{key_url}"',
                     line,
                 )
+                logger.info(f"Original EXT-X-KEY: {original_line}")
+                logger.info(f"Rewritten EXT-X-KEY: {line}")
             elif line and not line.startswith("#") and not line.startswith("http"):
-                # Relative segment filename → absolute proxy URL
-                # e.g. "seg_000.ts" → "http://localhost:8000/api/movies/<uuid>/stream/seg_000.ts"
+                # Relative segment/playlist filename → absolute proxy URL
+                # Pass both the stream token and key_token so sub-playlists
+                # can also rewrite key URIs correctly.
                 separator = "&" if "?" in line else "?"
-                line = f"{proxy_base}{line}{separator}token={quote(token, safe='')}"
+                extra = f"&key_token={quote(key_token, safe='')}" if key_token else ""
+                line = f"{proxy_base}{line}{separator}token={quote(token, safe='')}{extra}"
             rewritten_lines.append(line)
+
+        rewritten_playlist = "\n".join(rewritten_lines)
+        logger.info(f"Rewritten playlist {file_path}, lines: {len(rewritten_lines)}")
+        
+        # Log first 20 non-comment lines to see segment references
+        sample_lines = [l for l in rewritten_lines if l and not l.startswith('#')][:20]
+        logger.info(f"First segment references: {sample_lines[:5]}")
 
         from starlette.responses import PlainTextResponse
 
         return PlainTextResponse(
-            "\n".join(rewritten_lines),
+            rewritten_playlist,
             media_type="application/vnd.apple.mpegurl",
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+                "Access-Control-Allow-Headers": "*",
+                "Cache-Control": "no-cache",
+            },
         )
 
     else:
-        # ── Redirect for binary files (.ts segments, images, etc.) ───────────
+        # ── Fetch and return binary files directly ───────────
+        import httpx
+        from starlette.responses import Response
+        
         presigned = s3.generate_presigned_url(
             ClientMethod="get_object",
             Params={"Bucket": sp.bucket_name, "Key": s3_key},
             ExpiresIn=3600,
         )
-        return RedirectResponse(presigned)
+        
+        # Determine content type based on file extension
+        content_type = "application/octet-stream"
+        if file_path.endswith(".ts"):
+            content_type = "video/mp2t"
+        elif file_path.endswith((".jpg", ".jpeg")):
+            content_type = "image/jpeg"
+        elif file_path.endswith(".png"):
+            content_type = "image/png"
+        elif file_path.endswith(".webp"):
+            content_type = "image/webp"
+        
+        # Log the request
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Fetching {s3_key} from B2 via presigned URL")
+        
+        # Fetch the file from B2 with timeout
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                r = await client.get(presigned)
+                if r.status_code != 200:
+                    logger.error(f"B2 returned status {r.status_code} for {s3_key}")
+                    raise HTTPException(
+                        status_code=502, 
+                        detail=f"Storage returned status {r.status_code}"
+                    )
+                
+                logger.info(f"Successfully fetched {s3_key}, size: {len(r.content)} bytes")
+                
+                return Response(
+                    content=r.content,
+                    media_type=content_type,
+                    headers={
+                        "Access-Control-Allow-Origin": "*",
+                        "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+                        "Access-Control-Allow-Headers": "*",
+                        "Access-Control-Expose-Headers": "*",
+                        "Cache-Control": "public, max-age=3600",
+                        "Content-Length": str(len(r.content)),
+                    },
+                )
+        except httpx.TimeoutException as e:
+            logger.error(f"Timeout fetching {s3_key}: {e}")
+            raise HTTPException(status_code=504, detail="Timeout fetching file from storage")
+        except httpx.RequestError as e:
+            logger.error(f"Request error fetching {s3_key}: {e}")
+            raise HTTPException(status_code=502, detail=f"Network error: {str(e)}")
+        except Exception as e:
+            logger.error(f"Unexpected error fetching {s3_key}: {e}")
+            raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
 
 
 @router.get("/{movie_id}/hls-key")
 async def serve_hls_key(
+    request: Request,
     movie_id: uuid.UUID,
     db: DatabaseDep,
     token: str | None = Query(None),
@@ -534,11 +662,15 @@ async def serve_hls_key(
     We validate it and return the raw key bytes so the player can decrypt
     the video segments.
     """
+    import logging
     from jose import JWTError
     from starlette.responses import Response
 
     from app.core.security import decode_hls_key_token
     from app.models.hls_key import HLSKey
+    
+    logger = logging.getLogger(__name__)
+    logger.info(f"HLS key requested for movie {movie_id}")
 
     # Accept token from query param or Authorization header
     raw_token = token
@@ -569,6 +701,8 @@ async def serve_hls_key(
     # Decrypt and return raw bytes
     key_hex = decrypt_secret(hls_key.key_encrypted)
     key_bytes = bytes.fromhex(key_hex)
+    
+    logger.info(f"Serving HLS key for movie {movie_id}, key length: {len(key_bytes)} bytes")
 
     return Response(
         content=key_bytes,

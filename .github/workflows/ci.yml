@@ -33,9 +33,15 @@ jobs:
         run: npm ci
 
       - name: Type check
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.placeholder
         run: npx tsc --noEmit
 
       - name: Lint
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.placeholder
         run: npx eslint src --ext .ts,.tsx --max-warnings 0
 
   # -- Backend Checks ----------------------------------------------------------
@@ -75,5 +81,6 @@ jobs:
           SECRET_KEY: "ci-test-secret-key-not-for-production"
           ENCRYPTION_KEY: "Y2ktdGVzdC1lbmNyeXB0aW9uLWtleS0zMmJ5dGVzX18="
           HLS_KEY_SIGNING_SECRET: "ci-test-hls-signing-secret-not-for-production"
+          SUPABASE_JWT_SECRET: "ci-test-supabase-jwt-secret-not-for-production"
         run: python -m pytest tests/ -v --tb=short
         continue-on-error: true

@@ -2,8 +2,8 @@
 Security utilities: JWT, bcrypt, AES-256-GCM encryption, HLS key signing.
 
 Design decisions:
-- Access tokens are short-lived (30 min default).
-- Refresh tokens are long-lived (7 days default), stored as httpOnly cookies.
+- Session JWTs are now issued by Supabase Auth and validated using SUPABASE_JWT_SECRET.
+- Action tokens (ws, hls_key, stream, invite) are still signed locally with SECRET_KEY.
 - Storage provider credentials are encrypted with AES-256-GCM before DB storage.
   The nonce is prepended to the ciphertext and the whole thing is base64url-encoded.
 - HLS encryption keys are signed with a separate secret so they can be validated
@@ -30,11 +30,7 @@ settings = get_settings()
 
 
 def hash_password(password: str) -> str:
-    """Return a bcrypt hash of *password*.
-
-    rounds=10 is OWASP-recommended for web authentication — secure and ~150ms
-    instead of the ~300ms of the default 12 rounds.
-    """
+    """Return a bcrypt hash of *password*."""
     salt = bcrypt.gensalt(rounds=10)
     return bcrypt.hashpw(password.encode("utf-8"), salt).decode("ascii")
 
@@ -47,55 +43,108 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
 
 
-# ── JWT ───────────────────────────────────────────────────────────────────────
+# ── Supabase Session JWT ──────────────────────────────────────────────────────
+
+# Cache the JWKS so we don't fetch on every request.
+# Key: supabase_url, Value: list of JWK dicts
+_jwks_cache: dict[str, list[dict]] = {}
 
 
-def create_access_token(
-    subject: str,
-    role: str | None = None,
-    additional_claims: dict[str, Any] | None = None,
-) -> str:
-    """Create a short-lived JWT access token.
+async def _fetch_jwks() -> list[dict]:
+    """Fetch Supabase's JWKS, with in-memory caching. Returns [] on any error."""
+    if not settings.supabase_url:
+        return []
 
-    Args:
-        subject: User ID (UUID string).
-        role: User role string, embedded in the token to avoid DB lookups
-              on every request.
-        additional_claims: Any extra key-value pairs to embed.
+    if settings.supabase_url in _jwks_cache:
+        return _jwks_cache[settings.supabase_url]
 
-    Returns:
-        Signed JWT string.
+    try:
+        import httpx
+        jwks_url = f"{settings.supabase_url}/auth/v1/.well-known/jwks.json"
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(jwks_url)
+            resp.raise_for_status()
+            keys = resp.json().get("keys", [])
+        _jwks_cache[settings.supabase_url] = keys
+        return keys
+    except Exception as exc:
+        import structlog
+        structlog.get_logger().warning("jwks_fetch_failed", error=str(exc))
+        return []
+
+
+def _peek_alg(token: str) -> str:
+    """Extract the 'alg' field from a JWT header without validating."""
+    import base64
+    import json as _json
+    try:
+        seg = token.split(".")[0]
+        padded = seg + "=" * (4 - len(seg) % 4)
+        return _json.loads(base64.urlsafe_b64decode(padded)).get("alg", "HS256")
+    except Exception:
+        return "HS256"
+
+
+def decode_supabase_token(token: str) -> dict[str, Any]:
+    """Validate a Supabase HS256 token using the JWT secret (sync, legacy)."""
+    try:
+        alg = _peek_alg(token)
+        if alg != "HS256":
+            raise JWTError(f"Algorithm {alg} requires async validation")
+        return jwt.decode(token, settings.supabase_jwt_secret, algorithms=["HS256"], audience="authenticated")
+    except JWTError:
+        raise
+    except Exception as exc:
+        raise JWTError(str(exc)) from exc
+
+
+async def decode_supabase_token_async(token: str) -> dict[str, Any]:
+    """Validate a Supabase JWT — supports both HS256 and RS256.
+
+    - HS256: validated with SUPABASE_JWT_SECRET (symmetric).
+    - RS256: validated using public keys from Supabase's JWKS endpoint.
+
+    All exceptions are normalised to JWTError so callers always get a 401.
     """
-    expire = datetime.now(UTC) + timedelta(minutes=settings.access_token_expire_minutes)
-    payload: dict[str, Any] = {
-        "sub": subject,
-        "exp": expire,
-        "type": "access",
-    }
-    if role is not None:
-        payload["role"] = role
-    if additional_claims:
-        payload.update(additional_claims)
+    try:
+        alg = _peek_alg(token)
 
-    return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
+        if alg == "HS256":
+            return jwt.decode(token, settings.supabase_jwt_secret, algorithms=["HS256"], audience="authenticated")
+
+        # RS256 / asymmetric — use JWKS public keys
+        keys = await _fetch_jwks()
+        if not keys:
+            raise JWTError(
+                "Could not fetch Supabase JWKS. "
+                "Ensure SUPABASE_URL is set and the Supabase project is reachable."
+            )
+
+        last_exc: Exception = JWTError("No matching JWKS key found for this token")
+        for jwk_key in keys:
+            try:
+                # python-jose accepts JWK dicts directly for RSA keys
+                return jwt.decode(token, jwk_key, algorithms=[alg], audience="authenticated")
+            except JWTError as exc:
+                last_exc = exc
+            except Exception as exc:
+                last_exc = JWTError(str(exc))
+
+        raise last_exc
+
+    except JWTError:
+        raise
+    except Exception as exc:
+        # Catch-all: never let a non-JWTError escape and cause a 500
+        raise JWTError(f"Token validation error: {exc}") from exc
 
 
-def create_refresh_token(subject: str) -> str:
-    """Create a long-lived JWT refresh token.
 
-    Stored as an httpOnly cookie; should NOT contain sensitive claims.
-    """
-    expire = datetime.now(UTC) + timedelta(days=settings.refresh_token_expire_days)
-    payload: dict[str, Any] = {
-        "sub": subject,
-        "exp": expire,
-        "type": "refresh",
-    }
-    return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
+# ── Action token helpers (kept for ws, hls, stream, invite) ────────────────────
 
 
 def decode_token(token: str) -> dict[str, Any]:
-    """Decode and validate a JWT token.
+    """Decode and validate an action JWT (ws/hls/stream/invite) signed by SECRET_KEY.
 
     Raises:
         jose.JWTError: If the token is invalid, expired, or has a bad signature.

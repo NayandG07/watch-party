@@ -24,7 +24,7 @@ from jose import JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
-from app.core.security import decode_token
+from app.core.security import decode_supabase_token_async
 from app.db.session import get_db
 
 logger = structlog.get_logger()
@@ -43,7 +43,7 @@ async def get_current_user_id(
     ] = None,
     access_token: Annotated[str | None, Cookie()] = None,
 ) -> str:
-    """Extract and validate the current user's ID from a JWT.
+    """Extract and validate the current user's ID from a Supabase JWT.
 
     Accepts tokens from two sources (in order of preference):
     1. ``Authorization: Bearer <token>`` header
@@ -53,7 +53,7 @@ async def get_current_user_id(
         HTTPException 401: If no token is present or it is invalid/expired.
 
     Returns:
-        The ``sub`` claim from the token (user UUID as string).
+        The ``sub`` claim from the Supabase token (user UUID as string).
     """
     token: str | None = None
 
@@ -70,20 +70,14 @@ async def get_current_user_id(
         )
 
     try:
-        payload = decode_token(token)
+        payload = await decode_supabase_token_async(token)
     except JWTError as exc:
-        logger.debug("token_validation_failed", error=str(exc))
+        logger.warning("token_validation_failed", error=str(exc))
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
+            detail=f"Invalid or expired token: {exc}",
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
-
-    if payload.get("type") != "access":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token type",
-        )
 
     user_id: str | None = payload.get("sub")
     if not user_id:
@@ -96,16 +90,17 @@ async def get_current_user_id(
 
 
 async def get_current_user_role(
+    db: DatabaseDep,
     credentials: Annotated[
         HTTPAuthorizationCredentials | None,
         Depends(_bearer_scheme),
     ] = None,
     access_token: Annotated[str | None, Cookie()] = None,
 ) -> tuple[str, str]:
-    """Return ``(user_id, role)`` from the access token.
+    """Return ``(user_id, role)`` from the database.
 
-    Embedding the role in the JWT avoids a DB lookup on every request.
-    Role changes take effect at next login (or token refresh).
+    Reads the user_id from the Supabase JWT, then queries the local database
+    to ensure the role is always perfectly fresh, avoiding stale token issues.
 
     Returns:
         Tuple of (user_id: str, role: str).
@@ -124,7 +119,7 @@ async def get_current_user_role(
         )
 
     try:
-        payload = decode_token(token)
+        payload = await decode_supabase_token_async(token)
     except JWTError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -132,14 +127,20 @@ async def get_current_user_role(
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
 
-    if payload.get("type") != "access":
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
-
     user_id: str | None = payload.get("sub")
-    role: str = payload.get("role", "level1")
-
     if not user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+    # Fetch the fresh role directly from the database to avoid stale JWTs
+    from sqlalchemy import select
+    from app.models.user import User
+
+    result = await db.execute(select(User.role).where(User.id == user_id))
+    role = result.scalar_one_or_none()
+
+    if not role:
+        # Fallback if somehow not in local DB yet
+        role = payload.get("app_metadata", {}).get("role", "level1")
 
     return user_id, role
 

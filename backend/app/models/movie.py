@@ -31,6 +31,7 @@ if TYPE_CHECKING:
     from app.models.hls_key import HLSKey
     from app.models.permission import Permission
     from app.models.room import Room
+    from app.models.storage_provider import StorageProvider
 
 
 class Movie(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -42,6 +43,12 @@ class Movie(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     collection_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("collections.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    storage_provider_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("storage_providers.id", ondelete="RESTRICT"),
         nullable=False,
         index=True,
     )
@@ -95,7 +102,7 @@ class Movie(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # ── Visibility override ───────────────────────────────────────────────────
     # NULL = inherit from collection.visibility
     visibility_override: Mapped[Visibility | None] = mapped_column(
-        SAEnum(Visibility, native_enum=False, length=10),
+        SAEnum(Visibility, native_enum=False, length=10, values_callable=lambda x: [e.value for e in x]),
         nullable=True,
     )
 
@@ -170,6 +177,11 @@ class Movie(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # ── Relationships ─────────────────────────────────────────────────────────
     collection: Mapped[Collection] = relationship(
         "Collection",
+        back_populates="movies",
+        lazy="select",
+    )
+    storage_provider: Mapped[StorageProvider] = relationship(
+        "StorageProvider",
         back_populates="movies",
         lazy="select",
     )

@@ -75,7 +75,7 @@ class Room(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     # ── Authoritative timeline ────────────────────────────────────────────────
     state: Mapped[RoomState] = mapped_column(
-        SAEnum(RoomState, native_enum=False, length=10),
+        SAEnum(RoomState, native_enum=False, length=10, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
         default=RoomState.WAITING,
         server_default=RoomState.WAITING.value,

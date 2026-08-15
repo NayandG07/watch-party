@@ -231,19 +231,11 @@ Do not tightly couple the system to Backblaze.
 
 # Library Structure
 
-User
-
-↓
-
 Library
-
-↓
-
-Collections
-
-↓
-
-Movies / Series
+  |
+  +-- Collections (Virtual groupings)
+        |
+        +-- Movies / Series  <---> StorageProvider (Physical B2 Buckets)
 
 Permissions are primarily assigned at the Collection level.
 
@@ -544,9 +536,9 @@ while remaining:
 The following aspects of the platform have been implemented, modified, and verified to date:
 
 1. **Authentication & Authorization System**
-   - Dual-token JWT auth flow (access token + httpOnly refresh token cookie).
-   - Role-based dependencies (`RequireLevel2Dep`, `RequireAdminDep`, `CurrentUserIdDep`).
-   - Extended WS token TTL (5 minutes) and secure signed HLS key tokens.
+   - Delegated full authentication lifecycle (registration, login, magic links) to Supabase GoTrue.
+   - Role-based dependencies (`RequireLevel2Dep`, `RequireAdminDep`, `CurrentUserIdDep`) using Supabase JWT validation.
+   - Secure signed HLS key tokens using extended WS token TTL (5 minutes).
 
 2. **Room Management & Invite Flow**
    - Room lifecycle management (creation, locking, media selection).
@@ -564,7 +556,7 @@ The following aspects of the platform have been implemented, modified, and verif
 5. **Storage Provider & HLS Streaming Pipeline**
    - Backblaze B2 S3 storage integration with backend presigned URL streaming proxy (`/api/movies/{id}/stream/*`).
    - HLS playlist rewriting for AES-128 key fetching via `/api/movies/{id}/hls-key`.
-   - Updated standalone Python video processing script (`scripts/uploader/process.py`) with interactive user login, decrypted storage provider credentials API, HLS transcoding, AES-128 encryption, thumbnail generation, and metadata upload.
+   - Updated standalone Python video processing script (`scripts/uploader/process.py`) with Supabase authentication, `rich` TUI progress bars, decrypted storage provider credentials API, HLS transcoding, AES-128 encryption, thumbnail generation, and metadata upload.
 
 6. **Next.js Proxy & UI Layout Redesign**
    - Next.js API rewrite proxy (`next.config.mjs`) forwarding browser `/api/*` calls to FastAPI backend to eliminate CORS preflight issues.

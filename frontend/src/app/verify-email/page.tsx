@@ -1,11 +1,13 @@
-﻿"use client";
+"use client";
 
 import { Suspense, useRef, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, MailCheck, RefreshCw } from "lucide-react";
-import api, { getErrorMessage, tokenStorage } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
 import { toast } from "sonner";
+import api from "@/lib/api";
+import type { User } from "@/stores/authStore";
 
 function VerifyEmailContent() {
   const router = useRouter();
@@ -53,17 +55,28 @@ function VerifyEmailContent() {
     setIsVerifying(true);
     setError(null);
     try {
-      const { data } = await api.post<{
-        access_token: string;
-        user: import("@/stores/authStore").User;
-      }>("/api/auth/verify-email", { email, otp: code });
-      tokenStorage.set(data.access_token);
-      useAuthStore.getState().setUser(data.user);
+      // Supabase verifies the OTP and creates a session automatically
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        email,
+        token: code,
+        type: "signup",
+      });
+
+      if (verifyError) {
+        setError(verifyError.message);
+        setOtp(["", "", "", "", "", ""]);
+        inputRefs.current[0]?.focus();
+        return;
+      }
+
+      // Fetch the app-specific profile now that the session is active
+      const { data: userProfile } = await api.get<User>("/api/auth/me");
+      useAuthStore.getState().setUser(userProfile);
+
       toast.success("Email verified! Welcome to Watch Party 🎉");
       router.push("/library");
-    } catch (err) {
-      const msg = getErrorMessage(err);
-      setError(msg);
+    } catch {
+      setError("An unexpected error occurred. Please try again.");
       setOtp(["", "", "", "", "", ""]);
       inputRefs.current[0]?.focus();
     } finally {
@@ -74,12 +87,19 @@ function VerifyEmailContent() {
   const handleResend = async () => {
     setIsResending(true);
     try {
-      await api.post("/api/auth/resend-verification", { email });
-      toast.success("New code sent! Check your inbox.");
-      setOtp(["", "", "", "", "", ""]);
-      inputRefs.current[0]?.focus();
-    } catch (err) {
-      toast.error(getErrorMessage(err));
+      const { error: resendError } = await supabase.auth.resend({
+        type: "signup",
+        email,
+      });
+      if (resendError) {
+        toast.error(resendError.message);
+      } else {
+        toast.success("New code sent! Check your inbox.");
+        setOtp(["", "", "", "", "", ""]);
+        inputRefs.current[0]?.focus();
+      }
+    } catch {
+      toast.error("Failed to resend code. Please try again.");
     } finally {
       setIsResending(false);
     }
@@ -87,7 +107,7 @@ function VerifyEmailContent() {
 
   // Auto-submit when all 6 digits entered
   useEffect(() => {
-    if (otp.every(d => d !== "")) {
+    if (otp.every((d) => d !== "")) {
       handleVerify();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -124,13 +144,15 @@ function VerifyEmailContent() {
             {otp.map((digit, i) => (
               <input
                 key={i}
-                ref={el => { inputRefs.current[i] = el; }}
+                id={`otp-digit-${i}`}
+                name={`otp-digit-${i}`}
+                ref={(el) => { inputRefs.current[i] = el; }}
                 type="text"
                 inputMode="numeric"
                 maxLength={1}
                 value={digit}
-                onChange={e => handleChange(i, e.target.value)}
-                onKeyDown={e => handleKeyDown(i, e)}
+                onChange={(e) => handleChange(i, e.target.value)}
+                onKeyDown={(e) => handleKeyDown(i, e)}
                 disabled={isVerifying}
                 className="w-12 h-14 text-center text-xl font-bold rounded-xl border border-surface-border bg-surface-elevated text-content-primary focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 transition-all disabled:opacity-50"
               />
@@ -145,7 +167,7 @@ function VerifyEmailContent() {
 
           <button
             onClick={handleVerify}
-            disabled={isVerifying || otp.some(d => d === "")}
+            disabled={isVerifying || otp.some((d) => d === "")}
             className="btn-primary w-full h-11 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isVerifying ? (

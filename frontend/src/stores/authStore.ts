@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import api, { tokenStorage } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
+import api from "@/lib/api";
 
 export interface User {
   id: string;
@@ -14,7 +15,7 @@ interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isInitializing: boolean;
-  
+
   // Actions
   initialize: () => Promise<void>;
   setUser: (user: User | null) => void;
@@ -27,17 +28,40 @@ export const useAuthStore = create<AuthState>((set) => ({
   isInitializing: true,
 
   initialize: async () => {
+    // Check if there's an active Supabase session
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      set({ user: null, isAuthenticated: false, isInitializing: false });
+      return;
+    }
+
+    // Fetch the user's app-specific profile from the FastAPI backend
     try {
-      if (!tokenStorage.get()) {
-        set({ user: null, isAuthenticated: false, isInitializing: false });
-        return;
-      }
       const { data } = await api.get<User>("/api/auth/me");
       set({ user: data, isAuthenticated: true, isInitializing: false });
     } catch {
-      tokenStorage.clear();
       set({ user: null, isAuthenticated: false, isInitializing: false });
     }
+
+    // Listen for session changes (login, logout, token refresh, etc.)
+    supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === "SIGNED_OUT" || !session) {
+        set({ user: null, isAuthenticated: false });
+        return;
+      }
+
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED") {
+        try {
+          const { data } = await api.get<User>("/api/auth/me");
+          set({ user: data, isAuthenticated: true });
+        } catch {
+          set({ user: null, isAuthenticated: false });
+        }
+      }
+    });
   },
 
   setUser: (user) => {
@@ -45,11 +69,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: async () => {
-    try {
-      await api.post("/api/auth/logout");
-    } finally {
-      tokenStorage.clear();
-      set({ user: null, isAuthenticated: false });
-    }
+    await supabase.auth.signOut();
+    // onAuthStateChange SIGNED_OUT event will clear state automatically
+    set({ user: null, isAuthenticated: false });
   },
 }));

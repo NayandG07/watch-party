@@ -2,7 +2,7 @@ import uuid
 
 import structlog
 from fastapi import APIRouter, HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.core.dependencies import DatabaseDep, RequireAdminDep
 from app.models.user import User
@@ -49,6 +49,15 @@ async def update_user(
 
     for key, value in update_data.items():
         setattr(user, key, value)
+
+    # Sync role to JWT app_metadata in auth.users so the token reflects the change
+    if "role" in update_data:
+        stmt = text(
+            "UPDATE auth.users "
+            "SET raw_app_meta_data = COALESCE(raw_app_meta_data, '{}'::jsonb) || jsonb_build_object('role', :role) "
+            "WHERE id = :id"
+        )
+        await db.execute(stmt, {"role": update_data["role"], "id": user_id})
 
     await db.commit()
     await db.refresh(user)

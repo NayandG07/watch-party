@@ -16,6 +16,7 @@ from pydantic import Field
 from app.models.enums import Visibility
 from app.schemas.base import WatchPartyModel
 from app.schemas.library import CollectionBrief
+from app.schemas.storage import StorageProviderBrief
 
 # ── Sub-schemas for JSONB fields ──────────────────────────────────────────────
 
@@ -47,6 +48,7 @@ class MovieCreate(WatchPartyModel):
     """Initial creation (usually by the uploader script before processing)."""
 
     collection_id: uuid.UUID
+    storage_provider_id: uuid.UUID
     title: str = Field(..., min_length=1, max_length=255)
     description: str | None = None
     year: int | None = Field(default=None, ge=1888, le=2100)
@@ -100,6 +102,7 @@ class MovieResponse(WatchPartyModel):
 
     id: uuid.UUID
     collection_id: uuid.UUID
+    storage_provider_id: uuid.UUID
     title: str
     slug: str
     description: str | None
@@ -123,6 +126,7 @@ class MovieResponse(WatchPartyModel):
     created_at: datetime
 
     collection: CollectionBrief
+    storage_provider: StorageProviderBrief
 
     # These paths are translated to CDN URLs at the service layer
     # before returning to the frontend.

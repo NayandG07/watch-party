@@ -27,7 +27,7 @@ async def list_libraries(
     user_id, user_role = user_role_pair
     stmt = (
         select(Library)
-        .options(selectinload(Library.owner), selectinload(Library.storage_provider))
+        .options(selectinload(Library.owner))
         .order_by(Library.created_at.desc())
     )
     result = await db.execute(stmt)
@@ -52,18 +52,29 @@ async def create_library(
     new_library = Library(
         name=payload.name,
         description=payload.description,
-        storage_provider_id=payload.storage_provider_id,
         is_private=payload.is_private,
         owner_id=uuid.UUID(user_id),
     )
     db.add(new_library)
+    await db.flush()
+
+    # Create default collection so it shows up in the library-summary view
+    from app.models.enums import Visibility
+    default_collection = Collection(
+        library_id=new_library.id,
+        name="Main Collection",
+        description="Default collection",
+        visibility=Visibility.PRIVATE if new_library.is_private else Visibility.SHARED,
+        sort_order=0,
+    )
+    db.add(default_collection)
     await db.commit()
 
     # Reload with relations
     stmt = (
         select(Library)
         .where(Library.id == new_library.id)
-        .options(selectinload(Library.owner), selectinload(Library.storage_provider))
+        .options(selectinload(Library.owner))
     )
     result = await db.execute(stmt)
     return result.scalar_one()
@@ -188,7 +199,7 @@ async def get_library(
     stmt = (
         select(Library)
         .where(Library.id == library_id)
-        .options(selectinload(Library.owner), selectinload(Library.storage_provider))
+        .options(selectinload(Library.owner))
     )
     result = await db.execute(stmt)
     library = result.scalar_one_or_none()
@@ -213,7 +224,7 @@ async def update_library(
     stmt = (
         select(Library)
         .where(Library.id == library_id)
-        .options(selectinload(Library.owner), selectinload(Library.storage_provider))
+        .options(selectinload(Library.owner))
     )
     result = await db.execute(stmt)
     library = result.scalar_one_or_none()

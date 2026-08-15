@@ -1,14 +1,13 @@
-"use client";
-
+import type { Metadata } from "next";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import RegisterForm from "./register-form";
-import { Suspense } from "react";
 
-function RegisterContent() {
-  const searchParams = useSearchParams();
-  const inviteToken = searchParams.get("token") || searchParams.get("invite");
+export const metadata: Metadata = {
+  title: "Create Account",
+  description: "Create your Watch Party account.",
+};
 
+export default function RegisterPage() {
   return (
     <main className="min-h-dvh flex bg-surface-base overflow-hidden">
       {/* Left Panel - Hidden on Mobile */}
@@ -68,7 +67,7 @@ function RegisterContent() {
           </div>
 
           <div className="glass p-8 shadow-card rounded-2xl border border-white/5">
-            <RegisterForm inviteToken={inviteToken} />
+            <RegisterForm />
           </div>
 
           <p className="text-center mt-8 text-sm text-content-muted">
@@ -80,17 +79,5 @@ function RegisterContent() {
         </div>
       </div>
     </main>
-  );
-}
-
-export default function RegisterPage() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-dvh flex items-center justify-center bg-surface-base">
-        <div className="w-8 h-8 rounded-full border-2 border-brand-500 border-t-transparent animate-spin" />
-      </div>
-    }>
-      <RegisterContent />
-    </Suspense>
   );
 }

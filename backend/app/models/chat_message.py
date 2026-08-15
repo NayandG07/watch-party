@@ -58,7 +58,7 @@ class ChatMessage(Base, UUIDPrimaryKeyMixin):
         "For TIMESTAMP_SHARE: human-readable label e.g. '1:23:45'.",
     )
     message_type: Mapped[MessageType] = mapped_column(
-        SAEnum(MessageType, native_enum=False, length=20),
+        SAEnum(MessageType, native_enum=False, length=20, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
         default=MessageType.TEXT,
         server_default=MessageType.TEXT.value,

@@ -1,28 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Loader2, Check } from "lucide-react";
-import api, { getErrorMessage } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 
-interface RegisterResponse {
-  message: string;
-  email: string;
-  requires_verification: boolean;
-}
-
-interface Props {
-  inviteToken: string | null;
-}
-
-export default function RegisterForm({ inviteToken }: Props) {
-  const router = useRouter();
+export default function RegisterForm() {
   const [form, setForm] = useState({
     username: "",
     email: "",
     password: "",
     confirmPassword: "",
+    success: false,
   });
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -47,31 +36,47 @@ export default function RegisterForm({ inviteToken }: Props) {
     setError(null);
 
     try {
-      const { data } = await api.post<RegisterResponse>("/api/auth/register", {
-        ...(inviteToken ? { invite_token: inviteToken } : {}),
-        username: form.username.trim(),
+      const { error: signUpError } = await supabase.auth.signUp({
         email: form.email.trim(),
         password: form.password,
+        options: {
+          data: {
+            username: form.username.trim().toLowerCase(),
+          },
+        },
       });
 
-      // Account created — redirect to email verification
-      if (data.requires_verification) {
-        router.push(`/verify-email?email=${encodeURIComponent(data.email)}`);
+      if (signUpError) {
+        setError(signUpError.message);
         return;
       }
 
-      // Fallback (should not happen with email verification enabled)
-      router.push("/library");
-    } catch (err) {
-      setError(getErrorMessage(err));
+      // Supabase sent a magic/confirmation link. Show success message instead of redirecting.
+      setForm((prev) => ({ ...prev, success: true }));
+    } catch {
+      setError("An unexpected error occurred. Please try again.");
     } finally {
       setIsLoading(false);
     }
   }
 
+  if (form.success) {
+    return (
+      <div className="text-center space-y-4 py-8 animate-fade-in">
+        <div className="w-16 h-16 bg-success/10 text-success rounded-full flex items-center justify-center mx-auto mb-6">
+          <Check className="w-8 h-8" />
+        </div>
+        <h3 className="text-xl font-semibold text-content-primary">Check your email</h3>
+        <p className="text-content-secondary text-sm">
+          We sent a confirmation link to <strong className="text-content-primary">{form.email}</strong>.
+          Click the link to activate your account.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-4">
-
       <div className="space-y-1.5">
         <label htmlFor="reg-username" className="text-sm font-medium text-content-secondary">
           Username

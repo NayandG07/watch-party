@@ -5,7 +5,7 @@ Watch Party — Video Uploader
 Usage:
     python process.py /path/to/movie.mkv
 
-That's it! The script will ask for your username and password,
+That's it! The script will authenticate you via Supabase (requires .env),
 then guide you through picking a collection and confirming the title.
 No UUIDs, no config files, no technical knowledge needed.
 
@@ -15,7 +15,6 @@ To connect to a remote server:
 Requirements: ffmpeg, ffprobe + Python packages in requirements.txt
 """
 
-import getpass
 import json
 import os
 import secrets
@@ -24,195 +23,191 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-
 import argparse
+
 import boto3
 import httpx
 from botocore.client import Config
+from dotenv import load_dotenv
+from supabase import create_client, Client
 
+from rich.console import Console
+from rich.prompt import Prompt, IntPrompt
+from rich.progress import (
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    BarColumn,
+    DownloadColumn,
+    TransferSpeedColumn,
+    TimeRemainingColumn,
+)
+
+console = Console()
 
 # ── Auth helpers ───────────────────────────────────────────────────────────────
 
-def prompt_auth(api_url: str) -> str:
-    """Prompt for username and password, return a valid JWT access token.
+def init_supabase() -> Client:
+    """Initialize Supabase client from .env configuration."""
+    env_path = Path(__file__).parent / ".env"
+    load_dotenv(dotenv_path=env_path)
+    
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_ANON_KEY")
+    
+    if not url or not key:
+        console.print("[red bold]Error:[/] SUPABASE_URL or SUPABASE_ANON_KEY not found in .env file.")
+        console.print("Please create a [bold].env[/] file in the uploader directory with your Supabase credentials.")
+        sys.exit(1)
+        
+    return create_client(url, key)
 
-    Args:
-        api_url: Base URL of the Watch Party backend (no trailing slash).
 
-    Returns:
-        access_token — a valid JWT for the authenticated user.
+def prompt_auth(supabase: Client) -> str:
+    """Prompt for username and password, return a valid JWT access token from Supabase.
     """
-    print(f"Connecting to {api_url}")
-    username = input("Username: ").strip()
-    password = getpass.getpass("Password: ")
+    console.print("\n[bold cyan]Authentication[/]")
+    email = Prompt.ask("Email")
+    password = Prompt.ask("Password", password=True)
 
-    print("Authenticating…")
-    try:
-        resp = httpx.post(
-            f"{api_url}/api/auth/login",
-            json={"username": username, "password": password},
-            timeout=30.0,
-        )
-    except httpx.ConnectError as exc:
-        print(f"[ERROR] Could not connect to {api_url}: {exc}")
-        sys.exit(1)
-
-    if resp.status_code != 200:
+    with console.status("[cyan]Authenticating with Supabase...", spinner="dots"):
         try:
-            detail = resp.json().get("detail", resp.text)
-        except Exception:
-            detail = resp.text
-        print(f"[ERROR] Authentication failed ({resp.status_code}): {detail}")
-        sys.exit(1)
+            response = supabase.auth.sign_in_with_password({"email": email, "password": password})
+            access_token = response.session.access_token
+        except Exception as e:
+            console.print(f"[red bold]Authentication failed:[/] {e}")
+            sys.exit(1)
 
-    access_token = resp.json().get("access_token")
     if not access_token:
-        print("[ERROR] No access_token in login response.")
+        console.print("[red bold]Error:[/] No access_token in login response.")
         sys.exit(1)
 
     return access_token
 
 
 def verify_role(api_url: str, headers: dict) -> None:
-    """Verify the authenticated user has level2 or super_admin role.
-
-    Exits with an error message if the role is insufficient.
-    """
-    resp = httpx.get(f"{api_url}/api/auth/me", headers=headers, timeout=30.0)
-    if resp.status_code != 200:
-        print(f"[ERROR] Could not verify user role ({resp.status_code}): {resp.text}")
-        sys.exit(1)
+    """Verify the authenticated user has level2 or super_admin role."""
+    with console.status("[cyan]Verifying role permissions...", spinner="dots"):
+        try:
+            resp = httpx.get(f"{api_url}/api/auth/me", headers=headers, timeout=30.0)
+            resp.raise_for_status()
+        except Exception as e:
+            console.print(f"[red bold]Could not verify user role:[/] {e}")
+            sys.exit(1)
 
     me = resp.json()
     role = me.get("role", "")
     if role not in ("level2", "super_admin"):
-        print(
-            f"[ERROR] Insufficient permissions. Your role is '{role}'. "
-            "You need 'level2' or 'super_admin' to use the uploader."
-        )
+        console.print(f"[red bold]Insufficient permissions.[/] Your role is '{role}'. You need 'level2' or 'super_admin'.")
         sys.exit(1)
 
-    print(f"Logged in as {me.get('username', me.get('email', 'unknown'))} (role: {role})")
+    console.print(f"[green]✓ Logged in as[/] [bold]{me.get('username', me.get('email', 'unknown'))}[/] (role: [italic]{role}[/])")
 
 
 def fetch_storage_provider(api_url: str, headers: dict) -> dict:
-    """Fetch storage provider credentials from the API.
-
-    If no providers exist, prints an error and exits.
-    If multiple exist, prompts the user to choose one.
-
-    Returns:
-        A dict with keys: id, bucket_name, endpoint_url, key_id, application_key
-    """
-    resp = httpx.get(f"{api_url}/api/storage-providers", headers=headers, timeout=30.0)
+    """Fetch storage provider credentials from the API."""
+    with console.status("[cyan]Fetching storage providers...", spinner="dots"):
+        resp = httpx.get(f"{api_url}/api/storage-providers", headers=headers, timeout=30.0)
+        
     if resp.status_code != 200:
-        print(f"[ERROR] Failed to list storage providers ({resp.status_code}): {resp.text}")
+        console.print(f"[red bold]Failed to list storage providers:[/] {resp.text}")
         sys.exit(1)
 
     providers = resp.json()
     if not providers:
-        print(
-            f"[ERROR] No storage bucket configured. "
-            f"Please add one in your account settings at {api_url}/admin/settings/storage"
-        )
+        console.print(f"[red bold]No storage bucket configured.[/] Please add one in your account settings.")
         sys.exit(1)
 
     if len(providers) == 1:
         chosen = providers[0]
     else:
-        print("\nAvailable storage providers:")
+        console.print("\n[bold]Available storage providers:[/]")
         for i, p in enumerate(providers, start=1):
-            print(f"  {i}. {p['name']}  [{p['provider_type']}]  bucket: {p['bucket_name']}")
-        while True:
-            raw = input(f"Select a provider [1-{len(providers)}]: ").strip()
-            if raw.isdigit() and 1 <= int(raw) <= len(providers):
-                chosen = providers[int(raw) - 1]
-                break
-            print(f"  Please enter a number between 1 and {len(providers)}.")
+            console.print(f"  [cyan]{i}.[/] {p['name']} [dim]({p['provider_type']}) - {p['bucket_name']}[/]")
+        
+        choice = IntPrompt.ask("Select a provider", choices=[str(i) for i in range(1, len(providers) + 1)])
+        chosen = providers[choice - 1]
 
     provider_id = chosen["id"]
 
-    # Fetch decrypted credentials from the dedicated endpoint
-    cred_resp = httpx.get(
-        f"{api_url}/api/storage-providers/{provider_id}/credentials",
-        headers=headers,
-        timeout=30.0,
-    )
-    if cred_resp.status_code != 200:
-        print(
-            f"[ERROR] Could not retrieve credentials for provider '{chosen['name']}' "
-            f"({cred_resp.status_code}): {cred_resp.text}"
+    with console.status(f"[cyan]Decrypting credentials for {chosen['name']}...", spinner="dots"):
+        cred_resp = httpx.get(
+            f"{api_url}/api/storage-providers/{provider_id}/credentials",
+            headers=headers,
+            timeout=30.0,
         )
+        
+    if cred_resp.status_code != 200:
+        console.print(f"[red bold]Could not retrieve credentials:[/] {cred_resp.text}")
         sys.exit(1)
 
     creds = cred_resp.json()
+    endpoint_url = creds.get("endpoint_url", "")
+    if endpoint_url and not endpoint_url.startswith("http"):
+        endpoint_url = f"https://{endpoint_url}"
+        
+    console.print(f"[green]✓ Connected to storage:[/] [bold]{chosen['name']}[/]")
     return {
         "id": provider_id,
         "name": chosen["name"],
         "bucket_name": creds["bucket_name"],
-        "endpoint_url": creds["endpoint_url"],
+        "endpoint_url": endpoint_url,
         "key_id": creds["key_id"],
         "application_key": creds["application_key"],
     }
 
 
 def fetch_collection(api_url: str, headers: dict) -> str:
-    """List available collections and let the user pick one.
-
-    Returns:
-        collection_id (UUID string) of the chosen collection.
-    """
-    resp = httpx.get(f"{api_url}/api/collections", headers=headers, timeout=30.0)
-    if resp.status_code != 200:
-        print(f"[ERROR] Failed to list collections ({resp.status_code}): {resp.text}")
+    """List all available collections and let the user pick one."""
+    with console.status("[cyan]Fetching collections...", spinner="dots"):
+        col_resp = httpx.get(f"{api_url}/api/collections", headers=headers, timeout=30.0)
+        
+    if col_resp.status_code != 200:
+        console.print(f"[red bold]Failed to list collections:[/] {col_resp.text}")
         sys.exit(1)
 
-    collections = resp.json()
+    collections = col_resp.json()
+
     if not collections:
-        print(
-            "[ERROR] No collections found. Please create a collection in the web UI first.\n"
-            f"  → {api_url}/library"
-        )
+        console.print("[red bold]No collections found.[/] Please create a library and collection in the web UI first.")
         sys.exit(1)
 
     if len(collections) == 1:
         chosen = collections[0]
-        print(f"Adding to collection: {chosen['name']}")
+        console.print(f"[green]✓ Auto-selected collection:[/] [bold]{chosen['name']}[/]")
         return chosen["id"]
 
-    print("\nAvailable collections:")
+    console.print("\n[bold]Available collections:[/]")
     for i, c in enumerate(collections, start=1):
-        print(f"  {i}. {c['name']}")
-    while True:
-        raw = input(f"Select a collection [1-{len(collections)}]: ").strip()
-        if raw.isdigit() and 1 <= int(raw) <= len(collections):
-            return collections[int(raw) - 1]["id"]
-        print(f"  Please enter a number between 1 and {len(collections)}.")
+        console.print(f"  [cyan]{i}.[/] {c['name']}")
+        
+    choice = IntPrompt.ask("Select a collection", choices=[str(i) for i in range(1, len(collections) + 1)])
+    return collections[choice - 1]["id"]
 
 
-def create_movie_record(api_url: str, headers: dict, title: str, collection_id: str) -> str:
-    """Create an empty movie record via the API and return its UUID."""
+def create_movie_record(api_url: str, headers: dict, title: str, collection_id: str, provider_id: str) -> str:
+    """Create the initial movie record in the database."""
+    payload = {
+        "collection_id": collection_id,
+        "storage_provider_id": provider_id,
+        "title": title
+    }
     resp = httpx.post(
         f"{api_url}/api/movies",
-        json={"title": title, "collection_id": collection_id},
+        json=payload,
         headers=headers,
         timeout=30.0,
     )
     if resp.status_code != 201:
-        try:
-            detail = resp.json().get("detail", resp.text)
-        except Exception:
-            detail = resp.text
-        print(f"[ERROR] Failed to create movie record ({resp.status_code}): {detail}")
+        console.print(f"[red bold]Failed to create movie record:[/] {resp.text}")
         sys.exit(1)
 
     movie_id = resp.json()["id"]
-    print(f"Created movie record: {title} (id: {movie_id})")
+    console.print(f"[green]✓ Created movie record:[/] {title} (id: {movie_id})")
     return movie_id
 
 
 def build_s3_client(provider: dict):
-    """Return a boto3 S3 client configured for the chosen storage provider."""
     return boto3.client(
         "s3",
         endpoint_url=provider["endpoint_url"],
@@ -222,13 +217,30 @@ def build_s3_client(provider: dict):
     )
 
 
+def configure_bucket_cors(s3_client, bucket_name: str):
+    cors_configuration = {
+        'CORSRules': [{
+            'AllowedHeaders': ['*'],
+            'AllowedMethods': ['GET', 'HEAD', 'OPTIONS'],
+            'AllowedOrigins': ['*'],
+            'ExposeHeaders': ['*'],
+            'MaxAgeSeconds': 3600
+        }]
+    }
+    with console.status(f"[cyan]Configuring CORS for bucket {bucket_name}...", spinner="dots"):
+        try:
+            s3_client.put_bucket_cors(Bucket=bucket_name, CORSConfiguration=cors_configuration)
+            console.print(f"[green]✓ Configured CORS for bucket {bucket_name}[/]")
+        except Exception as e:
+            console.print(f"[yellow]Warning: Could not configure CORS automatically. You may need to set it manually in B2 dashboard.[/] ({e})")
+
+
 # ── Video processing ───────────────────────────────────────────────────────────
 
 def run_command(cmd: list[str]) -> str:
-    print(f"Running: {' '.join(cmd)}")
     result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     if result.returncode != 0:
-        print(f"Command failed:\n{result.stderr}")
+        console.print(f"[red bold]Command failed:[/]\n{result.stderr}")
         sys.exit(1)
     return result.stdout
 
@@ -264,7 +276,6 @@ def process_video(input_path: Path, output_dir: Path, movie_slug: str) -> dict:
 
     master_playlist = output_dir / "master.m3u8"
 
-    print("Transcoding to HLS (this might take a while)…")
     cmd = [
         "ffmpeg",
         "-y",
@@ -280,20 +291,22 @@ def process_video(input_path: Path, output_dir: Path, movie_slug: str) -> dict:
         "-hls_segment_filename", str(output_dir / "seg_%03d.ts"),
         str(master_playlist),
     ]
-    run_command(cmd)
+    
+    with console.status("[magenta]Transcoding to HLS (this might take a while)...[/]", spinner="bouncingBar"):
+        run_command(cmd)
 
-    print("Generating poster and backdrop…")
-    poster_path = output_dir / "poster.jpg"
-    run_command([
-        "ffmpeg", "-y", "-ss", "00:00:05", "-i", str(input_path),
-        "-vframes", "1", "-q:v", "2", str(poster_path),
-    ])
+    with console.status("[magenta]Generating poster and backdrop...[/]", spinner="bouncingBar"):
+        poster_path = output_dir / "poster.jpg"
+        run_command([
+            "ffmpeg", "-y", "-ss", "00:00:05", "-i", str(input_path),
+            "-vframes", "1", "-q:v", "2", str(poster_path),
+        ])
 
-    backdrop_path = output_dir / "backdrop.jpg"
-    run_command([
-        "ffmpeg", "-y", "-ss", "00:00:10", "-i", str(input_path),
-        "-vframes", "1", "-q:v", "2", str(backdrop_path),
-    ])
+        backdrop_path = output_dir / "backdrop.jpg"
+        run_command([
+            "ffmpeg", "-y", "-ss", "00:00:10", "-i", str(input_path),
+            "-vframes", "1", "-q:v", "2", str(backdrop_path),
+        ])
 
     return {
         "hls_key_hex": hls_key_hex,
@@ -304,9 +317,20 @@ def process_video(input_path: Path, output_dir: Path, movie_slug: str) -> dict:
     }
 
 
-def upload_to_b2(file_path: Path, s3_key: str, s3_client, bucket_name: str) -> None:
-    print(f"Uploading {file_path.name} → {s3_key}")
-    s3_client.upload_file(str(file_path), bucket_name, s3_key)
+def upload_to_b2_with_progress(file_path: Path, s3_key: str, s3_client, bucket_name: str, progress: Progress) -> None:
+    file_size = file_path.stat().st_size
+    task_id = progress.add_task(f"[cyan]Uploading {file_path.name}", total=file_size)
+    
+    class ProgressCallback:
+        def __init__(self):
+            self.uploaded = 0
+            
+        def __call__(self, bytes_amount):
+            self.uploaded += bytes_amount
+            progress.update(task_id, advance=bytes_amount)
+            
+    s3_client.upload_file(str(file_path), bucket_name, s3_key, Callback=ProgressCallback())
+    progress.remove_task(task_id)
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
@@ -327,13 +351,17 @@ def main() -> None:
     args = parser.parse_args()
     api_url = args.api_url.rstrip("/")
 
+    console.print(f"\n[bold magenta]Watch Party Video Uploader[/]")
+    console.print(f"Target Backend: [underline]{api_url}[/]")
+
     input_path = Path(args.input_file).resolve()
     if not input_path.exists():
-        print(f"[ERROR] Input file not found: {input_path}")
+        console.print(f"[red bold]Error:[/] Input file not found: {input_path}")
         sys.exit(1)
 
-    # ── Step 1: Interactive authentication (username + password only) ──────────
-    access_token = prompt_auth(api_url)
+    # ── Step 1: Initialize Supabase & Auth ──────────────────────────────────────
+    supabase = init_supabase()
+    access_token = prompt_auth(supabase)
     headers = {"Authorization": f"Bearer {access_token}"}
 
     # ── Step 2: Verify role ───────────────────────────────────────────────────
@@ -341,31 +369,25 @@ def main() -> None:
 
     # ── Step 3: Fetch storage provider + decrypted credentials ───────────────
     provider = fetch_storage_provider(api_url, headers)
-    print(f"\nUsing storage provider: {provider['name']}  (bucket: {provider['bucket_name']})")
-
     s3_client = build_s3_client(provider)
+    
+    # ── Step 3.5: Ensure CORS is configured ──────────────────────────────────
+    configure_bucket_cors(s3_client, provider["bucket_name"])
 
     # ── Step 4: Pick collection and create movie record ───────────────────────
-    print("")
     collection_id = fetch_collection(api_url, headers)
 
-    # Default title = filename without extension, prettified
     default_title = input_path.stem.replace(".", " ").replace("_", " ").replace("-", " ").title()
-    title_input = input(f"Movie title [{default_title}]: ").strip()
-    title = title_input if title_input else default_title
+    title = Prompt.ask(f"Movie title", default=default_title)
 
-    movie_id = create_movie_record(api_url, headers, title, collection_id)
-    print("")
+    movie_id = create_movie_record(api_url, headers, title, collection_id, provider["id"])
+    console.print()
 
     # ── Step 5: Probe input video ─────────────────────────────────────────────
-    print(f"Probing: {input_path}")
-    probe = probe_video(input_path)
+    with console.status(f"[cyan]Probing {input_path.name}...", spinner="dots"):
+        probe = probe_video(input_path)
 
-    # Extract useful metadata from ffprobe output
-    video_stream = next(
-        (s for s in probe.get("streams", []) if s.get("codec_type") == "video"),
-        {},
-    )
+    video_stream = next((s for s in probe.get("streams", []) if s.get("codec_type") == "video"), {})
     fmt = probe.get("format", {})
     duration_seconds = float(fmt.get("duration", 0))
     codec = video_stream.get("codec_name")
@@ -373,10 +395,10 @@ def main() -> None:
     resolution_height = video_stream.get("height")
     file_size_bytes = int(fmt.get("size", 0)) or None
 
-    movie_slug = movie_id  # used as folder prefix in the bucket
+    movie_slug = movie_id
     output_dir = Path(tempfile.mkdtemp(prefix=f"watchparty_{movie_slug}_"))
 
-    # ── Step 5: Transcode + generate images ──────────────────────────────────
+    # ── Step 6: Transcode + generate images ──────────────────────────────────
     result = process_video(input_path, output_dir, movie_slug)
 
     hls_key_hex = result["hls_key_hex"]
@@ -384,68 +406,82 @@ def main() -> None:
     master_playlist: Path = result["master_playlist"]
     poster_path: Path = result["poster_path"]
     backdrop_path: Path = result["backdrop_path"]
+    
+    console.print("[green]✓ Transcoding and metadata generation complete.[/]\n")
 
-    # ── Step 6: Upload all files to bucket ────────────────────────────────────
+    # ── Step 7: Upload all files to bucket ────────────────────────────────────
     bucket = provider["bucket_name"]
     base_key = f"movies/{movie_slug}"
-
-    # Upload all HLS segments and playlists
-    for file in sorted(output_dir.glob("*.m3u8")) + sorted(output_dir.glob("*.ts")):
-        upload_to_b2(file, f"{base_key}/hls/{file.name}", s3_client, bucket)
-
-    # Upload the encryption key (served by the API, not from the bucket directly,
-    # but we store it so the backend can retrieve it if needed)
+    
+    files_to_upload = sorted(output_dir.glob("*.m3u8")) + sorted(output_dir.glob("*.ts"))
+    
     enc_key_file = output_dir / "enc.key"
     if enc_key_file.exists():
-        upload_to_b2(enc_key_file, f"{base_key}/enc.key", s3_client, bucket)
-
-    # Upload images
-    hls_master_s3_key = f"{base_key}/hls/master.m3u8"
-    poster_s3_key = f"{base_key}/poster.jpg"
-    backdrop_s3_key = f"{base_key}/backdrop.jpg"
-
-    upload_to_b2(poster_path, poster_s3_key, s3_client, bucket)
-    upload_to_b2(backdrop_path, backdrop_s3_key, s3_client, bucket)
-
-    # ── Step 7: Notify API of completed upload ────────────────────────────────
-    print("\nNotifying API of completed upload…")
-    patch_payload = {
-        "duration_seconds": duration_seconds,
-        "hls_master_path": hls_master_s3_key,
-        "poster_path": poster_s3_key,
-        "backdrop_path": backdrop_s3_key,
-        "hls_key_hex": hls_key_hex,
-        "hls_iv_hex": hls_iv_hex,
-        "is_processed": True,
-        "is_uploaded": True,
-    }
-    if codec:
-        patch_payload["codec"] = codec
-    if resolution_width:
-        patch_payload["resolution_width"] = resolution_width
-    if resolution_height:
-        patch_payload["resolution_height"] = resolution_height
-    if file_size_bytes:
-        patch_payload["file_size_bytes"] = file_size_bytes
-
-    patch_resp = httpx.patch(
-        f"{api_url}/api/movies/{movie_id}/upload-complete",
-        json=patch_payload,
-        headers=headers,
-        timeout=30.0,
+        files_to_upload.append(enc_key_file)
+        
+    files_to_upload.extend([poster_path, backdrop_path])
+    
+    total_files = len(files_to_upload)
+    console.print(f"[bold cyan]Uploading {total_files} files to storage...[/]")
+    
+    # Progress UI for Upload
+    upload_progress = Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        DownloadColumn(),
+        TransferSpeedColumn(),
+        TimeRemainingColumn(),
+        console=console
     )
-    if patch_resp.status_code != 200:
-        print(
-            f"[ERROR] Failed to update movie record ({patch_resp.status_code}): "
-            f"{patch_resp.text}"
+    
+    overall_task = upload_progress.add_task("[bold yellow]Overall Progress", total=total_files)
+
+    with upload_progress:
+        for i, file in enumerate(files_to_upload):
+            # Determine S3 key based on file type
+            if file.suffix in [".m3u8", ".ts"]:
+                s3_key = f"{base_key}/hls/{file.name}"
+            elif file.name == "enc.key":
+                s3_key = f"{base_key}/enc.key"
+            else:
+                s3_key = f"{base_key}/{file.name}"
+                
+            upload_to_b2_with_progress(file, s3_key, s3_client, bucket, upload_progress)
+            upload_progress.update(overall_task, advance=1)
+            
+    console.print("[green]✓ All files uploaded successfully.[/]")
+
+    # ── Step 8: Notify API of completed upload ────────────────────────────────
+    with console.status("[cyan]Notifying API of completed upload...", spinner="dots"):
+        patch_payload = {
+            "duration_seconds": duration_seconds,
+            "hls_master_path": f"{base_key}/hls/master.m3u8",
+            "poster_path": f"{base_key}/poster.jpg",
+            "backdrop_path": f"{base_key}/backdrop.jpg",
+            "hls_key_hex": hls_key_hex,
+            "hls_iv_hex": hls_iv_hex,
+            "is_processed": True,
+            "is_uploaded": True,
+        }
+        if codec: patch_payload["codec"] = codec
+        if resolution_width: patch_payload["resolution_width"] = resolution_width
+        if resolution_height: patch_payload["resolution_height"] = resolution_height
+        if file_size_bytes: patch_payload["file_size_bytes"] = file_size_bytes
+
+        patch_resp = httpx.patch(
+            f"{api_url}/api/movies/{movie_id}/upload-complete",
+            json=patch_payload,
+            headers=headers,
+            timeout=30.0,
         )
-        sys.exit(1)
+        if patch_resp.status_code != 200:
+            console.print(f"[red bold]Failed to update movie record:[/] {patch_resp.text}")
+            sys.exit(1)
 
-    updated_movie = patch_resp.json()
-    print(
-        f"\n✓ Upload complete! Movie '{updated_movie.get('title', movie_id)}' "
-        f"is now processed and available."
-    )
+        updated_movie = patch_resp.json()
+        
+    console.print(f"\n[bold green]✨ Upload complete![/] Movie [italic]'{updated_movie.get('title', movie_id)}'[/] is now processed and available.")
 
     # Clean up temp directory
     shutil.rmtree(output_dir, ignore_errors=True)

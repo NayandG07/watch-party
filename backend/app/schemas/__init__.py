@@ -43,11 +43,7 @@ from app.schemas.storage import (
     StorageProviderUpdate,
 )
 from app.schemas.user import (
-    LoginResponse,
-    TokenRefreshResponse,
     UserBrief,
-    UserLogin,
-    UserRegister,
     UserResponse,
     UserUpdate,
 )
@@ -68,7 +64,6 @@ __all__ = [
     "LibraryCreate",
     "LibraryResponse",
     "LibraryUpdate",
-    "LoginResponse",
     "MessageResponse",
     "MovieBrief",
     "MovieCreate",
@@ -89,10 +84,7 @@ __all__ = [
     "StorageProviderResponse",
     "StorageProviderUpdate",
     "SubtitleTrack",
-    "TokenRefreshResponse",
     "UserBrief",
-    "UserLogin",
-    "UserRegister",
     "UserResponse",
     "UserUpdate",
     "WSTokenResponse",

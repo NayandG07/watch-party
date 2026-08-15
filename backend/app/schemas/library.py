@@ -11,7 +11,6 @@ from pydantic import Field
 
 from app.models.enums import Visibility
 from app.schemas.base import WatchPartyModel
-from app.schemas.storage import StorageProviderBrief
 from app.schemas.user import UserBrief
 
 # ── Library ───────────────────────────────────────────────────────────────────
@@ -20,7 +19,6 @@ from app.schemas.user import UserBrief
 class LibraryCreate(WatchPartyModel):
     name: str = Field(..., min_length=1, max_length=100)
     description: str | None = None
-    storage_provider_id: uuid.UUID
     is_private: bool = True
 
 
@@ -36,7 +34,6 @@ class LibraryResponse(WatchPartyModel):
     description: str | None
     is_private: bool
     owner: UserBrief
-    storage_provider: StorageProviderBrief
     collection_count: int = 0
     created_at: datetime
 

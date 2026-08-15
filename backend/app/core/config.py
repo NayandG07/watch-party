@@ -45,11 +45,17 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://postgres:password@localhost:5432/watchparty"
 
     # ── Security ──────────────────────────────────────────────────────────────
-    # REQUIRED in production — generate with: python -c "import secrets; print(secrets.token_hex(32))"  # noqa: E501
+    # Used ONLY for action tokens (ws_token, hls_key_token, stream_token, invite_token).
+    # Session JWTs are now issued and validated via Supabase Auth.
     secret_key: str = "INSECURE_DEFAULT_CHANGE_IN_PRODUCTION"
     algorithm: str = "HS256"
-    access_token_expire_minutes: int = 30
-    refresh_token_expire_days: int = 7
+    access_token_expire_minutes: int = 60 * 24  # 24 hours (used for stream tokens now)
+
+    # ── Supabase Auth ─────────────────────────────────────────────────────────
+    # Found in: Supabase Dashboard → Settings → API → JWT Secret
+    supabase_jwt_secret: str = "INSECURE_DEFAULT_CHANGE_IN_PRODUCTION"
+    supabase_url: str = ""
+    supabase_anon_key: str = ""
 
     # ── Storage Credential Encryption (AES-256-GCM) ───────────────────────────
     # Base64url-encoded 32-byte key.
@@ -62,7 +68,11 @@ class Settings(BaseSettings):
     hls_key_signing_secret: str = "INSECURE_DEFAULT_CHANGE_IN_PRODUCTION"
 
     # ── CORS ──────────────────────────────────────────────────────────────────
-    cors_origins: list[str] = ["http://localhost:3000", "https://binge2gether.netlify.app"]
+    cors_origins: list[str] = [
+        "http://localhost:3000",
+        "https://binge2gether.netlify.app",
+        "https://bluenether-netlify.app",
+    ]
 
     # ── Logging ───────────────────────────────────────────────────────────────
     log_level: str = "INFO"
@@ -72,14 +82,9 @@ class Settings(BaseSettings):
     tmdb_api_key: str = ""
     omdb_api_key: str = ""
 
-    # ── SMTP (Email OTP verification) ─────────────────────────────────────────
-    # Leave empty to use console-log fallback (development mode)
-    smtp_host: str = ""
-    smtp_port: int = 587
-    smtp_user: str = ""
-    smtp_password: str = ""
-    smtp_from: str = "noreply@watchparty.app"
-    smtp_starttls: bool = True
+    # ── Email (OTP via Supabase Auth) ────────────────────────────────────────
+    # Email sending is now handled entirely by Supabase Auth.
+    # No SMTP configuration needed.
 
     # ── Derived properties ────────────────────────────────────────────────────
 
@@ -113,6 +118,7 @@ class Settings(BaseSettings):
                 ("SECRET_KEY", self.secret_key),
                 ("ENCRYPTION_KEY", self.encryption_key),
                 ("HLS_KEY_SIGNING_SECRET", self.hls_key_signing_secret),
+                ("SUPABASE_JWT_SECRET", self.supabase_jwt_secret),
             ]:
                 if any(m in value for m in insecure_markers):
                     raise ValueError(

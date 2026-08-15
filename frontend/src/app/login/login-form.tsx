@@ -3,23 +3,15 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
-import api, { getErrorMessage, tokenStorage } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
-
-interface LoginResponse {
-  access_token: string;
-  token_type: string;
-  user: {
-    id: string;
-    username: string;
-    role: string;
-  };
-}
+import api from "@/lib/api";
+import type { User } from "@/stores/authStore";
 
 export default function LoginForm() {
   const router = useRouter();
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -27,32 +19,38 @@ export default function LoginForm() {
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!username.trim() || !password) return;
+    if (!email.trim() || !password) return;
 
     setIsLoading(true);
     setError(null);
 
     try {
-      const { data } = await api.post<LoginResponse>("/api/auth/login", {
-        username: username.trim(),
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
         password,
       });
 
-      tokenStorage.set(data.access_token);
-      
-      // Update auth store with the newly fetched user
-      useAuthStore.getState().setUser(data.user as unknown as import("@/stores/authStore").User);
-      
-      router.push("/library");
-      router.refresh();
-    } catch (err) {
-      // If account exists but email not verified, redirect to OTP page
-      const raw = getErrorMessage(err);
-      if (raw === "EMAIL_NOT_VERIFIED") {
-        router.push("/verify-email");
+      if (authError) {
+        if (authError.message.includes("Email not confirmed")) {
+          router.push(`/verify-email?email=${encodeURIComponent(email.trim())}`);
+          return;
+        }
+        setError(authError.message);
         return;
       }
-      setError(raw);
+
+      // Use the token from the sign-in response directly — avoids a race condition
+      // where getSession() in the interceptor hasn't persisted the session yet.
+      const token = authData.session?.access_token;
+      const { data: userProfile } = await api.get<User>("/api/auth/me", {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      useAuthStore.getState().setUser(userProfile);
+
+      router.push("/library");
+      router.refresh();
+    } catch {
+      setError("An unexpected error occurred. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -60,23 +58,24 @@ export default function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-5">
-      {/* Username */}
+      {/* Email */}
       <div className="space-y-1.5">
         <label
-          htmlFor="login-username"
+          htmlFor="login-email"
           className="text-sm font-medium text-content-secondary"
         >
-          Username
+          Email
         </label>
         <input
-          id="login-username"
-          type="text"
-          autoComplete="username"
+          id="login-email"
+          name="email"
+          type="email"
+          autoComplete="email"
           autoFocus
           required
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          placeholder="Enter your username"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="your@email.com"
           className="input"
           disabled={isLoading}
         />
@@ -93,6 +92,7 @@ export default function LoginForm() {
         <div className="relative">
           <input
             id="login-password"
+            name="password"
             type={showPassword ? "text" : "password"}
             autoComplete="current-password"
             required
@@ -131,7 +131,7 @@ export default function LoginForm() {
       <button
         id="login-submit"
         type="submit"
-        disabled={isLoading || !username.trim() || !password}
+        disabled={isLoading || !email.trim() || !password}
         className="btn-primary w-full mt-2 h-11 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:opacity-50"
       >
         {isLoading ? (

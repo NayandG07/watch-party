@@ -116,24 +116,20 @@ export default function VideoPlayer({
         // 2. Initialize HLS
         if (Hls.isSupported()) {
           const hls = new Hls({
-            startPosition: -1,       // Start from beginning
-            maxBufferLength: 30,     // Buffer up to 30s ahead
+            startPosition: -1,
+            maxBufferLength: 30,
             maxMaxBufferLength: 60,
-            maxBufferSize: 60 * 1000 * 1000, // 60MB max buffer
+            maxBufferSize: 60 * 1000 * 1000,
             autoStartLoad: true,
-            xhrSetup: (xhr, url) => {
-              if (url.includes("/hls-key")) {
-                // Append the hls-key-token as a query param for the AES key request.
-                // The browser won't forward Authorization headers on XHR requests
-                // initiated by HLS.js for key files unless configured here.
-                const separator = url.includes("?") ? "&" : "?";
-                xhr.open("GET", `${url}${separator}token=${tokenData.hls_key_token}`, true);
-              }
-            },
           });
 
           hlsRef.current = hls;
-          hls.loadSource(tokenData.hls_url);
+          // Append key_token as a query param so the backend embeds it
+          // directly into the EXT-X-KEY URI during playlist rewriting.
+          // This is the only reliable way to auth HLS.js AES-128 key requests.
+          const sep = tokenData.hls_url.includes('?') ? '&' : '?';
+          const hlsUrl = `${tokenData.hls_url}${sep}key_token=${encodeURIComponent(tokenData.hls_key_token)}`;
+          hls.loadSource(hlsUrl);
           hls.attachMedia(videoRef.current);
 
           hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -177,6 +173,15 @@ export default function VideoPlayer({
 
           hls.on(Hls.Events.ERROR, (_event, data) => {
             if (!mounted) return;
+            
+            console.error("HLS Error:", {
+              type: data.type,
+              details: data.details,
+              fatal: data.fatal,
+              response: data.response,
+              frag: data.frag?.url
+            });
+            
             if (!data.fatal) return; // non-fatal errors are handled by HLS.js internally
 
             console.error("HLS Fatal Error:", data.type, data.details);

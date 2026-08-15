@@ -17,12 +17,13 @@ import uuid
 
 import structlog
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy import select
 
 from app.core.dependencies import DatabaseDep, RequireLevel2Dep
 from app.core.security import decrypt_secret, encrypt_secret
 from app.models.enums import StorageProviderType
+from app.models.movie import Movie
 from app.models.storage_provider import StorageProvider
 
 logger = structlog.get_logger()
@@ -59,7 +60,7 @@ class StorageProviderResponse(BaseModel):
     cdn_url: str | None
     is_active: bool
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -138,8 +139,8 @@ async def create_storage_provider(
 
     credentials_json = _json.dumps(
         {
-            "key_id": payload.credentials.key_id,
-            "application_key": payload.credentials.application_key,
+            "key_id": payload.credentials.key_id.strip(),
+            "application_key": payload.credentials.application_key.strip(),
         }
     )
     encrypted = encrypt_secret(credentials_json)
@@ -172,5 +173,15 @@ async def delete_storage_provider(
         raise HTTPException(status_code=404, detail="Storage provider not found")
     if str(provider.owner_id) != user_id:
         raise HTTPException(status_code=403, detail="Not your storage provider")
+
+    # Check if there are linked movies before attempting deletion
+    stmt = select(Movie.id).where(Movie.storage_provider_id == provider_id)
+    result = await db.execute(stmt)
+    if result.first():
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete storage provider because it is used by one or more movies. Delete the movies first.",
+        )
+
     await db.delete(provider)
     await db.commit()

@@ -22,7 +22,6 @@ from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 if TYPE_CHECKING:
     from app.models.collection import Collection
     from app.models.permission import Permission
-    from app.models.storage_provider import StorageProvider
     from app.models.user import User
 
 
@@ -37,12 +36,6 @@ class Library(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
-    )
-    storage_provider_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        # RESTRICT: don't allow deleting a storage provider that has libraries
-        ForeignKey("storage_providers.id", ondelete="RESTRICT"),
-        nullable=False,
     )
 
     # ── Metadata ──────────────────────────────────────────────────────────────
@@ -62,11 +55,6 @@ class Library(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # ── Relationships ─────────────────────────────────────────────────────────
     owner: Mapped[User] = relationship(
         "User",
-        back_populates="libraries",
-        lazy="select",
-    )
-    storage_provider: Mapped[StorageProvider] = relationship(
-        "StorageProvider",
         back_populates="libraries",
         lazy="select",
     )
