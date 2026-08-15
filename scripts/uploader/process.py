@@ -88,7 +88,11 @@ def init_supabase() -> Client:
     return create_client(url, key)
 
 
-def prompt_auth(supabase: Client) -> str:
+def prompt_auth(supabase: Client) -> tuple[str, str, str]:
+    """
+    Authenticate and return (access_token, refresh_token, email).
+    The refresh_token can be used to get a new access_token if it expires.
+    """
     console.print("\n[bold cyan]Authentication[/]")
     email = Prompt.ask("Email")
     password = Prompt.ask("Password", password=True)
@@ -96,13 +100,28 @@ def prompt_auth(supabase: Client) -> str:
         try:
             response = supabase.auth.sign_in_with_password({"email": email, "password": password})
             access_token = response.session.access_token
+            refresh_token = response.session.refresh_token
         except Exception as e:
             console.print(f"[red bold]Authentication failed:[/] {e}")
             sys.exit(1)
-    if not access_token:
-        console.print("[red bold]Error:[/] No access_token in login response.")
+    if not access_token or not refresh_token:
+        console.print("[red bold]Error:[/] Missing tokens in login response.")
         sys.exit(1)
-    return access_token
+    return access_token, refresh_token, email
+
+
+def refresh_access_token(supabase: Client, refresh_token: str) -> str:
+    """
+    Use the refresh_token to get a new access_token.
+    Returns the new access_token.
+    """
+    try:
+        response = supabase.auth.refresh_session(refresh_token)
+        return response.session.access_token
+    except Exception as e:
+        console.print(f"[red bold]Token refresh failed:[/] {e}")
+        console.print("[yellow]Please re-authenticate manually.[/]")
+        sys.exit(1)
 
 
 def verify_role(api_url: str, headers: dict) -> None:
@@ -149,17 +168,19 @@ def fetch_storage_provider(api_url: str, headers: dict) -> dict:
         console.print(f"[red bold]Could not retrieve credentials:[/] {cred_resp.text}")
         sys.exit(1)
     creds = cred_resp.json()
-    endpoint_url = creds.get("endpoint_url", "")
+    endpoint_url = creds.get("endpoint_url", "") or ""
     if endpoint_url and not endpoint_url.startswith("http"):
         endpoint_url = f"https://{endpoint_url}"
-    console.print(f"[green]✓ Connected to storage:[/] [bold]{chosen['name']}[/]")
+    provider_type = creds.get("provider_type", "b2")
+    console.print(f"[green]✓ Connected to storage:[/] [bold]{chosen['name']}[/] [dim]({provider_type})[/]")
     return {
         "id": provider_id,
         "name": chosen["name"],
+        "provider_type": provider_type,
         "bucket_name": creds["bucket_name"],
         "endpoint_url": endpoint_url,
-        "key_id": creds["key_id"],
-        "application_key": creds["application_key"],
+        "access_key_id": creds["access_key_id"],
+        "secret_access_key": creds["secret_access_key"],
     }
 
 
@@ -199,11 +220,12 @@ def create_movie_record(api_url: str, headers: dict, title: str, collection_id: 
 
 
 def build_s3_client(provider: dict):
+    """Build a boto3 S3 client for any supported storage provider."""
     return boto3.client(
         "s3",
         endpoint_url=provider["endpoint_url"],
-        aws_access_key_id=provider["key_id"],
-        aws_secret_access_key=provider["application_key"],
+        aws_access_key_id=provider["access_key_id"],
+        aws_secret_access_key=provider["secret_access_key"],
         config=Config(signature_version="s3v4", max_pool_connections=50),
     )
 
@@ -586,7 +608,7 @@ def main() -> None:
 
     # ── Step 1: Auth ──────────────────────────────────────────────────────────
     supabase = init_supabase()
-    access_token = prompt_auth(supabase)
+    access_token, refresh_token, email = prompt_auth(supabase)
     headers = {"Authorization": f"Bearer {access_token}"}
     verify_role(api_url, headers)
 
@@ -683,12 +705,28 @@ def main() -> None:
         if source_height:   patch_payload["resolution_height"] = source_height
         if file_size_bytes: patch_payload["file_size_bytes"] = file_size_bytes
 
+        # Try the API call - if token expired, refresh and retry once
         patch_resp = httpx.patch(
             f"{api_url}/api/movies/{movie_id}/upload-complete",
             json=patch_payload,
             headers=headers,
             timeout=30.0,
         )
+        
+        # If we get a 401 (unauthorized) or token error, refresh the token and retry
+        if patch_resp.status_code == 401 or (patch_resp.status_code == 422 and "token" in patch_resp.text.lower()):
+            console.print("[yellow]Token expired. Refreshing authentication...[/]")
+            access_token = refresh_access_token(supabase, refresh_token)
+            headers = {"Authorization": f"Bearer {access_token}"}
+            
+            # Retry the request with the new token
+            patch_resp = httpx.patch(
+                f"{api_url}/api/movies/{movie_id}/upload-complete",
+                json=patch_payload,
+                headers=headers,
+                timeout=30.0,
+            )
+        
         if patch_resp.status_code != 200:
             console.print(f"[red bold]Failed to update movie record:[/] {patch_resp.text}")
             sys.exit(1)

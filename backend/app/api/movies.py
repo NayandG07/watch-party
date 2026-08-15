@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated
 from urllib.parse import quote, urlencode
 
+import aioboto3
 import boto3
 from botocore.client import Config
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
@@ -22,6 +23,7 @@ from app.core.security import (
     decode_stream_token,
     decrypt_secret,
 )
+from app.core.storage_utils import extract_s3_creds
 from app.models.collection import Collection
 from app.models.library import Library
 from app.models.movie import Movie
@@ -487,14 +489,19 @@ async def stream_movie_file(
 
     sp = movie.storage_provider
     creds = json.loads(decrypt_secret(sp.credentials_encrypted))
+    access_key_id, secret_access_key = extract_s3_creds(sp.provider_type, creds)
 
+    # Use a sync boto3 client only for generating presigned URLs (lightweight, no I/O)
     s3 = boto3.client(
         "s3",
         endpoint_url=sp.endpoint_url,
-        aws_access_key_id=creds["key_id"],
-        aws_secret_access_key=creds["application_key"],
+        aws_access_key_id=access_key_id,
+        aws_secret_access_key=secret_access_key,
         config=Config(signature_version="s3v4"),
     )
+
+    # Async session for actual data streaming — doesn't block the event loop
+    _aioboto3_session = aioboto3.Session()
 
     # movie.hls_master_path is like "movies/slug/hls/master.m3u8"
     # The movie root dir is everything up to the second-to-last component: "movies/slug"
@@ -511,26 +518,30 @@ async def stream_movie_file(
 
     if file_path.endswith(".m3u8"):
         # ── Rewriting proxy for playlists ─────────────────────────────────────
-        import httpx
         import logging
-        
+
         logger = logging.getLogger(__name__)
         logger.info(f"Fetching playlist {s3_key} from B2")
-        
-        # Download the raw playlist text from S3 using a presigned URL
-        presigned = s3.generate_presigned_url(
-            ClientMethod="get_object",
-            Params={"Bucket": sp.bucket_name, "Key": s3_key},
-            ExpiresIn=300,
-        )
 
-        async with httpx.AsyncClient() as client:
-            r = await client.get(presigned)
-            if r.status_code != 200:
-                logger.error(f"Failed to fetch playlist {s3_key}: status {r.status_code}")
-                raise HTTPException(status_code=502, detail="Failed to fetch playlist from storage")
-            playlist_text = r.text
-            logger.info(f"Fetched playlist {s3_key}, length: {len(playlist_text)} chars")
+        # Download the raw playlist text from S3 using aioboto3 directly.
+        # Previously we used presigned URLs + httpx, but B2 returns 403 for
+        # presigned downloads depending on bucket policy. Authenticated
+        # GetObject always works regardless of bucket access rules.
+        try:
+            async with _aioboto3_session.client(
+                "s3",
+                endpoint_url=sp.endpoint_url,
+                aws_access_key_id=access_key_id,
+                aws_secret_access_key=secret_access_key,
+                config=Config(signature_version="s3v4"),
+            ) as s3_async:
+                resp = await s3_async.get_object(Bucket=sp.bucket_name, Key=s3_key)
+                playlist_bytes = await resp["Body"].read()
+                playlist_text = playlist_bytes.decode("utf-8")
+                logger.info(f"Fetched playlist {s3_key}, length: {len(playlist_text)} chars")
+        except Exception as exc:
+            logger.error(f"Failed to fetch playlist {s3_key}: {exc}")
+            raise HTTPException(status_code=502, detail="Failed to fetch playlist from storage")
 
         # Build the base URL for this proxy so we can rewrite relative URIs
         # e.g. "http://localhost:8000/api/movies/<uuid>/stream/hls/"
@@ -585,51 +596,22 @@ async def stream_movie_file(
 
 
     else:
-        # ── Stream .ts segments (and other binary files) through backend ──────
-        # We proxy the stream to bypass B2 CORS restrictions on the browser side.
-        # By streaming the response chunk-by-chunk, we use very little memory.
+        # ── Redirect binary files (segments, images) directly to B2 ──────────
+        # The browser downloads .ts segments and images directly from B2 via a
+        # presigned URL — the backend never touches the video data.
+        # B2 CORS rules (configured at startup in main.py) allow the browser to
+        # make cross-origin requests from the Netlify frontend domain.
+        # This is essential to avoid backend bandwidth usage and B2 download caps.
         import logging
-        from starlette.responses import StreamingResponse
-        
         logger = logging.getLogger(__name__)
-        logger.info(f"Streaming {s3_key} from B2")
-        
-        try:
-            # Get the object from S3. This returns a streaming body.
-            response = s3.get_object(Bucket=sp.bucket_name, Key=s3_key)
-            body = response['Body']
-            content_length = response.get('ContentLength')
-            content_type = response.get('ContentType', 'application/octet-stream')
-            if file_path.endswith('.ts'):
-                content_type = 'video/mp2t'
-            elif file_path.endswith('.jpg'):
-                content_type = 'image/jpeg'
-            
-            # Starlette StreamingResponse handles blocking generators in a threadpool
-            def iterfile():
-                try:
-                    for chunk in body.iter_chunks(chunk_size=65536):
-                        yield chunk
-                finally:
-                    body.close()
-                    
-            headers = {
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
-                "Cache-Control": "public, max-age=3600"
-            }
-            if content_length:
-                headers["Content-Length"] = str(content_length)
-                
-            return StreamingResponse(
-                iterfile(),
-                media_type=content_type,
-                headers=headers
-            )
-            
-        except Exception as e:
-            logger.error(f"Error streaming {s3_key}: {e}")
-            raise HTTPException(status_code=404, detail="File not found")
+
+        presigned = s3.generate_presigned_url(
+            ClientMethod="get_object",
+            Params={"Bucket": sp.bucket_name, "Key": s3_key},
+            ExpiresIn=3600,
+        )
+        logger.info(f"Redirecting {s3_key} to B2 presigned URL")
+        return RedirectResponse(presigned, status_code=302)
 
 
 @router.get("/{movie_id}/hls-key")

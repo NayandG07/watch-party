@@ -59,11 +59,89 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:  # noqa: ARG001
 
     cleanup_task = asyncio.create_task(cleanup_inactive_rooms())
 
+    # Configure CORS on all registered B2 buckets so browsers can fetch
+    # presigned URLs directly (avoiding backend bandwidth proxy entirely).
+    asyncio.create_task(_configure_b2_cors_all_buckets(logger))
+
     yield
 
     # Shutdown
     cleanup_task.cancel()
     logger.info("watchparty_stopping")
+
+
+async def _configure_b2_cors_all_buckets(logger: structlog.BoundLogger) -> None:
+    """Set permissive CORS rules on every active storage provider bucket.
+
+    This runs once at startup in the background. It is idempotent — calling
+    put_bucket_cors repeatedly simply overwrites the previous rules with the
+    same values, so restarts are safe.
+    """
+    import json
+
+    import boto3
+    from botocore.client import Config
+    from sqlalchemy import select
+
+    from app.core.security import decrypt_secret
+    from app.core.storage_utils import extract_s3_creds
+    from app.db.session import AsyncSessionLocal
+    from app.models.storage_provider import StorageProvider
+
+    # Origins that are allowed to make cross-origin requests to B2.
+    # Includes production frontend, localhost dev, and any future domains.
+    allowed_origins = [
+        "https://binge2gether.netlify.app",
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:3000",
+    ]
+
+    cors_config = {
+        "CORSRules": [
+            {
+                "AllowedHeaders": ["*"],
+                "AllowedMethods": ["GET", "HEAD"],
+                "AllowedOrigins": allowed_origins,
+                "ExposeHeaders": ["Content-Length", "Content-Type", "ETag"],
+                "MaxAgeSeconds": 86400,
+            }
+        ]
+    }
+
+    try:
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(StorageProvider).where(StorageProvider.is_active.is_(True))
+            )
+            providers = result.scalars().all()
+
+        for sp in providers:
+            try:
+                creds = json.loads(decrypt_secret(sp.credentials_encrypted))
+                access_key_id, secret_access_key = extract_s3_creds(sp.provider_type, creds)
+                s3 = boto3.client(
+                    "s3",
+                    endpoint_url=sp.endpoint_url,
+                    aws_access_key_id=access_key_id,
+                    aws_secret_access_key=secret_access_key,
+                    config=Config(signature_version="s3v4"),
+                )
+                s3.put_bucket_cors(Bucket=sp.bucket_name, CORSConfiguration=cors_config)
+                logger.info(
+                    "b2_cors_configured",
+                    bucket=sp.bucket_name,
+                    provider_type=sp.provider_type,
+                    origins=len(allowed_origins),
+                )
+            except Exception as exc:
+                # Non-fatal — log and continue. Worst case: CORS was already set.
+                logger.warning("b2_cors_configure_failed", bucket=sp.bucket_name, error=str(exc))
+
+    except Exception as exc:
+        logger.warning("b2_cors_startup_failed", error=str(exc))
+
+
 
 
 def create_app() -> FastAPI:
