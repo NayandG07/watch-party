@@ -316,6 +316,11 @@ async def complete_movie_upload(
 
     enc_key = encrypt_secret(key_hex)
 
+    # Delete any existing HLS key for this movie before inserting the new one.
+    # This prevents key mismatch when a movie is re-uploaded.
+    from sqlalchemy import delete as sql_delete
+    await db.execute(sql_delete(HLSKey).where(HLSKey.movie_id == movie.id))
+
     new_hls_key = HLSKey(movie_id=movie.id, key_encrypted=enc_key, iv_hex=iv_hex)
     db.add(new_hls_key)
 
@@ -583,67 +588,20 @@ async def stream_movie_file(
             },
         )
 
+
     else:
-        # ── Fetch and return binary files directly ───────────
-        import httpx
-        from starlette.responses import Response
-        
+        # ── Redirect .ts segments (and other binary files) directly to B2 ──────
+        # Using a redirect is MUCH faster than proxying — the browser downloads
+        # the segment directly from B2 without the backend being a slow middleman.
+        import logging
+        logger = logging.getLogger(__name__)
         presigned = s3.generate_presigned_url(
             ClientMethod="get_object",
             Params={"Bucket": sp.bucket_name, "Key": s3_key},
             ExpiresIn=3600,
         )
-        
-        # Determine content type based on file extension
-        content_type = "application/octet-stream"
-        if file_path.endswith(".ts"):
-            content_type = "video/mp2t"
-        elif file_path.endswith((".jpg", ".jpeg")):
-            content_type = "image/jpeg"
-        elif file_path.endswith(".png"):
-            content_type = "image/png"
-        elif file_path.endswith(".webp"):
-            content_type = "image/webp"
-        
-        # Log the request
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.info(f"Fetching {s3_key} from B2 via presigned URL")
-        
-        # Fetch the file from B2 with timeout
-        try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                r = await client.get(presigned)
-                if r.status_code != 200:
-                    logger.error(f"B2 returned status {r.status_code} for {s3_key}")
-                    raise HTTPException(
-                        status_code=502, 
-                        detail=f"Storage returned status {r.status_code}"
-                    )
-                
-                logger.info(f"Successfully fetched {s3_key}, size: {len(r.content)} bytes")
-                
-                return Response(
-                    content=r.content,
-                    media_type=content_type,
-                    headers={
-                        "Access-Control-Allow-Origin": "*",
-                        "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
-                        "Access-Control-Allow-Headers": "*",
-                        "Access-Control-Expose-Headers": "*",
-                        "Cache-Control": "public, max-age=3600",
-                        "Content-Length": str(len(r.content)),
-                    },
-                )
-        except httpx.TimeoutException as e:
-            logger.error(f"Timeout fetching {s3_key}: {e}")
-            raise HTTPException(status_code=504, detail="Timeout fetching file from storage")
-        except httpx.RequestError as e:
-            logger.error(f"Request error fetching {s3_key}: {e}")
-            raise HTTPException(status_code=502, detail=f"Network error: {str(e)}")
-        except Exception as e:
-            logger.error(f"Unexpected error fetching {s3_key}: {e}")
-            raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
+        logger.info(f"Redirecting {s3_key} to presigned URL")
+        return RedirectResponse(presigned, status_code=302)
 
 
 @router.get("/{movie_id}/hls-key")
