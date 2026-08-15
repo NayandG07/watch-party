@@ -585,18 +585,51 @@ async def stream_movie_file(
 
 
     else:
-        # ── Redirect .ts segments (and other binary files) directly to B2 ──────
-        # Using a redirect is MUCH faster than proxying — the browser downloads
-        # the segment directly from B2 without the backend being a slow middleman.
+        # ── Stream .ts segments (and other binary files) through backend ──────
+        # We proxy the stream to bypass B2 CORS restrictions on the browser side.
+        # By streaming the response chunk-by-chunk, we use very little memory.
         import logging
+        from starlette.responses import StreamingResponse
+        
         logger = logging.getLogger(__name__)
-        presigned = s3.generate_presigned_url(
-            ClientMethod="get_object",
-            Params={"Bucket": sp.bucket_name, "Key": s3_key},
-            ExpiresIn=3600,
-        )
-        logger.info(f"Redirecting {s3_key} to presigned URL")
-        return RedirectResponse(presigned, status_code=302)
+        logger.info(f"Streaming {s3_key} from B2")
+        
+        try:
+            # Get the object from S3. This returns a streaming body.
+            response = s3.get_object(Bucket=sp.bucket_name, Key=s3_key)
+            body = response['Body']
+            content_length = response.get('ContentLength')
+            content_type = response.get('ContentType', 'application/octet-stream')
+            if file_path.endswith('.ts'):
+                content_type = 'video/mp2t'
+            elif file_path.endswith('.jpg'):
+                content_type = 'image/jpeg'
+            
+            # Starlette StreamingResponse handles blocking generators in a threadpool
+            def iterfile():
+                try:
+                    for chunk in body.iter_chunks(chunk_size=65536):
+                        yield chunk
+                finally:
+                    body.close()
+                    
+            headers = {
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+                "Cache-Control": "public, max-age=3600"
+            }
+            if content_length:
+                headers["Content-Length"] = str(content_length)
+                
+            return StreamingResponse(
+                iterfile(),
+                media_type=content_type,
+                headers=headers
+            )
+            
+        except Exception as e:
+            logger.error(f"Error streaming {s3_key}: {e}")
+            raise HTTPException(status_code=404, detail="File not found")
 
 
 @router.get("/{movie_id}/hls-key")

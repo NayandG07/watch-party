@@ -327,21 +327,32 @@ def transcode_with_progress(cmd: list[str], duration_seconds: float, label: str)
 
 # ── Multi-quality HLS encoding ─────────────────────────────────────────────────
 
-def select_quality_ladder(source_height: Optional[int]) -> list[tuple]:
+def select_quality_ladder(source_width: Optional[int], source_height: Optional[int]) -> list[tuple]:
     """Return quality variants appropriate for the source resolution."""
-    if source_height is None:
+    if not source_height and not source_width:
         return QUALITY_LADDER
-    # Never upscale; include only variants <= source height.
-    # Always include at least one variant (the lowest or the source height).
-    applicable = [q for q in QUALITY_LADDER if q[1] <= source_height]
+
+    w = source_width or 0
+    h = source_height or 0
+
+    applicable = []
+    for label, target_h, vbitrate, abitrate in QUALITY_LADDER:
+        if target_h == 1080 and (h >= 900 or w >= 1800):
+            applicable.append((label, target_h, vbitrate, abitrate))
+        elif target_h == 720 and (h >= 650 or w >= 1200):
+            applicable.append((label, target_h, vbitrate, abitrate))
+        elif target_h == 480 and (h >= 400 or w >= 800):
+            applicable.append((label, target_h, vbitrate, abitrate))
+        elif target_h == 360 and (h >= 300 or w >= 500):
+            applicable.append((label, target_h, vbitrate, abitrate))
+
     if not applicable:
-        # Source is very small — just encode at source height
-        applicable = [("source", source_height, 1000, 64)]
+        applicable = [("360p", 360, 700, 64)]
     return applicable
 
 
 def process_video(input_path: Path, output_dir: Path, duration_seconds: float,
-                  source_height: Optional[int]) -> dict:
+                  source_width: Optional[int], source_height: Optional[int]) -> dict:
     """
     Transcode input video into multi-quality AES-128 encrypted HLS.
 
@@ -374,7 +385,7 @@ def process_video(input_path: Path, output_dir: Path, duration_seconds: float,
     with open(key_info_path, "w") as f:
         f.write(f"watchparty://key\n{key_file_path.absolute()}\n{hls_iv_hex}\n")
 
-    ladder = select_quality_ladder(source_height)
+    ladder = select_quality_ladder(source_width, source_height)
     console.print(f"\n[bold]Quality variants to encode:[/] {', '.join(q[0] for q in ladder)}")
 
     variant_playlists = []  # list of (label, height, bitrate_k, playlist_path)
@@ -390,15 +401,18 @@ def process_video(input_path: Path, output_dir: Path, duration_seconds: float,
         cmd = [
             "ffmpeg", "-y",
             "-i", str(input_path),
+            "-map", "0:v:0",
+            "-map", "0:a:0?",
             # Video
             "-c:v", "libx264",
             "-preset", "veryfast",        # speed/quality tradeoff
             "-b:v", f"{vbitrate}k",
             "-maxrate", f"{int(vbitrate * 1.2)}k",
             "-bufsize", f"{vbitrate * 2}k",
-            "-vf", f"scale=-2:{height}",  # scale to height, keep aspect ratio
+            "-vf", f"scale=-2:'min({height},ih)'",  # scale down to height, keep aspect ratio, don't upscale
+            "-pix_fmt", "yuv420p",        # 8-bit YUV for universal browser compatibility (handles 10-bit source)
             "-profile:v", "high",
-            "-level", "4.0",
+            "-level", "4.1",
             # Audio
             "-c:a", "aac",
             "-b:a", f"{abitrate}k",
@@ -422,7 +436,13 @@ def process_video(input_path: Path, output_dir: Path, duration_seconds: float,
         f.write("#EXT-X-VERSION:3\n\n")
         for label, height, vbitrate, playlist_path in variant_playlists:
             bandwidth = (vbitrate + 192) * 1000  # approximate total bitrate in bps
-            width = int(height * 16 / 9)         # assume 16:9; close enough for manifest
+            if source_width and source_height:
+                aspect = source_width / source_height
+                width = int(height * aspect)
+            else:
+                width = int(height * 16 / 9)
+            if width % 2 != 0:
+                width += 1
             f.write(f'#EXT-X-STREAM-INF:BANDWIDTH={bandwidth},RESOLUTION={width}x{height},NAME="{label}"\n')
             f.write(f"{label}/playlist.m3u8\n")
 
@@ -434,8 +454,10 @@ def process_video(input_path: Path, output_dir: Path, duration_seconds: float,
     backdrop_path = output_dir / "backdrop.jpg"
 
     run_command(["ffmpeg", "-y", "-ss", "00:00:05", "-i", str(input_path),
+                 "-map", "0:v:0",
                  "-vframes", "1", "-q:v", "2", "-vf", "scale=1280:-2", str(poster_path)])
     run_command(["ffmpeg", "-y", "-ss", "00:00:10", "-i", str(input_path),
+                 "-map", "0:v:0",
                  "-vframes", "1", "-q:v", "2", "-vf", "scale=1920:-2", str(backdrop_path)])
 
     console.print("[green]✓ Poster and backdrop generated[/]")
@@ -603,7 +625,7 @@ def main() -> None:
 
     # ── Step 5: Transcode ─────────────────────────────────────────────────────
     console.rule("[bold magenta]Transcoding")
-    result = process_video(input_path, output_dir, duration_seconds, source_height)
+    result = process_video(input_path, output_dir, duration_seconds, source_width, source_height)
 
     hls_key_hex = result["hls_key_hex"]
     hls_iv_hex = result["hls_iv_hex"]
