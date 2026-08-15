@@ -254,20 +254,15 @@ def probe_video(file_path: Path) -> dict:
 # ── Transcode with real-time progress ──────────────────────────────────────────
 
 def transcode_with_progress(cmd: list[str], duration_seconds: float, label: str) -> None:
-    """Run an ffmpeg command and show a real-time progress bar."""
+    """
+    Run an ffmpeg command and show a real-time progress bar.
 
-    # Inject -progress pipe:1 to get machine-readable progress on stdout
-    progress_cmd = []
-    i = 0
-    while i < len(cmd):
-        progress_cmd.append(cmd[i])
-        if cmd[i] == "-i" and i + 1 < len(cmd):
-            i += 1
-            progress_cmd.append(cmd[i])
-        i += 1
-    # Insert progress flags right before the output file (last argument)
-    out_file = progress_cmd[-1]
-    progress_cmd = progress_cmd[:-1] + ["-progress", "pipe:1", "-nostats", out_file]
+    Uses -progress pipe:1 for machine-readable progress on stdout.
+    Stderr is drained in a background thread to prevent OS pipe buffer deadlocks.
+    """
+    # Insert -progress pipe:1 -nostats before the output file (last arg)
+    out_file = cmd[-1]
+    progress_cmd = cmd[:-1] + ["-progress", "pipe:1", "-nostats", out_file]
 
     progress = Progress(
         SpinnerColumn(),
@@ -287,27 +282,46 @@ def transcode_with_progress(cmd: list[str], duration_seconds: float, label: str)
         bufsize=1,
     )
 
-    with progress:
-        task = progress.add_task(label, total=100)
-        current_time = 0.0
+    # ── Drain stderr in a background thread to prevent pipe buffer deadlock ──
+    stderr_lines: list[str] = []
 
-        for line in proc.stdout:
-            line = line.strip()
-            if line.startswith("out_time_ms="):
-                try:
-                    ms = int(line.split("=")[1])
-                    current_time = ms / 1_000_000
-                    if duration_seconds > 0:
-                        pct = min(100.0, (current_time / duration_seconds) * 100)
-                        progress.update(task, completed=pct)
-                except (ValueError, IndexError):
-                    pass
+    def _drain_stderr() -> None:
+        for line in proc.stderr:
+            stderr_lines.append(line)
 
-        proc.wait()
+    stderr_thread = threading.Thread(target=_drain_stderr, daemon=True)
+    stderr_thread.start()
+
+    try:
+        with progress:
+            task = progress.add_task(label, total=100)
+
+            for line in proc.stdout:
+                line = line.strip()
+                if line.startswith("out_time_ms="):
+                    try:
+                        ms = int(line.split("=")[1])
+                        current_time = ms / 1_000_000
+                        if duration_seconds > 0:
+                            pct = min(100.0, (current_time / duration_seconds) * 100)
+                            progress.update(task, completed=pct)
+                    except (ValueError, IndexError):
+                        pass
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Interrupted — stopping ffmpeg...[/]")
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        sys.exit(0)
+
+    proc.wait()
+    stderr_thread.join(timeout=2)
 
     if proc.returncode != 0:
-        err = proc.stderr.read() if proc.stderr else ""
-        console.print(f"[red bold]ffmpeg failed:[/]\n{err[-2000:]}")
+        last_err = "".join(stderr_lines[-30:])  # last 30 lines of ffmpeg output
+        console.print(f"[red bold]ffmpeg failed (exit {proc.returncode}):[/]\n{last_err}")
         sys.exit(1)
 
 
@@ -664,4 +678,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Aborted.[/]")
+        sys.exit(0)
