@@ -425,16 +425,10 @@ async def get_hls_key_token(
     # Expires in the same time as the access token
     expires_at = datetime.now(UTC) + timedelta(minutes=settings.access_token_expire_minutes)
 
-    # In a production scenario, the StorageProvider should have a cdn_url configured
-    # to proxy the B2 bucket via Cloudflare.
-    sp = movie.storage_provider
-    if sp.cdn_url:
-        base_url = sp.cdn_url.rstrip("/")
-        hls_url = f"{base_url}/{movie.hls_master_path}"
-    else:
-        # Fallback for private buckets / local dev: route through the backend proxy route.
-        # Uses _path_to_stream_url to build the correct relative path from hls_master_path.
-        hls_url = _path_to_stream_url(request, movie.id, movie.hls_master_path, stream_token) or ""
+    # IMPORTANT: The manifest (.m3u8) MUST always go through the backend proxy
+    # so we can rewrite segment URLs. The CDN URL is only used for redirecting
+    # binary files (.ts segments, images) inside the /stream/ endpoint handler.
+    hls_url = _path_to_stream_url(request, movie.id, movie.hls_master_path, stream_token) or ""
 
     return PlaybackTokenResponse(
         hls_url=hls_url,
@@ -491,13 +485,17 @@ async def stream_movie_file(
     creds = json.loads(decrypt_secret(sp.credentials_encrypted))
     access_key_id, secret_access_key = extract_s3_creds(sp.provider_type, creds)
 
-    # Use a sync boto3 client only for generating presigned URLs (lightweight, no I/O)
+    # Use a sync boto3 client only for generating presigned URLs (lightweight, no I/O).
+    # IMPORTANT: Force path-style addressing so presigned URLs are always in the form
+    # https://endpoint/bucket/key (never virtual-hosted https://bucket.endpoint/key).
+    # This is required for the Cloudflare Worker proxy to correctly reconstruct the
+    # B2 request — the signed Host header must match what the Worker sends to B2.
     s3 = boto3.client(
         "s3",
         endpoint_url=sp.endpoint_url,
         aws_access_key_id=access_key_id,
         aws_secret_access_key=secret_access_key,
-        config=Config(signature_version="s3v4"),
+        config=Config(signature_version="s3v4", s3={"addressing_style": "path"}),
     )
 
     # Async session for actual data streaming — doesn't block the event loop
@@ -533,7 +531,7 @@ async def stream_movie_file(
                 endpoint_url=sp.endpoint_url,
                 aws_access_key_id=access_key_id,
                 aws_secret_access_key=secret_access_key,
-                config=Config(signature_version="s3v4"),
+                config=Config(signature_version="s3v4", s3={"addressing_style": "path"}),
             ) as s3_async:
                 resp = await s3_async.get_object(Bucket=sp.bucket_name, Key=s3_key)
                 playlist_bytes = await resp["Body"].read()
@@ -603,6 +601,7 @@ async def stream_movie_file(
         # make cross-origin requests from the Netlify frontend domain.
         # This is essential to avoid backend bandwidth usage and B2 download caps.
         import logging
+        from urllib.parse import urlparse, urlunparse
         logger = logging.getLogger(__name__)
 
         presigned = s3.generate_presigned_url(
@@ -610,7 +609,37 @@ async def stream_movie_file(
             Params={"Bucket": sp.bucket_name, "Key": s3_key},
             ExpiresIn=3600,
         )
-        logger.info(f"Redirecting {s3_key} to B2 presigned URL")
+
+        # DEBUG: log raw presigned URL scheme+host+path (truncate signature for safety)
+        _raw_parsed = urlparse(presigned)
+        logger.info(
+            f"[DEBUG] presigned raw: scheme={_raw_parsed.scheme!r} "
+            f"host={_raw_parsed.netloc!r} path={_raw_parsed.path!r}"
+        )
+
+        if sp.cdn_url:
+            parsed = urlparse(presigned)
+            cdn_parsed = urlparse(sp.cdn_url)
+            
+            new_path = cdn_parsed.path.rstrip('/') + '/' + parsed.path.lstrip('/')
+            if new_path == "/": 
+                new_path = parsed.path
+
+            presigned = urlunparse((
+                cdn_parsed.scheme,
+                cdn_parsed.netloc,
+                new_path,
+                parsed.params,
+                parsed.query,
+                parsed.fragment
+            ))
+            _cdnp = urlparse(presigned)
+            logger.info(
+                f"[DEBUG] presigned CDN: scheme={_cdnp.scheme!r} "
+                f"host={_cdnp.netloc!r} path={_cdnp.path!r}"
+            )
+
+        logger.info(f"Redirecting {s3_key} to presigned URL")
         return RedirectResponse(presigned, status_code=302)
 
 
