@@ -55,4 +55,5 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> HealthResponse:
         version=settings.app_version,
         environment=settings.environment,
         database=db_status,
+        deployment_id=settings.deployment_id,
     )

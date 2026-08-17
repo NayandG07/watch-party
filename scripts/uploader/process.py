@@ -56,17 +56,19 @@ from rich.text import Text
 console = Console()
 
 # ── Quality ladder ────────────────────────────────────────────────────────────
-# Each entry: (label, height, video_bitrate_k, audio_bitrate_k)
-# Only variants whose height <= source height are included.
+# Each entry: (label, height, max_bitrate_k, audio_bitrate_k, crf)
+# Uses x265 (HEVC) with CRF mode for ~50% smaller files than x264
+# HEVC CRF values: 28 ≈ x264 CRF 23, add ~5-6 for equivalent quality
 QUALITY_LADDER = [
-    ("1080p", 1080, 4500, 192),
-    ("720p",  720,  2800, 128),
-    ("480p",  480,  1400, 96),
-    ("360p",  360,  700,  64),
+    ("1080p", 1080, 3500, 128, 26),   # max 3.5 Mbps, CRF 26 (high quality)
+    # 720p removed per user request
+    ("480p",  480,  1200, 96,  28),   # max 1.2 Mbps, CRF 28 (mobile)
+    ("360p",  360,  600,  64,  30),   # max 600 kbps, CRF 30 (low bandwidth)
 ]
 
-# Minimum source height to include a variant (avoids upscaling)
-# We never upscale; if source is 720p we skip 1080p.
+# x265/HEVC produces 40-50% smaller files than x264 at equivalent quality
+# Trade-off: Encoding takes 3-5x longer, requires modern browsers (2016+)
+# Maxrate acts as a ceiling to prevent bitrate spikes that would break streaming
 
 # Multipart upload threshold: files larger than this use multipart (8 MB)
 MULTIPART_THRESHOLD = 8 * 1024 * 1024
@@ -273,6 +275,24 @@ def probe_video(file_path: Path) -> dict:
     return json.loads(output)
 
 
+def should_copy_audio(probe_data: dict, target_bitrate_k: int) -> bool:
+    """
+    Determine if we can copy audio instead of re-encoding.
+    Returns True if audio is already AAC and bitrate is acceptable.
+    """
+    audio_stream = next((s for s in probe_data.get("streams", []) if s.get("codec_type") == "audio"), {})
+    codec = audio_stream.get("codec_name", "")
+    bitrate = int(audio_stream.get("bit_rate", 0)) / 1000 if audio_stream.get("bit_rate") else 0
+    
+    # Copy if already AAC and bitrate is close to target (within 20% range)
+    if codec == "aac" and bitrate > 0:
+        target_min = target_bitrate_k * 0.8
+        target_max = target_bitrate_k * 1.5
+        if target_min <= bitrate <= target_max:
+            return True
+    return False
+
+
 # ── Transcode with real-time progress ──────────────────────────────────────────
 
 def transcode_with_progress(cmd: list[str], duration_seconds: float, label: str) -> None:
@@ -358,25 +378,118 @@ def select_quality_ladder(source_width: Optional[int], source_height: Optional[i
     h = source_height or 0
 
     applicable = []
-    for label, target_h, vbitrate, abitrate in QUALITY_LADDER:
+    for label, target_h, max_bitrate, abitrate, crf in QUALITY_LADDER:
         if target_h == 1080 and (h >= 900 or w >= 1800):
-            applicable.append((label, target_h, vbitrate, abitrate))
-        elif target_h == 720 and (h >= 650 or w >= 1200):
-            applicable.append((label, target_h, vbitrate, abitrate))
+            applicable.append((label, target_h, max_bitrate, abitrate, crf))
         elif target_h == 480 and (h >= 400 or w >= 800):
-            applicable.append((label, target_h, vbitrate, abitrate))
+            applicable.append((label, target_h, max_bitrate, abitrate, crf))
         elif target_h == 360 and (h >= 300 or w >= 500):
-            applicable.append((label, target_h, vbitrate, abitrate))
+            applicable.append((label, target_h, max_bitrate, abitrate, crf))
 
     if not applicable:
-        applicable = [("360p", 360, 700, 64)]
+        applicable = [("360p", 360, 600, 64, 30)]
     return applicable
 
 
+def _encode_variant(
+    input_path: Path,
+    output_dir: Path,
+    key_info_path: Path,
+    label: str,
+    height: int,
+    max_bitrate: int,
+    abitrate: int,
+    crf: int,
+    duration_seconds: float,
+    probe_data: dict,
+    preset: str = "medium",
+    use_gpu: bool = False,
+) -> tuple[str, int, int, Path]:
+    """
+    Encode a single quality variant. Designed to run in parallel.
+    Returns: (label, height, max_bitrate, playlist_path)
+    """
+    variant_dir = output_dir / label
+    variant_dir.mkdir(exist_ok=True)
+    playlist_path = variant_dir / "playlist.m3u8"
+
+    # Check if we can copy audio instead of re-encoding (faster + preserves quality)
+    copy_audio = should_copy_audio(probe_data, abitrate)
+    audio_desc = f"copy audio" if copy_audio else f"audio {abitrate}k"
+
+    encoder_desc = "GPU (NVENC)" if use_gpu else f"HEVC CRF {crf}"
+    console.print(f"\n[bold cyan]Encoding {label}[/] ({encoder_desc}, max {max_bitrate}k / {audio_desc})...")
+
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", str(input_path),
+        "-map", "0:v:0",
+        "-map", "0:a:0?",
+    ]
+    
+    if use_gpu:
+        # NVIDIA NVENC GPU encoding (5-10x faster)
+        cmd += [
+            "-c:v", "hevc_nvenc",
+            "-preset", "p4",              # p1=fastest, p7=slowest (p4=balanced)
+            "-tune", "hq",                # high quality mode
+            "-rc", "vbr",                 # variable bitrate
+            "-cq", str(crf + 5),          # quality level (NVENC scale different from x265)
+            "-b:v", f"{max_bitrate}k",    # target bitrate
+            "-maxrate", f"{max_bitrate}k",
+            "-bufsize", f"{max_bitrate * 2}k",
+            "-vf", f"scale=-2:'min({height},ih)'",
+            "-pix_fmt", "yuv420p",
+            "-tag:v", "hvc1",             # Apple compatibility
+        ]
+    else:
+        # CPU encoding with x265
+        cmd += [
+            "-c:v", "libx265",
+            "-preset", preset,
+            "-crf", str(crf),
+            "-maxrate", f"{max_bitrate}k",
+            "-bufsize", f"{max_bitrate * 2}k",
+            "-vf", f"scale=-2:'min({height},ih)'",
+            "-pix_fmt", "yuv420p",
+            "-tag:v", "hvc1",
+            "-x265-params", "log-level=error",
+        ]
+    
+    # Audio settings
+    if copy_audio:
+        cmd += ["-c:a", "copy"]  # copy audio without re-encoding
+    else:
+        cmd += [
+            "-c:a", "aac",
+            "-b:a", f"{abitrate}k",
+            "-ac", "2",  # stereo
+        ]
+    
+    # HLS settings
+    cmd += [
+        "-hls_time", "6",
+        "-hls_playlist_type", "vod",
+        "-hls_flags", "independent_segments",
+        "-hls_key_info_file", str(key_info_path),
+        "-hls_segment_filename", str(variant_dir / "seg_%04d.ts"),
+        str(playlist_path),
+    ]
+
+    transcode_with_progress(cmd, duration_seconds, f"Encoding {label}")
+    return (label, height, max_bitrate, playlist_path)
+
+
 def process_video(input_path: Path, output_dir: Path, duration_seconds: float,
-                  source_width: Optional[int], source_height: Optional[int]) -> dict:
+                  source_width: Optional[int], source_height: Optional[int], 
+                  probe_data: dict, parallel: bool = True, preset: str = "medium", use_gpu: bool = False) -> dict:
     """
     Transcode input video into multi-quality AES-128 encrypted HLS.
+
+    Args:
+        parallel: If True, encode all quality variants simultaneously (faster on multi-core CPUs)
+        preset: x265 encoding preset (ultrafast to veryslow)
+        use_gpu: If True, use NVIDIA NVENC for GPU encoding (5-10x faster)
 
     Output structure:
         output_dir/
@@ -386,7 +499,7 @@ def process_video(input_path: Path, output_dir: Path, duration_seconds: float,
             1080p/
                 playlist.m3u8
                 seg_000.ts  ...
-            720p/
+            480p/
                 playlist.m3u8
                 seg_000.ts  ...
             ...
@@ -409,55 +522,54 @@ def process_video(input_path: Path, output_dir: Path, duration_seconds: float,
 
     ladder = select_quality_ladder(source_width, source_height)
     console.print(f"\n[bold]Quality variants to encode:[/] {', '.join(q[0] for q in ladder)}")
+    
+    if parallel and len(ladder) > 1:
+        console.print(f"[bold green]Parallel encoding enabled[/] - encoding {len(ladder)} variants simultaneously")
 
     variant_playlists = []  # list of (label, height, bitrate_k, playlist_path)
 
-    # ── Encode each variant ────────────────────────────────────────────────────
-    for label, height, vbitrate, abitrate in ladder:
-        variant_dir = output_dir / label
-        variant_dir.mkdir(exist_ok=True)
-        playlist_path = variant_dir / "playlist.m3u8"
-
-        console.print(f"\n[bold cyan]Encoding {label}[/] ({vbitrate}k video / {abitrate}k audio)...")
-
-        cmd = [
-            "ffmpeg", "-y",
-            "-i", str(input_path),
-            "-map", "0:v:0",
-            "-map", "0:a:0?",
-            # Video
-            "-c:v", "libx264",
-            "-preset", "veryfast",        # speed/quality tradeoff
-            "-b:v", f"{vbitrate}k",
-            "-maxrate", f"{int(vbitrate * 1.2)}k",
-            "-bufsize", f"{vbitrate * 2}k",
-            "-vf", f"scale=-2:'min({height},ih)'",  # scale down to height, keep aspect ratio, don't upscale
-            "-pix_fmt", "yuv420p",        # 8-bit YUV for universal browser compatibility (handles 10-bit source)
-            "-profile:v", "high",
-            "-level", "4.1",
-            # Audio
-            "-c:a", "aac",
-            "-b:a", f"{abitrate}k",
-            "-ac", "2",                   # stereo
-            # HLS
-            "-hls_time", "6",
-            "-hls_playlist_type", "vod",
-            "-hls_flags", "independent_segments",
-            "-hls_key_info_file", str(key_info_path),
-            "-hls_segment_filename", str(variant_dir / "seg_%04d.ts"),
-            str(playlist_path),
-        ]
-
-        transcode_with_progress(cmd, duration_seconds, f"Encoding {label}")
-        variant_playlists.append((label, height, vbitrate, playlist_path))
+    # ── Encode variants (parallel or sequential) ───────────────────────────────
+    if parallel and len(ladder) > 1:
+        # Parallel encoding: all variants at once (uses more CPU, faster overall)
+        with ThreadPoolExecutor(max_workers=len(ladder)) as executor:
+            futures = {
+                executor.submit(
+                    _encode_variant,
+                    input_path, output_dir, key_info_path,
+                    label, height, max_bitrate, abitrate, crf,
+                    duration_seconds, probe_data, preset, use_gpu
+                ): label
+                for label, height, max_bitrate, abitrate, crf in ladder
+            }
+            
+            for future in as_completed(futures):
+                label = futures[future]
+                try:
+                    result = future.result()
+                    variant_playlists.append(result)
+                except Exception as exc:
+                    console.print(f"[red bold]Encoding failed for {label}:[/] {exc}")
+                    sys.exit(1)
+        
+        # Sort by quality (1080p first)
+        variant_playlists.sort(key=lambda x: x[1], reverse=True)
+    else:
+        # Sequential encoding: one variant at a time (less CPU usage)
+        for label, height, max_bitrate, abitrate, crf in ladder:
+            result = _encode_variant(
+                input_path, output_dir, key_info_path,
+                label, height, max_bitrate, abitrate, crf,
+                duration_seconds, probe_data, preset, use_gpu
+            )
+            variant_playlists.append(result)
 
     # ── Generate true HLS master playlist ─────────────────────────────────────
     master_path = output_dir / "master.m3u8"
     with open(master_path, "w") as f:
         f.write("#EXTM3U\n")
         f.write("#EXT-X-VERSION:3\n\n")
-        for label, height, vbitrate, playlist_path in variant_playlists:
-            bandwidth = (vbitrate + 192) * 1000  # approximate total bitrate in bps
+        for label, height, max_bitrate, playlist_path in variant_playlists:
+            bandwidth = max_bitrate * 1000  # convert kbps to bps
             if source_width and source_height:
                 aspect = source_width / source_height
                 width = int(height * aspect)
@@ -594,12 +706,29 @@ def main() -> None:
     parser.add_argument("--api-url", default="https://watch-party-u7jq.onrender.com", metavar="URL")
     parser.add_argument("--workers", type=int, default=8, metavar="N",
                         help="Parallel upload threads (default: 8, max recommended: 16)")
+    parser.add_argument("--parallel", action="store_true", default=True,
+                        help="Encode all quality variants simultaneously (default: enabled, faster on multi-core CPUs)")
+    parser.add_argument("--sequential", action="store_true",
+                        help="Encode quality variants one at a time (uses less CPU)")
+    parser.add_argument("--preset", type=str, default="medium", 
+                        choices=["ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"],
+                        help="x265 encoding preset: faster = larger files, slower = smaller files (default: medium)")
+    parser.add_argument("--gpu", action="store_true",
+                        help="Use NVIDIA GPU encoding (NVENC) - 5-10x faster, requires RTX GPU")
     args = parser.parse_args()
     api_url = args.api_url.rstrip("/")
+    
+    # Determine parallel encoding mode
+    parallel_encode = not args.sequential
 
     console.print(f"\n[bold magenta]Watch Party — Video Uploader[/]")
     console.print(f"Backend: [underline]{api_url}[/]")
-    console.print(f"Upload workers: [bold]{args.workers}[/]\n")
+    console.print(f"Upload workers: [bold]{args.workers}[/]")
+    if args.gpu:
+        console.print(f"Encoding: [bold green]GPU (NVENC)[/]")
+    else:
+        console.print(f"Encoding preset: [bold]{args.preset}[/]")
+    console.print(f"Parallel encoding: [bold]{'Yes' if parallel_encode else 'No'}[/]\n")
 
     input_path = Path(args.input_file).resolve()
     if not input_path.exists():
@@ -647,7 +776,7 @@ def main() -> None:
 
     # ── Step 5: Transcode ─────────────────────────────────────────────────────
     console.rule("[bold magenta]Transcoding")
-    result = process_video(input_path, output_dir, duration_seconds, source_width, source_height)
+    result = process_video(input_path, output_dir, duration_seconds, source_width, source_height, probe, parallel_encode, args.preset, args.gpu)
 
     hls_key_hex = result["hls_key_hex"]
     hls_iv_hex = result["hls_iv_hex"]
