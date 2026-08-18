@@ -25,8 +25,8 @@ function YoutubeIcon({ className }: { className?: string }) {
 
 function hashColor(str: string): string {
   const colors = [
-    'bg-brand-600', 'bg-purple-600', 'bg-indigo-600',
-    'bg-violet-600', 'bg-fuchsia-700', 'bg-pink-700',
+    'bg-brand-600', 'bg-[#8e624a]', 'bg-[#6b3f2b]',
+    'bg-[#b28b6e]', 'bg-[#5b352b]', 'bg-[#7f5b45]',
   ];
   let hash = 0;
   for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);

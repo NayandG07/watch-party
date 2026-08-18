@@ -108,8 +108,8 @@ export default function RoomsPage() {
           {/* Decorative Circles */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
             <div className="absolute w-[300px] h-[300px] rounded-full bg-brand-500 blur-3xl -ml-[150px]"></div>
-            <div className="absolute w-[250px] h-[250px] rounded-full bg-purple-500 blur-3xl -mt-[100px]"></div>
-            <div className="absolute w-[200px] h-[200px] rounded-full bg-blue-500 blur-3xl ml-[100px]"></div>
+            <div className="absolute w-[250px] h-[250px] rounded-full bg-brand-500 blur-3xl -mt-[100px]"></div>
+            <div className="absolute w-[200px] h-[200px] rounded-full bg-brand-300 blur-3xl ml-[100px]"></div>
           </div>
           
           <Tv2 className="w-16 h-16 mb-6 text-brand-500/50 z-10" />

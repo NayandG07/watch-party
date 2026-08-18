@@ -13,11 +13,11 @@ export default function MovieCard({ movie, index }: MovieCardProps) {
   // Use index to deterministically assign a fallback color
   const colors = [
     "from-brand-800 to-brand-950",
-    "from-purple-900 to-indigo-950",
-    "from-pink-900 to-brand-950",
-    "from-indigo-800 to-purple-950",
-    "from-violet-800 to-brand-950",
-    "from-fuchsia-900 to-brand-950",
+    "from-[#4a3b33] to-[#161514]",
+    "from-[#6b3f2b] to-brand-950",
+    "from-[#7f5b45] to-[#211b18]",
+    "from-[#8e624a] to-[#2a1e19]",
+    "from-[#5b352b] to-brand-950",
   ];
   const color = colors[index % colors.length];
 

@@ -18,7 +18,7 @@ type ProviderType = "b2" | "r2";
 
 const PROVIDER_META: Record<ProviderType, { label: string; color: string; hint: string }> = {
   b2: { label: "Backblaze B2", color: "text-orange-400", hint: "Free tier: 1 GB/day download cap" },
-  r2: { label: "Cloudflare R2", color: "text-blue-400", hint: "Zero egress fees — recommended" },
+  r2: { label: "Cloudflare R2", color: "text-brand-500 dark:text-brand-300", hint: "Zero egress fees — recommended" },
 };
 
 export default function StorageSettingsPage() {
@@ -348,7 +348,7 @@ export default function StorageSettingsPage() {
                 <div className="flex items-center gap-4 min-w-0">
                   <div className="w-10 h-10 rounded-xl bg-brand-500/20 flex items-center justify-center shrink-0">
                     {p.provider_type === "r2" ? (
-                      <Cloud className="w-5 h-5 text-blue-400" />
+                      <Cloud className="w-5 h-5 text-brand-500 dark:text-brand-300" />
                     ) : (
                       <HardDrive className="w-5 h-5 text-orange-400" />
                     )}

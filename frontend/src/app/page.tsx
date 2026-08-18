@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowUpRight, Lock, MessageCircle, Play, Sparkles, Users } from "lucide-react";
+import ThemeToggle from "@/components/theme-toggle";
 
 export const metadata: Metadata = {
   title: "Watch Party | Sync Your Cinema",
@@ -31,7 +32,8 @@ export default function LandingPage() {
           <Link href="#details" className="text-xs font-medium text-content-muted transition-colors hover:text-content-primary">Why Watch Party</Link>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          <ThemeToggle />
           <Link href="/login" className="text-sm font-medium text-content-secondary transition-colors hover:text-content-primary">Sign In</Link>
           <Link href="/library" className="btn-primary h-10 px-5 text-sm">Open Library</Link>
         </div>
@@ -73,7 +75,7 @@ export default function LandingPage() {
 
         <div className="reveal reveal-2 relative mx-auto w-full max-w-[690px] lg:ml-auto">
           <div className="absolute -inset-10 rounded-[3.5rem] bg-brand-500/[0.08] blur-3xl" aria-hidden="true" />
-          <div className="preview-float relative rounded-[2rem] border border-brand-100/[0.16] bg-[#0c150e]/90 p-3 shadow-[0_30px_100px_rgba(0,0,0,0.42)] backdrop-blur-2xl">
+          <div className="preview-float relative rounded-[2rem] border border-brand-100/[0.16] bg-[#191713]/90 p-3 shadow-[0_30px_100px_rgba(0,0,0,0.42)] backdrop-blur-2xl">
             <div className="flex items-center justify-between px-3 pb-3 pt-1">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-brand-300/20 bg-brand-500/10">
@@ -89,8 +91,8 @@ export default function LandingPage() {
               </span>
             </div>
 
-            <div className="relative aspect-[1.48] overflow-hidden rounded-[1.35rem] border border-brand-100/[0.12] bg-[#1b2b1b]">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_25%,rgba(231,248,188,0.62),transparent_10%),radial-gradient(circle_at_36%_56%,rgba(169,209,119,0.3),transparent_27%),linear-gradient(128deg,#1a2518_15%,#617c43_50%,#152116_88%)]" />
+            <div className="relative aspect-[1.48] overflow-hidden rounded-[1.35rem] border border-brand-100/[0.12] bg-[#2a211a]">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_25%,rgba(246,218,190,0.62),transparent_10%),radial-gradient(circle_at_36%_56%,rgba(213,148,106,0.28),transparent_27%),linear-gradient(128deg,#2a211a_15%,#8f644b_50%,#161312_88%)]" />
               <div className="orb-drift absolute -right-8 top-3 h-56 w-56 rounded-full bg-brand-200/20 blur-2xl" />
               <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_42%,rgba(6,13,8,0.86)_100%)]" />
               <div className="absolute left-7 top-7 flex items-center gap-2 rounded-full border border-white/15 bg-black/10 px-2.5 py-1.5 text-[9px] font-medium tracking-wide text-brand-50/80 backdrop-blur-md">
@@ -110,10 +112,10 @@ export default function LandingPage() {
             <div className="flex items-center justify-between px-2 pb-1 pt-4">
               <div className="flex items-center gap-3">
                 <div className="flex -space-x-2">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#0c150e] bg-[#d5e6ad] text-[10px] font-bold text-[#334a20]">A</div>
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#0c150e] bg-[#9dbb72] text-[10px] font-bold text-[#26371d]">M</div>
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#0c150e] bg-[#68874a] text-[10px] font-bold text-brand-50">J</div>
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#0c150e] bg-surface-overlay text-[10px] font-semibold text-content-secondary">+2</div>
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#191713] bg-[#f0d4b7] text-[10px] font-bold text-[#6e3f2b]">A</div>
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#191713] bg-[#d19b79] text-[10px] font-bold text-[#4f3024]">M</div>
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#191713] bg-[#8e624a] text-[10px] font-bold text-brand-50">J</div>
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#191713] bg-surface-overlay text-[10px] font-semibold text-content-secondary">+2</div>
                 </div>
                 <span className="text-[11px] font-medium text-content-muted">5 friends watching</span>
               </div>
@@ -123,7 +125,7 @@ export default function LandingPage() {
               </div>
             </div>
 
-            <div className="mt-3 flex items-center gap-3 px-2 pb-1">
+            <div className="flex items-center gap-3 px-2 pb-1 pt-4">
               <span className="text-[9px] tabular-nums text-content-muted">42:18</span>
               <div className="h-1 flex-1 overflow-hidden rounded-full bg-brand-100/10">
                 <div className="progress-shimmer h-full w-[38%] rounded-full bg-gradient-to-r from-brand-300 to-brand-100" />

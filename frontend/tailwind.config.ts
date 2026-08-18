@@ -12,38 +12,38 @@ const config: Config = {
       colors: {
         // ── Brand palette ──────────────────────────────────────
         brand: {
-          50:  "#f4f8eb",
-          100: "#e5efcf",
-          200: "#cfe2a8",
-          300: "#b1d17a",
-          400: "#93bc51",
-          500: "#78a83d",  // primary
-          600: "#5f8730",
-          700: "#486727",
-          800: "#334a20",
-          900: "#24351a",
-          950: "#141d10",
+          50:  "#fff8f0",
+          100: "#fae9d7",
+          200: "#f3cfaf",
+          300: "#dfaa7c",
+          400: "#c98259",
+          500: "#b86b48",  // primary
+          600: "#96543a",
+          700: "#713f2e",
+          800: "#4d2b22",
+          900: "#321d19",
+          950: "#1e1110",
         },
         // ── Surfaces (dark-first) ──────────────────────────────
         surface: {
-          base:     "#0a0f0b",  // deepest background
-          default:  "#111811",  // page background
-          elevated: "#182118",  // cards, panels
-          overlay:  "#202b1f",  // modals, dropdowns
-          border:   "rgba(211, 231, 183, 0.12)",
+          base:     "var(--color-surface-base)",
+          default:  "var(--color-surface-default)",
+          elevated: "var(--color-surface-elevated)",
+          overlay:  "var(--color-surface-overlay)",
+          border:   "var(--color-border)",
         },
         // ── Text ───────────────────────────────────────────────
         content: {
-          primary:   "#f1f6eb",
-          secondary: "#abb7a3",
-          muted:     "#6b7868",
-          disabled:  "#3d493c",
+          primary:   "var(--color-text-primary)",
+          secondary: "var(--color-text-secondary)",
+          muted:     "var(--color-text-muted)",
+          disabled:  "var(--color-text-disabled)",
         },
         // ── Semantic ────────────────────────────────────────────
-        success: "#a4ce69",
-        warning: "#e0ad56",
-        danger:  "#e4776d",
-        info:    "#8daec2",
+        success: "#5e8d5e",
+        warning: "#b47d3c",
+        danger:  "#b8534b",
+        info:    "#667e91",
       },
       fontFamily: {
         sans: ["var(--font-inter)", "Inter", "system-ui", "sans-serif"],
@@ -56,9 +56,9 @@ const config: Config = {
       },
       backgroundImage: {
         "gradient-radial":    "radial-gradient(var(--tw-gradient-stops))",
-        "gradient-brand":     "linear-gradient(135deg, #c7e391 0%, #8ab94b 52%, #587e2e 100%)",
-        "gradient-surface":   "linear-gradient(180deg, #1b261b 0%, #111811 100%)",
-        "gradient-spotlight": "radial-gradient(ellipse at top, rgba(143, 184, 79, 0.17) 0%, transparent 70%)",
+        "gradient-brand":     "linear-gradient(135deg, #f3cfaf 0%, #c98259 54%, #96543a 100%)",
+        "gradient-surface":   "linear-gradient(180deg, var(--color-surface-elevated) 0%, var(--color-surface-default) 100%)",
+        "gradient-spotlight": "radial-gradient(ellipse at top, rgba(201, 130, 89, 0.14) 0%, transparent 70%)",
       },
       keyframes: {
         // Slide in from right (mobile drawers)
@@ -101,10 +101,10 @@ const config: Config = {
         float:            "float 4s ease-in-out infinite",
       },
       boxShadow: {
-        brand:   "0 0 40px rgba(120, 168, 61, 0.22)",
-        card:    "0 12px 36px rgba(0, 0, 0, 0.24)",
-        "card-hover": "0 18px 44px rgba(0, 0, 0, 0.34)",
-        glow:    "0 0 24px rgba(147, 188, 81, 0.32)",
+        brand:   "0 0 40px rgba(184, 107, 72, 0.2)",
+        card:    "0 12px 36px rgba(0, 0, 0, 0.18)",
+        "card-hover": "0 18px 44px rgba(0, 0, 0, 0.28)",
+        glow:    "0 0 24px rgba(201, 130, 89, 0.28)",
       },
       transitionTimingFunction: {
         "out-expo": "cubic-bezier(0.19, 1, 0.22, 1)",

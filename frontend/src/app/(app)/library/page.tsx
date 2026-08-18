@@ -217,7 +217,7 @@ export default function LibraryPage() {
                   <span title="Shared"><Globe className="w-3.5 h-3.5 text-brand-400" /></span>
                 )}
                 {collection.visibility === "friends" && (
-                  <span title="Friends Only"><Users className="w-3.5 h-3.5 text-blue-400" /></span>
+                  <span title="Friends Only"><Users className="w-3.5 h-3.5 text-brand-500 dark:text-brand-300" /></span>
                 )}
                 {collection.visibility === "private" && (
                   <span title="Private"><Lock className="w-3.5 h-3.5 text-content-muted" /></span>
