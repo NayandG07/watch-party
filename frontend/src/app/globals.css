@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300..800;1,14..32,300..800&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -8,23 +6,23 @@
 :root {
   --font-inter: 'Inter', system-ui, sans-serif;
 
-  /* Brand */
-  --color-brand:        #7c2ff7;
-  --color-brand-glow:   rgba(124, 47, 247, 0.35);
-  --color-brand-subtle: rgba(124, 47, 247, 0.12);
+  /* Brand — pistachio gradient over deep ink */
+  --color-brand:        #78a83d;
+  --color-brand-glow:   rgba(147, 188, 81, 0.3);
+  --color-brand-subtle: rgba(120, 168, 61, 0.14);
 
   /* Surfaces */
-  --color-surface-base:     #08080e;
-  --color-surface-default:  #0f0f1a;
-  --color-surface-elevated: #161624;
-  --color-surface-overlay:  #1e1e30;
-  --color-border:           rgba(255, 255, 255, 0.07);
-  --color-border-strong:    rgba(255, 255, 255, 0.12);
+  --color-surface-base:     #0a0f0b;
+  --color-surface-default:  #111811;
+  --color-surface-elevated: #182118;
+  --color-surface-overlay:  #202b1f;
+  --color-border:           rgba(211, 231, 183, 0.12);
+  --color-border-strong:    rgba(211, 231, 183, 0.2);
 
   /* Content */
-  --color-text-primary:   #f2f2ff;
-  --color-text-secondary: #9898b8;
-  --color-text-muted:     #5a5a7a;
+  --color-text-primary:   #f1f6eb;
+  --color-text-secondary: #abb7a3;
+  --color-text-muted:     #6b7868;
 
   /* Layout */
   --sidebar-width: 256px;
@@ -53,7 +51,10 @@
   }
 
   body {
-    background-color: var(--color-surface-default);
+    background:
+      radial-gradient(circle at 82% 6%, rgba(120, 168, 61, 0.08), transparent 26rem),
+      radial-gradient(circle at 8% 92%, rgba(73, 103, 39, 0.1), transparent 24rem),
+      var(--color-surface-default);
     min-height: 100dvh;
     overflow-x: hidden;
   }
@@ -83,8 +84,8 @@
 
   /* Selection */
   ::selection {
-    background-color: rgba(124, 47, 247, 0.4);
-    color: #f2f2ff;
+    background-color: rgba(147, 188, 81, 0.35);
+    color: #f1f6eb;
   }
 }
 
@@ -102,8 +103,11 @@
     outline-offset: 2px;
   }
   .btn-primary {
-    @apply btn text-white shadow-brand hover:opacity-90 hover:shadow-glow active:scale-[0.97];
-    background: linear-gradient(135deg, #7c2ff7 0%, #c41ca8 100%);
+    @apply btn text-[#16200f] shadow-brand hover:shadow-glow active:scale-[0.97];
+    background: linear-gradient(135deg, #c7e391 0%, #8ab94b 52%, #587e2e 100%);
+  }
+  .btn-primary:hover {
+    filter: saturate(1.08) brightness(1.05);
   }
   .btn-secondary {
     @apply btn text-content-primary border hover:bg-surface-overlay active:scale-[0.97];
@@ -177,9 +181,9 @@
   /* ── Glass panel ─────────────────────────────────────────── */
   .glass {
     @apply backdrop-blur-xl rounded-2xl;
-    background-color: rgba(22, 22, 36, 0.65);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 0 0 1px rgba(255,255,255,0.03) inset, 0 8px 32px rgba(0,0,0,0.4);
+    background: linear-gradient(145deg, rgba(35, 49, 32, 0.78), rgba(18, 26, 18, 0.7));
+    border: 1px solid rgba(211, 231, 183, 0.13);
+    box-shadow: 0 0 0 1px rgba(241, 246, 235, 0.025) inset, 0 14px 36px rgba(0, 0, 0, 0.2);
   }
 
   /* ── Section title ───────────────────────────────────────── */
@@ -200,8 +204,8 @@
   }
   .nav-item-active {
     @apply nav-item text-brand-200;
-    background-color: rgba(124, 47, 247, 0.14);
-    border: 1px solid rgba(124, 47, 247, 0.22);
+    background-color: rgba(120, 168, 61, 0.14);
+    border: 1px solid rgba(147, 188, 81, 0.24);
   }
   .nav-item-active::before {
     content: '';
@@ -210,7 +214,7 @@
     top: 25%;
     bottom: 25%;
     width: 3px;
-    background: var(--color-brand);
+    background: linear-gradient(180deg, #c7e391, #78a83d);
     border-radius: 0 3px 3px 0;
   }
   .nav-item-inactive {
@@ -239,7 +243,7 @@
 @layer utilities {
   .text-gradient {
     @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(135deg, #7c2ff7 0%, #c41ca8 100%);
+    background-image: linear-gradient(135deg, #d8eba9 0%, #93bc51 50%, #78a83d 100%);
   }
 
   .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -260,7 +264,7 @@
 
   /* Brand glow ring */
   .ring-brand {
-    box-shadow: 0 0 0 3px rgba(124, 47, 247, 0.35);
+    box-shadow: 0 0 0 3px rgba(147, 188, 81, 0.3);
   }
 
   /* Cinematic gradient overlay (bottom-up, for hero images) */

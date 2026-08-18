@@ -12,38 +12,38 @@ const config: Config = {
       colors: {
         // ── Brand palette ──────────────────────────────────────
         brand: {
-          50:  "#f0e7ff",
-          100: "#dcc5ff",
-          200: "#c49dff",
-          300: "#a96bff",
-          400: "#9145ff",
-          500: "#7c2ff7",  // primary
-          600: "#6820d4",
-          700: "#5316a8",
-          800: "#3e0e7c",
-          900: "#290854",
-          950: "#140326",
+          50:  "#f4f8eb",
+          100: "#e5efcf",
+          200: "#cfe2a8",
+          300: "#b1d17a",
+          400: "#93bc51",
+          500: "#78a83d",  // primary
+          600: "#5f8730",
+          700: "#486727",
+          800: "#334a20",
+          900: "#24351a",
+          950: "#141d10",
         },
         // ── Surfaces (dark-first) ──────────────────────────────
         surface: {
-          base:     "#08080e",  // deepest background
-          default:  "#0f0f1a",  // page background
-          elevated: "#161624",  // cards, panels
-          overlay:  "#1e1e30",  // modals, dropdowns
-          border:   "rgba(255,255,255,0.07)",
+          base:     "#0a0f0b",  // deepest background
+          default:  "#111811",  // page background
+          elevated: "#182118",  // cards, panels
+          overlay:  "#202b1f",  // modals, dropdowns
+          border:   "rgba(211, 231, 183, 0.12)",
         },
         // ── Text ───────────────────────────────────────────────
         content: {
-          primary:   "#f2f2ff",
-          secondary: "#9898b8",
-          muted:     "#5a5a7a",
-          disabled:  "#3a3a52",
+          primary:   "#f1f6eb",
+          secondary: "#abb7a3",
+          muted:     "#6b7868",
+          disabled:  "#3d493c",
         },
         // ── Semantic ────────────────────────────────────────────
-        success: "#22c55e",
-        warning: "#f59e0b",
-        danger:  "#ef4444",
-        info:    "#3b82f6",
+        success: "#a4ce69",
+        warning: "#e0ad56",
+        danger:  "#e4776d",
+        info:    "#8daec2",
       },
       fontFamily: {
         sans: ["var(--font-inter)", "Inter", "system-ui", "sans-serif"],
@@ -56,9 +56,9 @@ const config: Config = {
       },
       backgroundImage: {
         "gradient-radial":    "radial-gradient(var(--tw-gradient-stops))",
-        "gradient-brand":     "linear-gradient(135deg, #7c2ff7 0%, #c41ca8 100%)",
-        "gradient-surface":   "linear-gradient(180deg, #161624 0%, #0f0f1a 100%)",
-        "gradient-spotlight": "radial-gradient(ellipse at top, rgba(124,47,247,0.15) 0%, transparent 70%)",
+        "gradient-brand":     "linear-gradient(135deg, #c7e391 0%, #8ab94b 52%, #587e2e 100%)",
+        "gradient-surface":   "linear-gradient(180deg, #1b261b 0%, #111811 100%)",
+        "gradient-spotlight": "radial-gradient(ellipse at top, rgba(143, 184, 79, 0.17) 0%, transparent 70%)",
       },
       keyframes: {
         // Slide in from right (mobile drawers)
@@ -101,10 +101,10 @@ const config: Config = {
         float:            "float 4s ease-in-out infinite",
       },
       boxShadow: {
-        brand:   "0 0 40px rgba(124,47,247,0.25)",
-        card:    "0 4px 24px rgba(0,0,0,0.4)",
-        "card-hover": "0 8px 40px rgba(0,0,0,0.6)",
-        glow:    "0 0 20px rgba(124,47,247,0.4)",
+        brand:   "0 0 40px rgba(120, 168, 61, 0.22)",
+        card:    "0 12px 36px rgba(0, 0, 0, 0.24)",
+        "card-hover": "0 18px 44px rgba(0, 0, 0, 0.34)",
+        glow:    "0 0 24px rgba(147, 188, 81, 0.32)",
       },
       transitionTimingFunction: {
         "out-expo": "cubic-bezier(0.19, 1, 0.22, 1)",
