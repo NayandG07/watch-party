@@ -14,7 +14,7 @@ export default function ProfilePage() {
     user.role === "super_admin"
       ? "bg-brand-500/20 text-brand-400"
       : user.role === "level2"
-      ? "bg-indigo-500/20 text-indigo-400"
+      ? "bg-brand-500/15 text-brand-600 dark:text-brand-200"
       : "bg-surface-elevated text-content-muted";
 
   return (

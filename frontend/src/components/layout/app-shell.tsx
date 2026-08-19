@@ -16,6 +16,7 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/authStore";
+import ThemeToggle from "@/components/theme-toggle";
 
 interface NavItem {
   href: string;
@@ -136,7 +137,7 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
                 <span className={cn(
                   "inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider",
                   user.role === "super_admin" ? "bg-brand-500/20 text-brand-400" :
-                  user.role === "level2" ? "bg-indigo-500/20 text-indigo-400" :
+                  user.role === "level2" ? "bg-brand-500/15 text-brand-600 dark:text-brand-200" :
                   "bg-surface-elevated text-content-muted"
                 )}>
                   {user.role.replace("_", " ")}
@@ -146,6 +147,10 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
             <ChevronRight className="w-4 h-4 text-content-muted group-hover/profile:text-brand-400 shrink-0 transition-all duration-200 group-hover/profile:translate-x-0.5 md:opacity-0 md:group-hover/sidebar:opacity-100 lg:opacity-100" />
           </Link>
         )}
+        <div className="mb-2 flex items-center justify-between px-2">
+          <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-content-muted">Appearance</span>
+          <ThemeToggle />
+        </div>
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-content-muted hover:text-danger hover:bg-danger/10 transition-colors group/logout"
@@ -229,6 +234,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <div className="flex-1 flex items-center justify-center -ml-6 pointer-events-none">
               <span className="text-base font-bold text-content-primary">{getPageTitle()}</span>
             </div>
+            <ThemeToggle />
           </header>
         )}
 
