@@ -229,7 +229,10 @@ def fetch_collection(api_url: str, headers: dict) -> str:
         return chosen["id"]
     console.print("\n[bold]Available collections:[/]")
     for i, c in enumerate(collections, 1):
-        console.print(f"  [cyan]{i}.[/] {c['name']}")
+        lib = c.get("library")
+        lib_name = lib.get("name") if isinstance(lib, dict) else None
+        lib_suffix = f" [dim]({lib_name})[/]" if lib_name else ""
+        console.print(f"  [cyan]{i}.[/] {c['name']}{lib_suffix}")
     choice = IntPrompt.ask("Select a collection", choices=[str(i) for i in range(1, len(collections) + 1)])
     return collections[choice - 1]["id"]
 

@@ -4,7 +4,9 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import create_access_token
+from jose import jwt
+
+from app.core.config import get_settings
 from app.models.enums import StorageProviderType, UserRole
 from app.models.library import Library
 from app.models.storage_provider import StorageProvider
@@ -13,13 +15,10 @@ from app.models.user import User
 
 @pytest.fixture
 async def test_admin(db_session: AsyncSession) -> User:
-    from app.core.security import hash_password
-
     suffix = uuid.uuid4().hex
     user = User(
         username=f"admin_perm_{suffix}",
         email=f"admin_perm_{suffix}@example.com",
-        hashed_password=hash_password("password123"),
         role=UserRole.SUPER_ADMIN,
         is_active=True,
     )
@@ -57,16 +56,17 @@ async def test_library(db_session: AsyncSession, test_admin: User) -> Library:
 async def test_grant_permission(
     client: AsyncClient, test_admin: User, test_library: Library, db_session: AsyncSession
 ):
-    token = create_access_token(str(test_admin.id), role="super_admin")
+    settings = get_settings()
+    token = jwt.encode(
+        {"sub": str(test_admin.id), "aud": "authenticated", "role": "authenticated"},
+        settings.supabase_jwt_secret,
+        algorithm="HS256",
+    )
 
     # Create another user to grant to
-    from app.core.security import hash_password
-
-    suffix = uuid.uuid4().hex
     grantee = User(
         username=f"grantee_{suffix}",
         email=f"grantee_{suffix}@example.com",
-        hashed_password=hash_password("pw"),
         role=UserRole.LEVEL1,
         is_active=True,
     )

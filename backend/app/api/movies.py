@@ -153,9 +153,30 @@ async def list_movies(
 @router.post("", response_model=MovieResponse, status_code=status.HTTP_201_CREATED)
 async def create_movie(
     payload: MovieCreate,
-    _: RequireLevel2Dep,
+    user_role_pair: RequireLevel2Dep,
     db: DatabaseDep,
 ) -> Movie:
+    user_id, user_role = user_role_pair
+
+    # Verify collection exists and user has management permission
+    stmt = (
+        select(Collection)
+        .where(Collection.id == payload.collection_id)
+        .options(selectinload(Collection.library))
+    )
+    result = await db.execute(stmt)
+    collection = result.scalar_one_or_none()
+    if not collection:
+        raise HTTPException(status_code=404, detail="Collection not found")
+
+    if not await PermissionService.can_manage_collection(
+        collection=collection,
+        library=collection.library,
+        user_id=user_id,
+        user_role=user_role,
+    ):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to this collection")
+
     # Generate a URL-safe slug from the title, appending part of a UUID for uniqueness
     base_slug = re.sub(r"[^a-z0-9]+", "-", payload.title.lower()).strip("-")
     slug = f"{base_slug}-{uuid.uuid4().hex[:8]}"
@@ -236,9 +257,10 @@ async def get_movie(
 async def update_movie(
     movie_id: uuid.UUID,
     payload: MovieUpdate,
-    _: RequireAdminDep,
+    user_role_pair: RequireLevel2Dep,
     db: DatabaseDep,
 ) -> Movie:
+    user_id, role = user_role_pair
     stmt = (
         select(Movie)
         .where(Movie.id == movie_id)
@@ -252,6 +274,13 @@ async def update_movie(
 
     if not movie:
         raise HTTPException(status_code=404, detail="Movie not found")
+
+    if not await PermissionService.can_manage_movie(
+        library=movie.collection.library,
+        user_id=user_id,
+        user_role=role,
+    ):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     update_data = payload.model_dump(exclude_unset=True)
     if "enriched_metadata" in update_data and update_data["enriched_metadata"]:
@@ -285,9 +314,10 @@ async def update_movie(
 async def complete_movie_upload(
     movie_id: uuid.UUID,
     payload: MovieUploaderUpdate,
-    _: RequireAdminDep,
+    user_role_pair: RequireLevel2Dep,
     db: DatabaseDep,
 ) -> Movie:
+    user_id, role = user_role_pair
     stmt = (
         select(Movie)
         .where(Movie.id == movie_id)
@@ -303,6 +333,13 @@ async def complete_movie_upload(
 
     if not movie:
         raise HTTPException(status_code=404, detail="Movie not found")
+
+    if not await PermissionService.can_manage_movie(
+        library=movie.collection.library,
+        user_id=user_id,
+        user_role=role,
+    ):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     update_data = payload.model_dump(exclude_unset=True)
 
@@ -350,12 +387,26 @@ async def complete_movie_upload(
 @router.delete("/{movie_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_movie(
     movie_id: uuid.UUID,
-    _: RequireAdminDep,
+    user_role_pair: RequireLevel2Dep,
     db: DatabaseDep,
 ) -> None:
-    movie = await db.get(Movie, movie_id)
+    user_id, role = user_role_pair
+    stmt = (
+        select(Movie)
+        .where(Movie.id == movie_id)
+        .options(selectinload(Movie.collection).selectinload(Collection.library))
+    )
+    result = await db.execute(stmt)
+    movie = result.scalar_one_or_none()
     if not movie:
         raise HTTPException(status_code=404, detail="Movie not found")
+
+    if not await PermissionService.can_manage_movie(
+        library=movie.collection.library,
+        user_id=user_id,
+        user_role=role,
+    ):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     await db.delete(movie)
     await db.commit()

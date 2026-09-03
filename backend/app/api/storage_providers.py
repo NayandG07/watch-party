@@ -19,14 +19,16 @@ import uuid
 import structlog
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field, ConfigDict, model_validator
-from sqlalchemy import select
+from sqlalchemy import or_, select
+from sqlalchemy.orm import selectinload
 
 from app.core.dependencies import DatabaseDep, RequireLevel2Dep
 from app.core.security import decrypt_secret, encrypt_secret
 from app.core.storage_utils import extract_s3_creds
-from app.models.enums import StorageProviderType
+from app.models.enums import StorageProviderType, UserRole
 from app.models.movie import Movie
 from app.models.storage_provider import StorageProvider
+from app.models.user import User
 
 logger = structlog.get_logger()
 router = APIRouter(prefix="/storage-providers", tags=["storage"])
@@ -117,8 +119,22 @@ async def list_storage_providers(
     user_role_pair: RequireLevel2Dep,
     db: DatabaseDep,
 ) -> list[StorageProvider]:
-    user_id, _ = user_role_pair
-    stmt = select(StorageProvider).where(StorageProvider.owner_id == uuid.UUID(user_id))
+    user_id, role = user_role_pair
+    if role == UserRole.SUPER_ADMIN:
+        stmt = select(StorageProvider).where(StorageProvider.is_active.is_(True))
+    else:
+        # Level 2 users see their own providers + active providers owned by a super_admin
+        stmt = (
+            select(StorageProvider)
+            .join(User, StorageProvider.owner_id == User.id)
+            .where(
+                StorageProvider.is_active.is_(True),
+                or_(
+                    StorageProvider.owner_id == uuid.UUID(user_id),
+                    User.role == UserRole.SUPER_ADMIN,
+                ),
+            )
+        )
     result = await db.execute(stmt)
     return list(result.scalars().all())
 
@@ -131,17 +147,28 @@ async def get_storage_provider_credentials(
 ) -> StorageProviderCredentialsResponse:
     """Return decrypted, normalized storage credentials for the uploader script.
 
-    Only the owner (level2+) or a super_admin may call this endpoint.
-    Credentials are decrypted on the fly and returned once — never stored
-    in plaintext. Always returns normalized access_key_id/secret_access_key.
+    Only the owner (level2+), a super_admin, or level2 users using an admin-owned
+    provider may call this endpoint. Credentials are decrypted on the fly and
+    returned once — never stored in plaintext. Always returns normalized
+    access_key_id/secret_access_key.
     """
     user_id, role = user_role_pair
 
-    provider = await db.get(StorageProvider, provider_id)
+    stmt = (
+        select(StorageProvider)
+        .where(StorageProvider.id == provider_id)
+        .options(selectinload(StorageProvider.owner))
+    )
+    result = await db.execute(stmt)
+    provider = result.scalar_one_or_none()
     if not provider:
         raise HTTPException(status_code=404, detail="Storage provider not found")
 
-    if role != "super_admin" and str(provider.owner_id) != user_id:
+    is_owner = str(provider.owner_id) == user_id
+    is_admin = role == UserRole.SUPER_ADMIN
+    is_admin_owned = provider.owner.role == UserRole.SUPER_ADMIN
+
+    if not (is_admin or is_owner or is_admin_owned):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     try:
