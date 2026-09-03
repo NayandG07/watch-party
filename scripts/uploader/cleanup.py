@@ -2,13 +2,23 @@
 """
 Watch Party - Movie Cleanup Tool
 ==================================
-Lists and removes movie records from the database.
-Can target ALL movies or only orphaned (failed/incomplete) ones.
+Lists and removes movie records from the database with optional B2 file deletion.
 
 Usage:
-    python cleanup.py                               # defaults to remote server
+    python cleanup.py                               # Interactive mode (default: orphaned movies)
     python cleanup.py --api-url https://myserver.com
-    python cleanup.py --delete-b2                   # auto-delete B2 without prompting
+    python cleanup.py --delete-b2                   # Auto-delete B2 files without prompting
+
+Modes:
+    1. All movies       - Delete any movie in the database
+    2. Orphaned movies  - Delete only failed/incomplete uploads (default)
+    3. Select specific  - Choose individual movies from the list
+
+Selection:
+    - Single number:    2
+    - Multiple:         1,3,5
+    - All listed:       all
+    - Quit:             q
 
 Requirements: httpx, boto3, supabase, rich, python-dotenv
 """
@@ -149,8 +159,8 @@ def fetch_storage_credentials(api_url: str, headers: dict) -> dict | None:
     return {
         "bucket_name": creds["bucket_name"],
         "endpoint_url": endpoint_url,
-        "key_id": creds["key_id"],
-        "application_key": creds["application_key"],
+        "access_key_id": creds["access_key_id"],
+        "secret_access_key": creds["secret_access_key"],
     }
 
 
@@ -158,8 +168,8 @@ def delete_b2_folder(movie_id: str, creds: dict) -> None:
     s3 = boto3.client(
         "s3",
         endpoint_url=creds["endpoint_url"],
-        aws_access_key_id=creds["key_id"],
-        aws_secret_access_key=creds["application_key"],
+        aws_access_key_id=creds["access_key_id"],
+        aws_secret_access_key=creds["secret_access_key"],
         config=Config(signature_version="s3v4"),
     )
     bucket = creds["bucket_name"]
@@ -229,7 +239,11 @@ def show_movie_table(movies: list[dict], label: str) -> None:
 
 def select_movies(movies: list[dict]) -> list[dict]:
     console.print("\n[bold]Which movies do you want to delete?[/]")
-    console.print("Enter a number (e.g. '2'), comma-separated list (e.g. '1,3'), 'all', or 'q' to quit.")
+    console.print("Enter:")
+    console.print("  • A single number (e.g. '2')")
+    console.print("  • Comma-separated list (e.g. '1,3,5')")
+    console.print("  • 'all' to delete all listed movies")
+    console.print("  • 'q' to quit without deleting")
 
     choice = Prompt.ask("\nChoice").strip().lower()
 
@@ -274,14 +288,21 @@ def main() -> None:
     console.print("[bold]What would you like to clean up?[/]")
     console.print("  [cyan]1.[/] All movies (any status)")
     console.print("  [cyan]2.[/] Only orphaned movies (failed/incomplete uploads)")
-    mode = Prompt.ask("Select mode", choices=["1", "2"], default="1")
+    console.print("  [cyan]3.[/] Select specific movies to delete")
+    mode = Prompt.ask("Select mode", choices=["1", "2", "3"], default="2")
 
     if mode == "1":
         movies = fetch_all_movies(api_url, headers)
         label = "movie(s)"
-    else:
+        select_from_list = True
+    elif mode == "2":
         movies = fetch_orphaned_movies(api_url, headers)
         label = "orphaned movie(s)"
+        select_from_list = True
+    else:  # mode == "3"
+        movies = fetch_all_movies(api_url, headers)
+        label = "movie(s)"
+        select_from_list = True
 
     if not movies:
         console.print("[green]No movies found. Nothing to clean up![/]")
@@ -289,7 +310,11 @@ def main() -> None:
 
     # ── Step 3: Show table and select ─────────────────────────────────────────
     show_movie_table(movies, label)
-    to_delete = select_movies(movies)
+    
+    if select_from_list:
+        to_delete = select_movies(movies)
+    else:
+        to_delete = movies  # Delete all (shouldn't reach here now)
 
     if not to_delete:
         console.print("[yellow]Aborted. No changes made.[/]")

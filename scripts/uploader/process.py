@@ -23,6 +23,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Optional
@@ -124,6 +125,32 @@ def refresh_access_token(supabase: Client, refresh_token: str) -> str:
         console.print(f"[red bold]Token refresh failed:[/] {e}")
         console.print("[yellow]Please re-authenticate manually.[/]")
         sys.exit(1)
+
+
+class BackendKeepAlive:
+    """Keeps the backend (e.g. Render free tier) awake during long encodes/uploads."""
+
+    def __init__(self, api_url: str, interval_seconds: int = 180):
+        self.api_url = api_url.rstrip("/")
+        self.interval = interval_seconds
+        self._stop_event = threading.Event()
+        self._thread: Optional[threading.Thread] = None
+
+    def start(self):
+        self._thread = threading.Thread(target=self._run, daemon=True, name="BackendKeepAlive")
+        self._thread.start()
+
+    def _run(self):
+        while not self._stop_event.wait(self.interval):
+            try:
+                httpx.get(f"{self.api_url}/api/health", timeout=30.0)
+            except Exception:
+                pass
+
+    def stop(self):
+        self._stop_event.set()
+        if self._thread:
+            self._thread.join(timeout=2.0)
 
 
 def verify_role(api_url: str, headers: dict) -> None:
@@ -295,26 +322,21 @@ def should_copy_audio(probe_data: dict, target_bitrate_k: int) -> bool:
 
 # ── Transcode with real-time progress ──────────────────────────────────────────
 
+# Global lock for progress display to prevent Rich conflicts in parallel mode
+_progress_lock = threading.Lock()
+
 def transcode_with_progress(cmd: list[str], duration_seconds: float, label: str) -> None:
     """
     Run an ffmpeg command and show a real-time progress bar.
 
     Uses -progress pipe:1 for machine-readable progress on stdout.
     Stderr is drained in a background thread to prevent OS pipe buffer deadlocks.
+    
+    Note: In parallel mode, progress bars are disabled to avoid Rich display conflicts.
     """
     # Insert -progress pipe:1 -nostats before the output file (last arg)
     out_file = cmd[-1]
     progress_cmd = cmd[:-1] + ["-progress", "pipe:1", "-nostats", out_file]
-
-    progress = Progress(
-        SpinnerColumn(),
-        TextColumn("[bold cyan]{task.description}"),
-        BarColumn(bar_width=40),
-        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-        TimeElapsedColumn(),
-        TimeRemainingColumn(),
-        console=console,
-    )
 
     proc = subprocess.Popen(
         progress_cmd,
@@ -335,20 +357,40 @@ def transcode_with_progress(cmd: list[str], duration_seconds: float, label: str)
     stderr_thread.start()
 
     try:
-        with progress:
-            task = progress.add_task(label, total=100)
+        # Try to acquire lock - if can't (parallel mode), just process without display
+        has_lock = _progress_lock.acquire(blocking=False)
+        
+        if has_lock:
+            # Single encoding or first parallel thread - show progress bar
+            progress = Progress(
+                SpinnerColumn(),
+                TextColumn("[bold cyan]{task.description}"),
+                BarColumn(bar_width=40),
+                TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+                TimeElapsedColumn(),
+                TimeRemainingColumn(),
+                console=console,
+            )
+            
+            with progress:
+                task = progress.add_task(label, total=100)
 
+                for line in proc.stdout:
+                    line = line.strip()
+                    if line.startswith("out_time_ms="):
+                        try:
+                            ms = int(line.split("=")[1])
+                            current_time = ms / 1_000_000
+                            if duration_seconds > 0:
+                                pct = min(100.0, (current_time / duration_seconds) * 100)
+                                progress.update(task, completed=pct)
+                        except (ValueError, IndexError):
+                            pass
+        else:
+            # Parallel mode - other threads just drain stdout without display
             for line in proc.stdout:
-                line = line.strip()
-                if line.startswith("out_time_ms="):
-                    try:
-                        ms = int(line.split("=")[1])
-                        current_time = ms / 1_000_000
-                        if duration_seconds > 0:
-                            pct = min(100.0, (current_time / duration_seconds) * 100)
-                            progress.update(task, completed=pct)
-                    except (ValueError, IndexError):
-                        pass
+                pass  # Just consume the output
+                
     except KeyboardInterrupt:
         console.print("\n[yellow]Interrupted — stopping ffmpeg...[/]")
         proc.terminate()
@@ -357,6 +399,9 @@ def transcode_with_progress(cmd: list[str], duration_seconds: float, label: str)
         except subprocess.TimeoutExpired:
             proc.kill()
         sys.exit(0)
+    finally:
+        if has_lock:
+            _progress_lock.release()
 
     proc.wait()
     stderr_thread.join(timeout=2)
@@ -531,6 +576,8 @@ def process_video(input_path: Path, output_dir: Path, duration_seconds: float,
     # ── Encode variants (parallel or sequential) ───────────────────────────────
     if parallel and len(ladder) > 1:
         # Parallel encoding: all variants at once (uses more CPU, faster overall)
+        console.print("[dim]Note: Progress bars disabled in parallel mode to avoid display conflicts[/]\n")
+        
         with ThreadPoolExecutor(max_workers=len(ladder)) as executor:
             futures = {
                 executor.submit(
@@ -547,6 +594,7 @@ def process_video(input_path: Path, output_dir: Path, duration_seconds: float,
                 try:
                     result = future.result()
                     variant_playlists.append(result)
+                    console.print(f"[green]✓ {label} encoding complete[/]")
                 except Exception as exc:
                     console.print(f"[red bold]Encoding failed for {label}:[/] {exc}")
                     sys.exit(1)
@@ -774,93 +822,140 @@ def main() -> None:
 
     output_dir = Path(tempfile.mkdtemp(prefix=f"watchparty_{movie_id}_"))
 
-    # ── Step 5: Transcode ─────────────────────────────────────────────────────
-    console.rule("[bold magenta]Transcoding")
-    result = process_video(input_path, output_dir, duration_seconds, source_width, source_height, probe, parallel_encode, args.preset, args.gpu)
+    # Start background keep-alive so Render backend does not sleep during transcode & upload
+    keepalive = BackendKeepAlive(api_url, interval_seconds=180)
+    keepalive.start()
 
-    hls_key_hex = result["hls_key_hex"]
-    hls_iv_hex = result["hls_iv_hex"]
-    poster_path: Path = result["poster_path"]
-    backdrop_path: Path = result["backdrop_path"]
+    try:
+        # ── Step 5: Transcode ─────────────────────────────────────────────────────
+        console.rule("[bold magenta]Transcoding")
+        result = process_video(input_path, output_dir, duration_seconds, source_width, source_height, probe, parallel_encode, args.preset, args.gpu)
 
-    console.print(f"\n[bold green]✓ Transcoding complete![/]\n")
+        hls_key_hex = result["hls_key_hex"]
+        hls_iv_hex = result["hls_iv_hex"]
+        poster_path: Path = result["poster_path"]
+        backdrop_path: Path = result["backdrop_path"]
 
-    # ── Step 6: Collect files to upload ──────────────────────────────────────
-    base_key = f"movies/{movie_id}"
-    files_to_upload: list[tuple[Path, str]] = []
+        console.print(f"\n[bold green]✓ Transcoding complete![/]\n")
 
-    # master.m3u8
-    files_to_upload.append((output_dir / "master.m3u8", f"{base_key}/hls/master.m3u8"))
+        # ── Step 6: Collect files to upload ──────────────────────────────────────
+        base_key = f"movies/{movie_id}"
+        files_to_upload: list[tuple[Path, str]] = []
 
-    # enc.key
-    enc_key = output_dir / "enc.key"
-    if enc_key.exists():
-        files_to_upload.append((enc_key, f"{base_key}/enc.key"))
+        # master.m3u8
+        files_to_upload.append((output_dir / "master.m3u8", f"{base_key}/hls/master.m3u8"))
 
-    # Variant playlists + segments
-    for variant_dir in result["variant_dirs"]:
-        variant_name = variant_dir.name  # e.g. "1080p"
-        for f in sorted(variant_dir.iterdir()):
-            s3_key = f"{base_key}/hls/{variant_name}/{f.name}"
-            files_to_upload.append((f, s3_key))
+        # enc.key
+        enc_key = output_dir / "enc.key"
+        if enc_key.exists():
+            files_to_upload.append((enc_key, f"{base_key}/enc.key"))
 
-    # Images
-    files_to_upload.append((poster_path, f"{base_key}/poster.jpg"))
-    files_to_upload.append((backdrop_path, f"{base_key}/backdrop.jpg"))
+        # Variant playlists + segments
+        for variant_dir in result["variant_dirs"]:
+            variant_name = variant_dir.name  # e.g. "1080p"
+            for f in sorted(variant_dir.iterdir()):
+                s3_key = f"{base_key}/hls/{variant_name}/{f.name}"
+                files_to_upload.append((f, s3_key))
 
-    total_size_mb = sum(f.stat().st_size for f, _ in files_to_upload) / (1024 * 1024)
-    console.rule("[bold magenta]Uploading")
-    console.print(f"Files: [bold]{len(files_to_upload)}[/]  |  Total: [bold]{total_size_mb:.1f} MB[/]  |  Workers: [bold]{args.workers}[/]\n")
+        # Images
+        files_to_upload.append((poster_path, f"{base_key}/poster.jpg"))
+        files_to_upload.append((backdrop_path, f"{base_key}/backdrop.jpg"))
 
-    # ── Step 7: Parallel upload ────────────────────────────────────────────────
-    upload_files_parallel(files_to_upload, s3_client, provider["bucket_name"], max_workers=args.workers)
-    console.print("\n[green]✓ All files uploaded successfully.[/]")
+        total_size_mb = sum(f.stat().st_size for f, _ in files_to_upload) / (1024 * 1024)
+        console.rule("[bold magenta]Uploading")
+        console.print(f"Files: [bold]{len(files_to_upload)}[/]  |  Total: [bold]{total_size_mb:.1f} MB[/]  |  Workers: [bold]{args.workers}[/]\n")
+
+        # ── Step 7: Parallel upload ────────────────────────────────────────────────
+        upload_files_parallel(files_to_upload, s3_client, provider["bucket_name"], max_workers=args.workers)
+        console.print("\n[green]✓ All files uploaded successfully.[/]")
+    finally:
+        keepalive.stop()
 
     # ── Step 8: Notify API ────────────────────────────────────────────────────
     console.rule("[bold magenta]Finalizing")
+    patch_payload = {
+        "duration_seconds": duration_seconds,
+        "hls_master_path": f"{base_key}/hls/master.m3u8",
+        "poster_path": f"{base_key}/poster.jpg",
+        "backdrop_path": f"{base_key}/backdrop.jpg",
+        "hls_key_hex": hls_key_hex,
+        "hls_iv_hex": hls_iv_hex,
+        "is_processed": True,
+        "is_uploaded": True,
+    }
+    if codec:           patch_payload["codec"] = codec
+    if source_width:    patch_payload["resolution_width"] = source_width
+    if source_height:   patch_payload["resolution_height"] = source_height
+    if file_size_bytes: patch_payload["file_size_bytes"] = file_size_bytes
+
+    # Ensure backend is awake (health check)
+    with console.status("[cyan]Verifying backend connectivity...", spinner="dots"):
+        for attempt in range(1, 4):
+            try:
+                httpx.get(f"{api_url}/api/health", timeout=90.0)
+                break
+            except Exception:
+                if attempt < 3:
+                    time.sleep(3)
+
+    # Proactively refresh token if needed
+    try:
+        access_token = refresh_access_token(supabase, refresh_token)
+        headers = {"Authorization": f"Bearer {access_token}"}
+    except Exception:
+        pass
+
+    updated_movie = None
     with console.status("[cyan]Notifying API...", spinner="dots"):
-        patch_payload = {
-            "duration_seconds": duration_seconds,
-            "hls_master_path": f"{base_key}/hls/master.m3u8",
-            "poster_path": f"{base_key}/poster.jpg",
-            "backdrop_path": f"{base_key}/backdrop.jpg",
-            "hls_key_hex": hls_key_hex,
-            "hls_iv_hex": hls_iv_hex,
-            "is_processed": True,
-            "is_uploaded": True,
-        }
-        if codec:           patch_payload["codec"] = codec
-        if source_width:    patch_payload["resolution_width"] = source_width
-        if source_height:   patch_payload["resolution_height"] = source_height
-        if file_size_bytes: patch_payload["file_size_bytes"] = file_size_bytes
+        for attempt in range(1, 4):
+            try:
+                patch_resp = httpx.patch(
+                    f"{api_url}/api/movies/{movie_id}/upload-complete",
+                    json=patch_payload,
+                    headers=headers,
+                    timeout=120.0,
+                )
+                
+                # If we get a 401 (unauthorized) or token error, refresh the token and retry
+                if patch_resp.status_code == 401 or (patch_resp.status_code == 422 and "token" in patch_resp.text.lower()):
+                    console.print("[yellow]Token expired. Refreshing authentication...[/]")
+                    access_token = refresh_access_token(supabase, refresh_token)
+                    headers = {"Authorization": f"Bearer {access_token}"}
+                    patch_resp = httpx.patch(
+                        f"{api_url}/api/movies/{movie_id}/upload-complete",
+                        json=patch_payload,
+                        headers=headers,
+                        timeout=120.0,
+                    )
 
-        # Try the API call - if token expired, refresh and retry once
-        patch_resp = httpx.patch(
-            f"{api_url}/api/movies/{movie_id}/upload-complete",
-            json=patch_payload,
-            headers=headers,
-            timeout=30.0,
+                if patch_resp.status_code == 200:
+                    updated_movie = patch_resp.json()
+                    break
+                else:
+                    console.print(f"[yellow]API responded with status {patch_resp.status_code}: {patch_resp.text}[/]")
+            except httpx.TimeoutException:
+                console.print(f"[yellow]Finalize request timed out (attempt {attempt}/3). Retrying in 5s...[/]")
+                time.sleep(5)
+            except Exception as e:
+                console.print(f"[yellow]Request error: {e} (attempt {attempt}/3). Retrying in 5s...[/]")
+                time.sleep(5)
+
+    if not updated_movie:
+        console.print(f"\n[red bold]Failed to update movie record via API.[/]")
+        console.print("[yellow]All video and asset files WERE uploaded successfully to storage![/]")
+        console.print(f"[yellow]Your upload is safe in Backblaze B2 and temp folder: {output_dir}[/]")
+        console.print(f"\n[cyan bold]To finalize without re-uploading, run:[/]")
+        console.print(
+            f"[green]python finalize_upload.py {movie_id} "
+            f"--duration {duration_seconds} "
+            f"--width {source_width or 0} "
+            f"--height {source_height or 0} "
+            f"--codec {codec or ''} "
+            f"--file-size {file_size_bytes or 0} "
+            f"--key {hls_key_hex} "
+            f"--iv {hls_iv_hex}[/]\n"
         )
-        
-        # If we get a 401 (unauthorized) or token error, refresh the token and retry
-        if patch_resp.status_code == 401 or (patch_resp.status_code == 422 and "token" in patch_resp.text.lower()):
-            console.print("[yellow]Token expired. Refreshing authentication...[/]")
-            access_token = refresh_access_token(supabase, refresh_token)
-            headers = {"Authorization": f"Bearer {access_token}"}
-            
-            # Retry the request with the new token
-            patch_resp = httpx.patch(
-                f"{api_url}/api/movies/{movie_id}/upload-complete",
-                json=patch_payload,
-                headers=headers,
-                timeout=30.0,
-            )
-        
-        if patch_resp.status_code != 200:
-            console.print(f"[red bold]Failed to update movie record:[/] {patch_resp.text}")
-            sys.exit(1)
-
-        updated_movie = patch_resp.json()
+        sys.exit(1)
 
     console.print(f"\n[bold green]✨ Done![/] [italic]'{updated_movie.get('title', movie_id)}'[/] is live.")
     shutil.rmtree(output_dir, ignore_errors=True)

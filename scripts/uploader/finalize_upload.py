@@ -1,19 +1,25 @@
 #!/usr/bin/env python3
 """
-Recovery script to finalize an uploaded movie that failed due to token expiration.
+Recovery script to finalize an uploaded movie that failed due to timeout or token expiration.
 
 Usage:
     python finalize_upload.py <movie_id>
-    
+
 This script will:
-1. Authenticate you
-2. Ask for the movie details (or detect them from existing data)
-3. Call the /upload-complete endpoint to finalize the movie
+1. Wake up the Render backend if it is asleep
+2. Authenticate you with Supabase
+3. Auto-detect HLS encryption keys and metadata from local temp directory (if present)
+4. Call the /upload-complete endpoint to finalize the movie record
+5. Clean up temporary files upon success
 """
 
 import argparse
+import glob
 import os
+import shutil
 import sys
+import tempfile
+import time
 from pathlib import Path
 
 import httpx
@@ -36,6 +42,23 @@ def init_supabase() -> Client:
     return create_client(url, key)
 
 
+def wake_backend(api_url: str) -> None:
+    """Ping health endpoint to wake up sleeping Render backend if needed."""
+    with console.status("[cyan]Checking backend health & waking server if asleep...", spinner="dots"):
+        for attempt in range(1, 4):
+            try:
+                resp = httpx.get(f"{api_url}/api/health", timeout=90.0)
+                if resp.status_code == 200:
+                    console.print("[green]✓ Backend is awake and responsive[/]")
+                    return
+            except httpx.TimeoutException:
+                console.print(f"[yellow]Server wake-up attempt {attempt}/3 timed out. Retrying...[/]")
+            except Exception as e:
+                console.print(f"[yellow]Attempt {attempt}/3 error: {e}. Retrying...[/]")
+            time.sleep(3)
+    console.print("[yellow]Warning: Backend did not respond to health check. Proceeding anyway...[/]")
+
+
 def authenticate(supabase: Client) -> str:
     console.print("\n[bold cyan]Authentication[/]")
     email = Prompt.ask("Email")
@@ -55,49 +78,63 @@ def authenticate(supabase: Client) -> str:
 
 
 def get_movie_info(api_url: str, headers: dict, movie_id: str) -> dict:
-    """Fetch current movie info from API"""
+    """Fetch current movie info from API with retry."""
     with console.status("[cyan]Fetching movie info...", spinner="dots"):
-        try:
-            resp = httpx.get(f"{api_url}/api/movies/{movie_id}", headers=headers, timeout=30.0)
-            resp.raise_for_status()
-            return resp.json()
-        except Exception as e:
-            console.print(f"[red bold]Failed to fetch movie info:[/] {e}")
-            sys.exit(1)
+        for attempt in range(1, 4):
+            try:
+                resp = httpx.get(f"{api_url}/api/movies/{movie_id}", headers=headers, timeout=120.0)
+                resp.raise_for_status()
+                return resp.json()
+            except httpx.TimeoutException:
+                if attempt < 3:
+                    time.sleep(3)
+                    continue
+                console.print("[red bold]Failed to fetch movie info: Request timed out.[/]")
+                sys.exit(1)
+            except Exception as e:
+                console.print(f"[red bold]Failed to fetch movie info:[/] {e}")
+                sys.exit(1)
 
 
 def finalize_movie(api_url: str, headers: dict, movie_id: str, payload: dict) -> dict:
-    """Call the upload-complete endpoint"""
-    with console.status("[cyan]Finalizing movie...", spinner="dots"):
-        try:
-            resp = httpx.patch(
-                f"{api_url}/api/movies/{movie_id}/upload-complete",
-                json=payload,
-                headers=headers,
-                timeout=30.0,
-            )
-            if resp.status_code != 200:
-                console.print(f"[red bold]Failed to finalize movie:[/] {resp.text}")
+    """Call the upload-complete endpoint with retry on cold-start timeout."""
+    with console.status("[cyan]Finalizing movie (updating database)...", spinner="dots"):
+        for attempt in range(1, 4):
+            try:
+                resp = httpx.patch(
+                    f"{api_url}/api/movies/{movie_id}/upload-complete",
+                    json=payload,
+                    headers=headers,
+                    timeout=120.0,
+                )
+                if resp.status_code != 200:
+                    console.print(f"[red bold]Failed to finalize movie:[/] {resp.text}")
+                    sys.exit(1)
+                return resp.json()
+            except httpx.TimeoutException:
+                console.print(f"[yellow]Finalize request timed out (attempt {attempt}/3). Retrying in 5s...[/]")
+                time.sleep(5)
+            except Exception as e:
+                console.print(f"[red bold]Error finalizing movie:[/] {e}")
                 sys.exit(1)
-            return resp.json()
-        except Exception as e:
-            console.print(f"[red bold]Error finalizing movie:[/] {e}")
-            sys.exit(1)
+    console.print("[red bold]Failed to finalize movie after 3 attempts due to timeout.[/]")
+    sys.exit(1)
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Finalize an uploaded movie that failed due to token expiration",
+        description="Finalize an uploaded movie that failed due to timeout or token expiration",
     )
     parser.add_argument("movie_id", type=str, help="Movie ID (UUID)")
     parser.add_argument("--api-url", default="https://watch-party-u7jq.onrender.com", metavar="URL")
-    parser.add_argument("--duration", type=float, help="Duration in seconds (e.g., 7974 for 2h12m54s)")
+    parser.add_argument("--duration", type=float, help="Duration in seconds (e.g., 9530.56)")
     parser.add_argument("--width", type=int, help="Resolution width (e.g., 1920)")
-    parser.add_argument("--height", type=int, help="Resolution height (e.g., 1036)")
+    parser.add_argument("--height", type=int, help="Resolution height (e.g., 800)")
     parser.add_argument("--codec", type=str, help="Video codec (e.g., hevc)")
     parser.add_argument("--file-size", type=int, help="Original file size in bytes")
     parser.add_argument("--key", type=str, help="HLS encryption key (hex string)")
     parser.add_argument("--iv", type=str, help="HLS encryption IV (hex string)")
+    parser.add_argument("--clean", action="store_true", help="Auto clean temp folder on success")
     args = parser.parse_args()
 
     api_url = args.api_url.rstrip("/")
@@ -107,21 +144,42 @@ def main():
     console.print(f"Backend: [underline]{api_url}[/]")
     console.print(f"Movie ID: [bold]{movie_id}[/]\n")
 
-    # Authenticate
+    # 1. Wake backend
+    wake_backend(api_url)
+
+    # 2. Authenticate
     supabase = init_supabase()
     access_token = authenticate(supabase)
     headers = {"Authorization": f"Bearer {access_token}"}
 
-    # Fetch current movie info
+    # 3. Check for local temp folder to auto-detect key, iv, etc.
+    detected_temp_dir = None
+    temp_pattern = os.path.join(tempfile.gettempdir(), f"watchparty_{movie_id}_*")
+    matches = glob.glob(temp_pattern)
+    if matches:
+        detected_temp_dir = Path(matches[0])
+        console.print(f"\n[green]✓ Found local temp files:[/] {detected_temp_dir}")
+        enc_key_file = detected_temp_dir / "enc.key"
+        if enc_key_file.exists() and not args.key:
+            args.key = enc_key_file.read_bytes().hex()
+            console.print(f"  Auto-detected HLS key: [cyan]{args.key}[/]")
+
+        key_info_file = detected_temp_dir / "key_info.txt"
+        if key_info_file.exists() and not args.iv:
+            lines = [line.strip() for line in key_info_file.read_text().splitlines() if line.strip()]
+            if len(lines) >= 3:
+                args.iv = lines[2]
+                console.print(f"  Auto-detected HLS IV:  [cyan]{args.iv}[/]")
+
+    # 4. Fetch current movie info
     movie_info = get_movie_info(api_url, headers, movie_id)
     console.print(f"\n[bold]Current movie info:[/]")
     console.print(f"  Title: [cyan]{movie_info.get('title')}[/]")
     console.print(f"  Processed: [cyan]{movie_info.get('is_processed')}[/]")
     console.print(f"  Uploaded: [cyan]{movie_info.get('is_uploaded')}[/]")
 
-    # Build the finalization payload
+    # 5. Build the finalization payload
     base_key = f"movies/{movie_id}"
-    
     payload = {
         "hls_master_path": f"{base_key}/hls/master.m3u8",
         "poster_path": f"{base_key}/poster.jpg",
@@ -130,13 +188,12 @@ def main():
         "is_uploaded": True,
     }
 
-    # Add optional fields
     if args.duration:
         payload["duration_seconds"] = args.duration
     elif movie_info.get("duration_seconds"):
         payload["duration_seconds"] = movie_info.get("duration_seconds")
     else:
-        duration_str = Prompt.ask("Duration in seconds (e.g., 7974 for 2h12m54s)", default="")
+        duration_str = Prompt.ask("Duration in seconds (e.g., 9530.56)", default="")
         if duration_str:
             payload["duration_seconds"] = float(duration_str)
 
@@ -191,14 +248,27 @@ def main():
         console.print("[yellow]Aborted.[/]")
         sys.exit(0)
 
-    # Finalize the movie
+    # 6. Finalize movie
     result = finalize_movie(api_url, headers, movie_id, payload)
-    
+
     console.print(f"\n[bold green]✨ Success![/] Movie '[italic]{result.get('title')}[/]' has been finalized.")
     console.print(f"  Duration: [cyan]{result.get('duration_seconds')}s[/]")
     console.print(f"  Resolution: [cyan]{result.get('resolution_width')}x{result.get('resolution_height')}[/]")
     console.print(f"  Processed: [cyan]{result.get('is_processed')}[/]")
     console.print(f"  Uploaded: [cyan]{result.get('is_uploaded')}[/]")
+
+    # 7. Clean up temp folder if detected
+    if detected_temp_dir and detected_temp_dir.exists():
+        do_clean = args.clean
+        if not do_clean:
+            do_clean = Prompt.ask(
+                f"\n[yellow]Clean up temporary files at {detected_temp_dir}?[/]",
+                choices=["y", "n"],
+                default="y",
+            ) == "y"
+        if do_clean:
+            shutil.rmtree(detected_temp_dir, ignore_errors=True)
+            console.print("[green]✓ Temporary files deleted.[/]")
 
 
 if __name__ == "__main__":
