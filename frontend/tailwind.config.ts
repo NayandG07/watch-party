@@ -10,34 +10,34 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // ── Brand palette ──────────────────────────────────────
+        // ── Dynamic Brand palette (responsive to active theme) ──────
         brand: {
-          50:  "#f0e7ff",
-          100: "#dcc5ff",
-          200: "#c49dff",
-          300: "#a96bff",
-          400: "#9145ff",
-          500: "#7c2ff7",  // primary
-          600: "#6820d4",
-          700: "#5316a8",
-          800: "#3e0e7c",
-          900: "#290854",
-          950: "#140326",
+          50:  "rgb(var(--brand-50) / <alpha-value>)",
+          100: "rgb(var(--brand-100) / <alpha-value>)",
+          200: "rgb(var(--brand-200) / <alpha-value>)",
+          300: "rgb(var(--brand-300) / <alpha-value>)",
+          400: "rgb(var(--brand-400) / <alpha-value>)",
+          500: "rgb(var(--brand-500) / <alpha-value>)",
+          600: "rgb(var(--brand-600) / <alpha-value>)",
+          700: "rgb(var(--brand-700) / <alpha-value>)",
+          800: "rgb(var(--brand-800) / <alpha-value>)",
+          900: "rgb(var(--brand-900) / <alpha-value>)",
+          950: "rgb(var(--brand-950) / <alpha-value>)",
         },
-        // ── Surfaces (dark-first) ──────────────────────────────
+        // ── Dynamic Surfaces (responsive to active theme & mode) ────
         surface: {
-          base:     "#08080e",  // deepest background
-          default:  "#0f0f1a",  // page background
-          elevated: "#161624",  // cards, panels
-          overlay:  "#1e1e30",  // modals, dropdowns
-          border:   "rgba(255,255,255,0.07)",
+          base:     "var(--color-surface-base)",      // deepest background
+          default:  "var(--color-surface-default)",   // page background
+          elevated: "var(--color-surface-elevated)",  // cards, panels
+          overlay:  "var(--color-surface-overlay)",   // modals, dropdowns
+          border:   "var(--color-border)",
         },
-        // ── Text ───────────────────────────────────────────────
+        // ── Dynamic Content (responsive to active theme & mode) ────
         content: {
-          primary:   "#f2f2ff",
-          secondary: "#9898b8",
-          muted:     "#5a5a7a",
-          disabled:  "#3a3a52",
+          primary:   "var(--color-text-primary)",
+          secondary: "var(--color-text-secondary)",
+          muted:     "var(--color-text-muted)",
+          disabled:  "var(--color-text-disabled)",
         },
         // ── Semantic ────────────────────────────────────────────
         success: "#22c55e",
@@ -56,9 +56,9 @@ const config: Config = {
       },
       backgroundImage: {
         "gradient-radial":    "radial-gradient(var(--tw-gradient-stops))",
-        "gradient-brand":     "linear-gradient(135deg, #7c2ff7 0%, #c41ca8 100%)",
-        "gradient-surface":   "linear-gradient(180deg, #161624 0%, #0f0f1a 100%)",
-        "gradient-spotlight": "radial-gradient(ellipse at top, rgba(124,47,247,0.15) 0%, transparent 70%)",
+        "gradient-brand":     "linear-gradient(135deg, var(--color-brand) 0%, var(--color-brand-secondary) 100%)",
+        "gradient-surface":   "linear-gradient(180deg, var(--color-surface-elevated) 0%, var(--color-surface-default) 100%)",
+        "gradient-spotlight": "radial-gradient(ellipse at top, var(--color-brand-glow) 0%, transparent 70%)",
       },
       keyframes: {
         // Slide in from right (mobile drawers)
@@ -101,10 +101,10 @@ const config: Config = {
         float:            "float 4s ease-in-out infinite",
       },
       boxShadow: {
-        brand:   "0 0 40px rgba(124,47,247,0.25)",
-        card:    "0 4px 24px rgba(0,0,0,0.4)",
-        "card-hover": "0 8px 40px rgba(0,0,0,0.6)",
-        glow:    "0 0 20px rgba(124,47,247,0.4)",
+        brand:   "0 0 40px var(--color-brand-glow)",
+        card:    "var(--shadow-card)",
+        "card-hover": "var(--shadow-card-hover)",
+        glow:    "0 0 20px var(--color-brand-glow)",
       },
       transitionTimingFunction: {
         "out-expo": "cubic-bezier(0.19, 1, 0.22, 1)",

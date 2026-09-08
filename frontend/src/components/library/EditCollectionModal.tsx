@@ -1,9 +1,17 @@
 "use client";
 
-import { useState } from "react";
-import { X, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { X, Loader2, Users, Check, Search, Lock, Globe } from "lucide-react";
 import api from "@/lib/api";
 import type { Collection } from "@/types";
+import { cn } from "@/lib/utils";
+
+interface SelectableUser {
+  id: string;
+  username: string;
+  email?: string;
+  role: string;
+}
 
 interface EditCollectionModalProps {
   collection: Collection;
@@ -19,6 +27,47 @@ export function EditCollectionModal({ collection, onClose, onSuccess }: EditColl
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Friends selection state
+  const [selectableUsers, setSelectableUsers] = useState<SelectableUser[]>([]);
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [userSearch, setUserSearch] = useState("");
+
+  useEffect(() => {
+    // Load selectable users and existing permissions for this collection
+    setIsLoadingUsers(true);
+    Promise.all([
+      api.get<SelectableUser[]>("/api/users/selectable"),
+      api.get<string[]>(`/api/collections/${collection.id}/permissions`).catch(() => ({ data: [] })),
+    ])
+      .then(([usersRes, permsRes]) => {
+        setSelectableUsers(Array.isArray(usersRes.data) ? usersRes.data : []);
+        setSelectedUserIds(Array.isArray(permsRes.data) ? permsRes.data : []);
+      })
+      .catch((err) => console.error("Failed to load users or permissions", err))
+      .finally(() => setIsLoadingUsers(false));
+  }, [collection.id]);
+
+  const toggleUser = (userId: string) => {
+    setSelectedUserIds((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    setSelectedUserIds(selectableUsers.map((u) => u.id));
+  };
+
+  const handleClearAll = () => {
+    setSelectedUserIds([]);
+  };
+
+  const filteredUsers = selectableUsers.filter((u) => {
+    if (!userSearch.trim()) return true;
+    const q = userSearch.toLowerCase();
+    return u.username.toLowerCase().includes(q) || (u.email && u.email.toLowerCase().includes(q));
+  });
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
@@ -31,6 +80,7 @@ export function EditCollectionModal({ collection, onClose, onSuccess }: EditColl
         name,
         description: description || null,
         visibility,
+        selected_user_ids: visibility === "friends" ? selectedUserIds : [],
       });
       onSuccess(data);
     } catch (err: unknown) {
@@ -86,19 +136,164 @@ export function EditCollectionModal({ collection, onClose, onSuccess }: EditColl
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-content-secondary mb-1.5">
+            <label className="block text-sm font-medium text-content-secondary mb-2">
               Visibility
             </label>
-            <select
-              value={visibility}
-              onChange={(e) => setVisibility(e.target.value)}
-              className="input w-full appearance-none"
-            >
-              <option value="private">Private (Only you)</option>
-              <option value="friends">Friends (Selected users)</option>
-              <option value="public">Public (Everyone with access to the library)</option>
-            </select>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => setVisibility("private")}
+                className={cn(
+                  "flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all cursor-pointer",
+                  visibility === "private"
+                    ? "bg-brand-500/15 border-brand-500 text-brand-400 font-semibold shadow-sm"
+                    : "bg-surface-base border-surface-border text-content-secondary hover:text-content-primary hover:border-surface-border/80"
+                )}
+                id="edit-visibility-private-btn"
+              >
+                <Lock className="w-4 h-4 mb-1" />
+                <span className="text-xs">Private</span>
+                <span className="text-[10px] text-content-muted mt-0.5">Only you</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setVisibility("friends")}
+                className={cn(
+                  "flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all cursor-pointer",
+                  visibility === "friends"
+                    ? "bg-brand-500/15 border-brand-500 text-brand-400 font-semibold shadow-sm"
+                    : "bg-surface-base border-surface-border text-content-secondary hover:text-content-primary hover:border-surface-border/80"
+                )}
+                id="edit-visibility-friends-btn"
+              >
+                <Users className="w-4 h-4 mb-1" />
+                <span className="text-xs">Friends</span>
+                <span className="text-[10px] text-content-muted mt-0.5">Pick users</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setVisibility("shared")}
+                className={cn(
+                  "flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all cursor-pointer",
+                  visibility === "shared"
+                    ? "bg-brand-500/15 border-brand-500 text-brand-400 font-semibold shadow-sm"
+                    : "bg-surface-base border-surface-border text-content-secondary hover:text-content-primary hover:border-surface-border/80"
+                )}
+                id="edit-visibility-shared-btn"
+              >
+                <Globe className="w-4 h-4 mb-1" />
+                <span className="text-xs">Shared</span>
+                <span className="text-[10px] text-content-muted mt-0.5">Library all</span>
+              </button>
+            </div>
           </div>
+
+          {visibility === "friends" && (
+            <div className="space-y-2 p-3 bg-surface-base rounded-xl border border-surface-border animate-fade-in">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-content-primary flex items-center gap-1.5">
+                  <Users className="w-3.5 h-3.5 text-brand-400" /> Select Friends
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-medium text-brand-400">
+                    {selectedUserIds.length} selected
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleSelectAll}
+                    className="text-[10px] text-content-secondary hover:text-content-primary hover:underline"
+                  >
+                    Select all
+                  </button>
+                  <span className="text-content-muted text-[10px]">·</span>
+                  <button
+                    type="button"
+                    onClick={handleClearAll}
+                    className="text-[10px] text-content-secondary hover:text-content-primary hover:underline"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+
+              {/* Search input */}
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-content-muted absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Filter users by name or email..."
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  className="input pl-8 py-1.5 text-xs h-8 bg-surface-elevated"
+                />
+              </div>
+
+              {/* Scrollable user list */}
+              <div className="max-h-40 overflow-y-auto space-y-1 pr-1 divide-y divide-surface-border/40">
+                {isLoadingUsers ? (
+                  <div className="py-4 text-center text-xs text-content-muted flex items-center justify-center gap-1.5">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-400" />
+                    Loading user directory...
+                  </div>
+                ) : filteredUsers.length === 0 ? (
+                  <div className="py-4 text-center text-xs text-content-muted">
+                    {selectableUsers.length === 0 ? "No other users found." : "No users match your search."}
+                  </div>
+                ) : (
+                  filteredUsers.map((u) => {
+                    const isSelected = selectedUserIds.includes(u.id);
+                    return (
+                      <button
+                        key={u.id}
+                        type="button"
+                        onClick={() => toggleUser(u.id)}
+                        className={cn(
+                          "w-full flex items-center justify-between p-2 rounded-lg text-left transition-all text-xs pt-1.5",
+                          isSelected
+                            ? "bg-brand-500/10 border border-brand-500/30 text-content-primary"
+                            : "hover:bg-surface-elevated text-content-secondary border border-transparent"
+                        )}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-6 h-6 rounded-full bg-brand-500/20 text-brand-400 flex items-center justify-center font-bold text-[10px] shrink-0">
+                            {u.username[0].toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-content-primary truncate leading-tight">
+                              {u.username}
+                            </p>
+                            {u.email && (
+                              <p className="text-[10px] text-content-muted truncate leading-tight mt-0.5">
+                                {u.email}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                          <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-surface-elevated text-content-muted">
+                            {u.role}
+                          </span>
+                          <div
+                            className={cn(
+                              "w-4 h-4 rounded flex items-center justify-center border transition-colors",
+                              isSelected
+                                ? "bg-brand-500 border-brand-500 text-white"
+                                : "border-surface-border bg-surface-base"
+                            )}
+                          >
+                            {isSelected && <Check className="w-3 h-3" />}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
 
           <footer className="pt-2 flex justify-end gap-3">
             <button type="button" onClick={onClose} className="btn-secondary h-10 px-4">

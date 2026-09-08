@@ -1,12 +1,14 @@
 import uuid
 
 from fastapi import APIRouter, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import selectinload
 
 from app.core.dependencies import CurrentUserRoleDep, DatabaseDep, RequireLevel2Dep
 from app.models.collection import Collection
+from app.models.enums import Visibility
 from app.models.library import Library
+from app.models.permission import Permission
 from app.schemas.library import CollectionCreate, CollectionResponse, CollectionUpdate
 from app.services.permission import PermissionService
 
@@ -60,6 +62,17 @@ async def create_collection(
         sort_order=payload.sort_order,
     )
     db.add(new_collection)
+    await db.flush()
+
+    if payload.visibility == Visibility.FRIENDS and payload.selected_user_ids:
+        for grantee_id in payload.selected_user_ids:
+            perm = Permission(
+                grantee_id=grantee_id,
+                granted_by_id=uuid.UUID(user_id),
+                collection_id=new_collection.id,
+            )
+            db.add(perm)
+
     await db.commit()
 
     # Reload with relations to satisfy CollectionResponse
@@ -69,7 +82,14 @@ async def create_collection(
         .options(selectinload(Collection.library).selectinload(Library.owner))
     )
     result = await db.execute(stmt)
-    return result.scalar_one()
+    created = result.scalar_one()
+
+    # Populate granted_user_ids
+    perm_stmt = select(Permission.grantee_id).where(Permission.collection_id == created.id)
+    perm_res = await db.execute(perm_stmt)
+    created.granted_user_ids = list(perm_res.scalars().all())
+
+    return created
 
 
 @router.get("/{collection_id}", response_model=CollectionResponse)
@@ -94,7 +114,39 @@ async def get_collection(
     ):
         raise HTTPException(status_code=403, detail="Access denied")
 
+    perm_stmt = select(Permission.grantee_id).where(Permission.collection_id == collection.id)
+    perm_res = await db.execute(perm_stmt)
+    collection.granted_user_ids = list(perm_res.scalars().all())
+
     return collection
+
+
+@router.get("/{collection_id}/permissions", response_model=list[uuid.UUID])
+async def get_collection_permissions(
+    collection_id: uuid.UUID,
+    user_role_pair: CurrentUserRoleDep,
+    db: DatabaseDep,
+) -> list[uuid.UUID]:
+    """Get list of user IDs explicitly granted access to this collection."""
+    user_id, user_role = user_role_pair
+    stmt = (
+        select(Collection)
+        .where(Collection.id == collection_id)
+        .options(selectinload(Collection.library))
+    )
+    result = await db.execute(stmt)
+    collection = result.scalar_one_or_none()
+    if not collection:
+        raise HTTPException(status_code=404, detail="Collection not found")
+
+    if not await PermissionService.can_manage_collection(
+        collection, collection.library, user_id, user_role
+    ):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    perm_stmt = select(Permission.grantee_id).where(Permission.collection_id == collection_id)
+    perm_res = await db.execute(perm_stmt)
+    return list(perm_res.scalars().all())
 
 
 @router.patch("/{collection_id}", response_model=CollectionResponse)
@@ -122,12 +174,32 @@ async def update_collection(
     ):
         raise HTTPException(status_code=403, detail="Access denied")
 
-    update_data = payload.model_dump(exclude_unset=True)
+    update_data = payload.model_dump(exclude_unset=True, exclude={"selected_user_ids"})
     for key, value in update_data.items():
         setattr(collection, key, value)
 
+    # Sync selected users permissions
+    if payload.selected_user_ids is not None:
+        await db.execute(
+            delete(Permission).where(Permission.collection_id == collection.id)
+        )
+        target_vis = payload.visibility or collection.visibility
+        if target_vis == Visibility.FRIENDS:
+            for grantee_id in payload.selected_user_ids:
+                perm = Permission(
+                    grantee_id=grantee_id,
+                    granted_by_id=uuid.UUID(user_id),
+                    collection_id=collection.id,
+                )
+                db.add(perm)
+
     await db.commit()
     await db.refresh(collection)
+
+    perm_stmt = select(Permission.grantee_id).where(Permission.collection_id == collection.id)
+    perm_res = await db.execute(perm_stmt)
+    collection.granted_user_ids = list(perm_res.scalars().all())
+
     return collection
 
 

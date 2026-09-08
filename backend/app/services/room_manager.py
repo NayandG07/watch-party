@@ -126,10 +126,10 @@ class RoomManager:
                 self._usernames.get(room_id, {}).pop(disconnecting_user_id, None)
 
     def member_count(self, room_id: str) -> int:
-        return len(self._connections.get(room_id, []))
+        return len({c.user_id for c in self._connections.get(room_id, [])})
 
     def connected_user_ids(self, room_id: str) -> list[str]:
-        return [c.user_id for c in self._connections.get(room_id, [])]
+        return list({c.user_id for c in self._connections.get(room_id, [])})
 
     def connected_members(self, room_id: str) -> list[dict]:
         """Return list of {id, username} dicts for all connected members."""

@@ -152,8 +152,8 @@ export default function StorageSettingsPage() {
                     onClick={() => setProviderType(pt)}
                     className={`flex flex-col items-start p-4 rounded-xl border text-left transition-all ${
                       active
-                        ? "border-brand-500 bg-brand-500/10"
-                        : "border-white/10 bg-white/5 hover:border-white/20"
+                        ? "border-brand-500 bg-brand-500/15 shadow-sm"
+                        : "border-surface-border bg-surface-elevated/40 hover:bg-surface-elevated"
                     }`}
                   >
                     <span className={`text-sm font-semibold ${active ? "text-brand-400" : "text-content-primary"}`}>

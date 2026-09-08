@@ -181,12 +181,12 @@ export default function PlayerControls({
       {activeMenu !== "none" && (
         <div
           ref={menuRef}
-          className="absolute bottom-16 right-6 bg-[#18181c] border border-white/10 rounded-2xl shadow-2xl p-3 min-w-[200px] text-xs text-white z-40 animate-fade-in backdrop-blur-md"
+          className="absolute bottom-16 right-6 bg-surface-overlay/95 border border-surface-border rounded-2xl shadow-2xl p-3 min-w-[200px] text-xs text-content-primary z-40 animate-fade-in backdrop-blur-md"
         >
           {/* Subtitles Menu */}
           {activeMenu === "subtitles" && (
             <div>
-              <div className="font-semibold text-white/50 px-2 py-1 mb-1 border-b border-white/10 uppercase tracking-wider text-[10px]">
+              <div className="font-semibold text-content-muted px-2 py-1 mb-1 border-b border-surface-border uppercase tracking-wider text-[10px]">
                 Subtitles
               </div>
               <div className="space-y-0.5 max-h-48 overflow-y-auto">
@@ -196,7 +196,7 @@ export default function PlayerControls({
                     setActiveMenu("none");
                   }}
                   className={`w-full text-left px-3 py-2 rounded-xl flex items-center justify-between transition-colors ${
-                    currentSubtitle === -1 ? "bg-brand-500/20 text-brand-300 font-semibold" : "hover:bg-white/8 text-white/70"
+                    currentSubtitle === -1 ? "bg-brand-500/20 text-brand-400 font-semibold" : "hover:bg-surface-elevated text-content-secondary hover:text-content-primary"
                   }`}
                 >
                   <span>Off</span>
@@ -210,7 +210,7 @@ export default function PlayerControls({
                       setActiveMenu("none");
                     }}
                     className={`w-full text-left px-3 py-2 rounded-xl flex items-center justify-between transition-colors ${
-                      currentSubtitle === s.id ? "bg-brand-500/20 text-brand-300 font-semibold" : "hover:bg-white/8 text-white/70"
+                      currentSubtitle === s.id ? "bg-brand-500/20 text-brand-400 font-semibold" : "hover:bg-surface-elevated text-content-secondary hover:text-content-primary"
                     }`}
                   >
                     <span>{s.name}</span>
@@ -228,18 +228,18 @@ export default function PlayerControls({
                 <div className="space-y-1">
                   <button
                     onClick={() => setSettingsSubMenu("speed")}
-                    className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/8 flex items-center justify-between transition-colors text-white/80"
+                    className="w-full text-left px-3 py-2 rounded-xl hover:bg-surface-elevated flex items-center justify-between transition-colors text-content-primary"
                   >
                     <span>Playback Speed</span>
-                    <span className="text-white/40">{playbackSpeed}x</span>
+                    <span className="text-content-muted">{playbackSpeed}x</span>
                   </button>
                   {qualities.length > 0 && (
                     <button
                       onClick={() => setSettingsSubMenu("quality")}
-                      className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/8 flex items-center justify-between transition-colors text-white/80"
+                      className="w-full text-left px-3 py-2 rounded-xl hover:bg-surface-elevated flex items-center justify-between transition-colors text-content-primary"
                     >
                       <span>Quality</span>
-                      <span className="text-white/40">
+                      <span className="text-content-muted">
                         {qualities.find((q) => q.id === currentQuality)?.name || "Auto"}
                       </span>
                     </button>
@@ -252,7 +252,7 @@ export default function PlayerControls({
                 <div>
                   <button
                     onClick={() => setSettingsSubMenu("main")}
-                    className="font-semibold text-white/40 hover:text-white px-2 py-1 mb-1 border-b border-white/10 flex items-center gap-1 transition-colors text-[10px]"
+                    className="font-semibold text-content-muted hover:text-content-primary px-2 py-1 mb-1 border-b border-surface-border flex items-center gap-1 transition-colors text-[10px]"
                   >
                     ← Speed
                   </button>
@@ -266,7 +266,7 @@ export default function PlayerControls({
                           setSettingsSubMenu("main");
                         }}
                         className={`w-full text-left px-3 py-2 rounded-xl flex items-center justify-between transition-colors ${
-                          playbackSpeed === speed ? "bg-brand-500/20 text-brand-300 font-semibold" : "hover:bg-white/8 text-white/70"
+                          playbackSpeed === speed ? "bg-brand-500/20 text-brand-400 font-semibold" : "hover:bg-surface-elevated text-content-secondary hover:text-content-primary"
                         }`}
                       >
                         <span>{speed === 1 ? "1.0x (Normal)" : `${speed}x`}</span>
@@ -282,7 +282,7 @@ export default function PlayerControls({
                 <div>
                   <button
                     onClick={() => setSettingsSubMenu("main")}
-                    className="font-semibold text-white/40 hover:text-white px-2 py-1 mb-1 border-b border-white/10 flex items-center gap-1 transition-colors text-[10px]"
+                    className="font-semibold text-content-muted hover:text-content-primary px-2 py-1 mb-1 border-b border-surface-border flex items-center gap-1 transition-colors text-[10px]"
                   >
                     ← Quality
                   </button>
@@ -296,7 +296,7 @@ export default function PlayerControls({
                           setSettingsSubMenu("main");
                         }}
                         className={`w-full text-left px-3 py-2 rounded-xl flex items-center justify-between transition-colors ${
-                          currentQuality === q.id ? "bg-brand-500/20 text-brand-300 font-semibold" : "hover:bg-white/8 text-white/70"
+                          currentQuality === q.id ? "bg-brand-500/20 text-brand-400 font-semibold" : "hover:bg-surface-elevated text-content-secondary hover:text-content-primary"
                         }`}
                       >
                         <span>{q.name}</span>

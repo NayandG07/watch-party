@@ -243,10 +243,11 @@ export default function AdminUsersPage() {
                 <p className="text-sm">No users found.</p>
               </div>
             ) : (
-              <div className="divide-y divide-surface-border">
-                {/* Table Header */}
-                <div className="grid grid-cols-[1fr_1fr_140px_100px_180px] gap-4 px-5 py-3 text-xs font-medium text-content-muted uppercase tracking-wider">
-                  <span>User</span>
+              <div className="overflow-x-auto">
+                <div className="min-w-[680px] divide-y divide-surface-border">
+                  {/* Table Header */}
+                  <div className="grid grid-cols-[1fr_1fr_140px_100px_180px] gap-4 px-5 py-3 text-xs font-medium text-content-muted uppercase tracking-wider">
+                    <span>User</span>
                   <span>Email</span>
                   <span>Role</span>
                   <span>Status</span>
@@ -383,6 +384,7 @@ export default function AdminUsersPage() {
                     )}
                   </div>
                 ))}
+                </div>
               </div>
             )}
           </div>

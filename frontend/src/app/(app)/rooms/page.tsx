@@ -163,7 +163,7 @@ export default function RoomsPage() {
                         <button
                           onClick={(e) => handleDeleteRoomClick(e, room.id)}
                           disabled={deletingId === room.id}
-                          className="w-7 h-7 rounded-lg bg-black/60 hover:bg-red-600 text-white/70 hover:text-white flex items-center justify-center backdrop-blur-md opacity-0 group-hover:opacity-100 transition-all"
+                          className="w-7 h-7 rounded-lg bg-black/60 hover:bg-red-600 text-white/70 hover:text-white flex items-center justify-center backdrop-blur-md opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all"
                           title="Delete room"
                         >
                           {deletingId === room.id ? (
@@ -179,7 +179,7 @@ export default function RoomsPage() {
                         isPlaying && "bg-green-500/10 text-green-400 border-green-500/20",
                         isPaused && "bg-amber-500/10 text-amber-400 border-amber-500/20",
                         isWaiting && "bg-gray-500/10 text-gray-400 border-gray-500/20",
-                        isEnded && "bg-surface-elevated/80 text-content-muted border-white/5"
+                        isEnded && "bg-surface-elevated/80 text-content-muted border-surface-border"
                       )}>
                         {!isEnded && (
                           <div className={cn(
@@ -234,7 +234,7 @@ export default function RoomsPage() {
                       </div>
                     </div>
 
-                    <div className="mt-auto flex items-center justify-between text-xs text-content-muted pt-2 border-t border-white/5">
+                    <div className="mt-auto flex items-center justify-between text-xs text-content-muted pt-2 border-t border-surface-border">
                       <div className="flex items-center gap-1.5">
                         <Users className="w-3.5 h-3.5" />
                         Host: {room.creator.username}

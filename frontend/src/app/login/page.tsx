@@ -66,7 +66,7 @@ export default function LoginPage() {
             <p className="mt-2 text-sm text-content-secondary">Sign in to your private cinema</p>
           </div>
 
-          <div className="glass p-8 shadow-card rounded-2xl border border-white/5">
+          <div className="glass p-8 shadow-card rounded-2xl border border-surface-border">
             <LoginForm />
           </div>
 

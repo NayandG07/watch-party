@@ -24,6 +24,7 @@ class UserBrief(WatchPartyModel):
     id: uuid.UUID
     username: str
     role: UserRole
+    email: str | None = None
 
 
 # ── Request schemas ───────────────────────────────────────────────────────────

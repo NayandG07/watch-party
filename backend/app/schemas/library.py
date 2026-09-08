@@ -56,6 +56,7 @@ class CollectionCreate(WatchPartyModel):
     description: str | None = None
     visibility: Visibility = Visibility.PRIVATE
     sort_order: int = Field(default=0, ge=0)
+    selected_user_ids: list[uuid.UUID] | None = None
 
 
 class CollectionUpdate(WatchPartyModel):
@@ -63,6 +64,7 @@ class CollectionUpdate(WatchPartyModel):
     description: str | None = None
     visibility: Visibility | None = None
     sort_order: int | None = Field(default=None, ge=0)
+    selected_user_ids: list[uuid.UUID] | None = None
 
 
 class CollectionResponse(WatchPartyModel):
@@ -76,6 +78,7 @@ class CollectionResponse(WatchPartyModel):
     movie_count: int = 0
     created_at: datetime
     library: LibraryBrief
+    granted_user_ids: list[uuid.UUID] = []
 
 
 class CollectionBrief(WatchPartyModel):

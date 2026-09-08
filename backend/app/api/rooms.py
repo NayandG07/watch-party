@@ -486,136 +486,138 @@ async def room_websocket(
     try:
         while True:
             data = await ws.receive_json()
-            msg_type: str = data.get("type", "")
+            try:
+                msg_type: str = data.get("type", "")
 
-            if msg_type == "PING":
-                await ws.send_json({"type": "PONG"})
-                continue
-
-            # If room is locked, only the host can control playback.
-            # If unlocked, any room member can control playback.
-            playback_msgs = ("PLAY", "PAUSE", "SEEK", "ENDED", "SPEED")
-            if is_room_locked and not is_host and msg_type in playback_msgs:
-                await ws.send_json(
-                    {
-                        "type": "ERROR",
-                        "detail": "Room is locked by host",
-                    }
-                )
-                continue
-
-            if msg_type in ("PLAY", "PAUSE", "SEEK", "ENDED", "SPEED"):
-                authoritative_position = live.current_position()
-                position = float(data.get("position", authoritative_position))
-
-                new_speed = live.speed
-                if msg_type == "SPEED":
-                    new_state = live.state
-                    position = authoritative_position
-                    new_speed = _clamp_playback_speed(float(data.get("speed", live.speed)))
-                else:
-                    new_state, position = _resolve_playback_command(
-                        msg_type=msg_type,
-                        position=position,
-                        live=live,
-                        media_duration_seconds=media_duration_seconds,
-                        authoritative_position=authoritative_position,
-                    )
-
-                # Update in-memory state â€” use exact position from client, not computed one
-                live = RoomStateLive(
-                    room_id=str(room_id),
-                    state=new_state,
-                    position_seconds=position,
-                    speed=new_speed,
-                    host_id=creator_id_str,
-                )
-                room_manager.set_state(live)
-
-                # Persist to DB in a background task so it doesn't block the real-time broadcast
-                async def _save_state(r_id, s, p, speed):
-                    try:
-                        async with AsyncSessionLocal() as db:
-                            db_room = await db.get(Room, r_id)
-                            if db_room:
-                                db_room.state = s
-                                db_room.position_seconds = p
-                                db_room.speed = speed
-                                db_room.last_activity_at = datetime.now(UTC)
-                                await db.commit()
-                    except Exception as e:
-                        logger.error("bg_save_state_error", error=str(e))
-
-                asyncio.create_task(_save_state(room_id, new_state, position, new_speed))
-
-                # Broadcast new state â€” capture server_time NOW (after DB, before network)
-                # so clients can accurately compute their one-way latency.
-                # We send `position` directly (the exact value from the host) rather than
-                # live.current_position() which would add DB-commit latency to the offset.
-                broadcast_msg = {
-                    "type": "ROOM_STATE",
-                    "state": new_state.value if hasattr(new_state, "value") else new_state,
-                    "position": position,
-                    "speed": live.speed,
-                    "host_id": live.host_id,
-                    "member_count": room_manager.member_count(str(room_id)),
-                    "server_time": datetime.now(UTC).timestamp(),
-                }
-                await room_manager.broadcast(str(room_id), broadcast_msg)
-
-            elif msg_type == "CHAT_MESSAGE":
-                content = data.get("content")
-                if not content:
+                if msg_type == "PING":
+                    await ws.send_json({"type": "PONG"})
                     continue
 
-                m_type = data.get("message_type", MessageType.TEXT.value)
-                try:
-                    enum_type = MessageType(m_type)
-                except ValueError:
-                    enum_type = MessageType.TEXT
-
-                timestamp_ref = data.get("timestamp_reference")
-
-                async with AsyncSessionLocal() as db:
-                    new_msg = ChatMessage(
-                        room_id=room_id,
-                        user_id=uuid.UUID(user_id),
-                        content=str(content),
-                        message_type=enum_type,
-                        timestamp_reference=float(timestamp_ref)
-                        if timestamp_ref is not None
-                        else None,
+                # If room is locked, only the host can control playback.
+                # If unlocked, any room member can control playback.
+                playback_msgs = ("PLAY", "PAUSE", "SEEK", "ENDED", "SPEED")
+                if is_room_locked and not is_host and msg_type in playback_msgs:
+                    await ws.send_json(
+                        {
+                            "type": "ERROR",
+                            "detail": "Room is locked by host",
+                        }
                     )
-                    db.add(new_msg)
-                    await db.commit()
+                    continue
 
-                    # Fetch user for broadcast
-                    user = await db.get(User, uuid.UUID(user_id))
-                    username = user.username if user else "Unknown"
-                    msg_id = str(new_msg.id)
-                    created_at_str = (
-                        new_msg.created_at.isoformat()
-                        if new_msg.created_at
-                        else datetime.now(UTC).isoformat()
+                if msg_type in ("PLAY", "PAUSE", "SEEK", "ENDED", "SPEED"):
+                    authoritative_position = live.current_position()
+                    position = float(data.get("position", authoritative_position))
+
+                    new_speed = live.speed
+                    if msg_type == "SPEED":
+                        new_state = live.state
+                        position = authoritative_position
+                        new_speed = _clamp_playback_speed(float(data.get("speed", live.speed)))
+                    else:
+                        new_state, position = _resolve_playback_command(
+                            msg_type=msg_type,
+                            position=position,
+                            live=live,
+                            media_duration_seconds=media_duration_seconds,
+                            authoritative_position=authoritative_position,
+                        )
+
+                    # Update in-memory state — use exact position from client, not computed one
+                    live = RoomStateLive(
+                        room_id=str(room_id),
+                        state=new_state,
+                        position_seconds=position,
+                        speed=new_speed,
+                        host_id=creator_id_str,
                     )
+                    room_manager.set_state(live)
 
-                await room_manager.broadcast(
-                    str(room_id),
-                    {
-                        "type": "CHAT_MESSAGE",
-                        "id": msg_id,
-                        "content": str(content),
-                        "message_type": enum_type.value,
-                        "timestamp_reference": float(timestamp_ref)
-                        if timestamp_ref is not None
-                        else None,
-                        "created_at": created_at_str,
-                        "user": {
-                            "id": user_id,
-                            "username": username,
+                    # Persist to DB in a background task so it doesn't block the real-time broadcast
+                    async def _save_state(r_id, s, p, speed):
+                        try:
+                            async with AsyncSessionLocal() as db:
+                                db_room = await db.get(Room, r_id)
+                                if db_room:
+                                    db_room.state = s
+                                    db_room.position_seconds = p
+                                    db_room.speed = speed
+                                    db_room.last_activity_at = datetime.now(UTC)
+                                    await db.commit()
+                        except Exception as e:
+                            logger.error("bg_save_state_error", error=str(e))
+
+                    asyncio.create_task(_save_state(room_id, new_state, position, new_speed))
+
+                    # Broadcast new state — capture server_time NOW (after DB, before network)
+                    broadcast_msg = {
+                        "type": "ROOM_STATE",
+                        "state": new_state.value if hasattr(new_state, "value") else new_state,
+                        "position": position,
+                        "speed": live.speed,
+                        "host_id": live.host_id,
+                        "member_count": room_manager.member_count(str(room_id)),
+                        "server_time": datetime.now(UTC).timestamp(),
+                    }
+                    await room_manager.broadcast(str(room_id), broadcast_msg)
+
+                elif msg_type == "CHAT_MESSAGE":
+                    content = data.get("content")
+                    if not content:
+                        continue
+
+                    m_type = data.get("message_type", MessageType.TEXT.value)
+                    try:
+                        enum_type = MessageType(m_type)
+                    except ValueError:
+                        enum_type = MessageType.TEXT
+
+                    timestamp_ref = data.get("timestamp_reference")
+
+                    async with AsyncSessionLocal() as db:
+                        new_msg = ChatMessage(
+                            room_id=room_id,
+                            user_id=uuid.UUID(user_id),
+                            content=str(content),
+                            message_type=enum_type,
+                            timestamp_reference=float(timestamp_ref)
+                            if timestamp_ref is not None
+                            else None,
+                        )
+                        db.add(new_msg)
+                        await db.commit()
+
+                        # Fetch user for broadcast
+                        user = await db.get(User, uuid.UUID(user_id))
+                        username = user.username if user else "Unknown"
+                        msg_id = str(new_msg.id)
+                        created_at_str = (
+                            new_msg.created_at.isoformat()
+                            if new_msg.created_at
+                            else datetime.now(UTC).isoformat()
+                        )
+
+                    await room_manager.broadcast(
+                        str(room_id),
+                        {
+                            "type": "CHAT_MESSAGE",
+                            "id": msg_id,
+                            "content": str(content),
+                            "message_type": enum_type.value,
+                            "timestamp_reference": float(timestamp_ref)
+                            if timestamp_ref is not None
+                            else None,
+                            "created_at": created_at_str,
+                            "user": {
+                                "id": user_id,
+                                "username": username,
+                            },
                         },
-                    },
-                )
+                    )
+            except Exception as msg_exc:
+                logger.error("ws_msg_process_error", error=str(msg_exc), room_id=str(room_id))
+                with contextlib.suppress(Exception):
+                    await ws.send_json({"type": "ERROR", "detail": "Message processing failed"})
 
     except WebSocketDisconnect:
         logger.info("ws_disconnected", room_id=str(room_id), user_id=user_id)

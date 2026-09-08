@@ -69,7 +69,7 @@ export default function MoviePage() {
   return (
     <div className="animate-fade-in pb-20">
       {/* Hero Backdrop */}
-      <div className="relative w-full aspect-[21/9] max-h-[60vh] min-h-[320px] bg-surface-raised sm:rounded-3xl overflow-hidden shadow-2xl">
+      <div className="relative w-full aspect-[21/9] max-h-[60vh] min-h-[320px] bg-surface-elevated sm:rounded-3xl overflow-hidden shadow-2xl">
         {movie.backdrop_url ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img 
@@ -222,24 +222,24 @@ export default function MoviePage() {
       </div>
 
       {/* Mobile Action Bar */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 p-4 glass border-t border-white/10 flex gap-3 z-50">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 p-4 bg-surface-base/95 backdrop-blur-2xl border-t border-surface-border flex gap-3 z-50 shadow-2xl safe-area-bottom">
         <button 
           onClick={handleCreateRoom}
           disabled={isCreatingRoom}
-          className="btn-primary flex-1 h-12 px-2 shadow-lg group text-sm"
+          className="btn-primary flex-1 h-12 px-3 shadow-lg group text-sm font-semibold"
         >
           {isCreatingRoom ? (
-            <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
           ) : (
-            <Users className="w-4 h-4 mr-1.5" />
+            <Users className="w-4 h-4 mr-2" />
           )}
           Host Party
         </button>
         <button 
           onClick={() => router.push(`/watch/${movie.id}`)}
-          className="btn-secondary flex-1 h-12 px-2 bg-white/10 hover:bg-white/20 backdrop-blur-md border-white/10 text-sm"
+          className="btn-secondary flex-1 h-12 px-3 text-sm font-semibold"
         >
-          <Play className="w-4 h-4 mr-1.5" />
+          <Play className="w-4 h-4 mr-2" />
           Solo Watch
         </button>
       </div>

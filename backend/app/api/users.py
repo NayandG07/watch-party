@@ -4,12 +4,29 @@ import structlog
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import select, text
 
-from app.core.dependencies import DatabaseDep, RequireAdminDep
+from app.core.dependencies import CurrentUserRoleDep, DatabaseDep, RequireAdminDep
 from app.models.user import User
-from app.schemas.user import UserResponse, UserUpdate
+from app.schemas.user import UserBrief, UserResponse, UserUpdate
 
 router = APIRouter(prefix="/users", tags=["users"])
 logger = structlog.get_logger()
+
+
+@router.get("/selectable", response_model=list[UserBrief])
+async def list_selectable_users(
+    user_role_pair: CurrentUserRoleDep,
+    db: DatabaseDep,
+) -> list[User]:
+    """Return all active users that can be selected for friends-only sharing."""
+    user_id, _ = user_role_pair
+    stmt = (
+        select(User)
+        .where(User.is_active == True)
+        .where(User.id != uuid.UUID(user_id))
+        .order_by(User.username.asc())
+    )
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
 
 
 @router.get("", response_model=list[UserResponse])

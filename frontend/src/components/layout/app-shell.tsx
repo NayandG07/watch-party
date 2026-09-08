@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Library,
   LogOut,
@@ -11,11 +11,15 @@ import {
   Menu,
   X,
   ChevronRight,
+  Palette,
+  User as UserIcon,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/authStore";
+import { useThemeStore, COLOR_PROFILES } from "@/stores/themeStore";
 
 interface NavItem {
   href: string;
@@ -47,10 +51,10 @@ function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
       onClick={onClick}
       className={cn(
         "nav-item group/item",
-        isActive ? "nav-item-active" : "nav-item-inactive"
+        isActive ? "nav-item-active font-semibold shadow-sm" : "nav-item-inactive"
       )}
     >
-      <Icon className={cn("w-5 h-5 shrink-0", isActive ? "text-brand-400" : "text-content-muted group-hover/item:text-content-primary")} />
+      <Icon className={cn("w-5 h-5 shrink-0 transition-colors", isActive ? "text-brand-400" : "text-content-muted group-hover/item:text-content-primary")} />
       <span className="truncate whitespace-nowrap transition-opacity duration-200 md:opacity-0 md:group-hover/sidebar:opacity-100 lg:opacity-100 font-medium">
         {item.label}
       </span>
@@ -58,9 +62,131 @@ function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
   );
 }
 
+function QuickThemeSelector() {
+  const { currentTheme, setTheme, currentMode, setMode, toggleMode } = useThemeStore();
+  const [open, setOpen] = useState(false);
+  const activeProfile = COLOR_PROFILES.find((p) => p.id === currentTheme) || COLOR_PROFILES[0];
+
+  return (
+    <div className="relative px-2 mb-3">
+      <div className="flex items-center gap-1.5">
+        <button
+          onClick={() => setOpen(!open)}
+          className="flex-1 min-w-0 flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-surface-elevated/80 hover:bg-surface-elevated border border-surface-border hover:border-brand-500/30 transition-all text-xs text-content-secondary hover:text-content-primary shadow-sm"
+          title="Change theme color & mode"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <div
+              className="w-3.5 h-3.5 rounded-full shrink-0 shadow-sm ring-1 ring-white/10"
+              style={{ backgroundColor: activeProfile.dotColor }}
+            />
+            <span className="truncate transition-opacity duration-200 md:opacity-0 md:group-hover/sidebar:opacity-100 lg:opacity-100 font-medium">
+              {activeProfile.name}
+            </span>
+          </div>
+          <Palette className="w-3.5 h-3.5 text-content-muted shrink-0 transition-opacity duration-200 md:opacity-0 md:group-hover/sidebar:opacity-100 lg:opacity-100" />
+        </button>
+
+        <button
+          onClick={toggleMode}
+          className="p-2 rounded-xl bg-surface-elevated/80 hover:bg-surface-elevated border border-surface-border text-content-secondary hover:text-content-primary transition-all shrink-0 shadow-sm"
+          title={currentMode === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          id="sidebar-mode-toggle"
+        >
+          {currentMode === "dark" ? (
+            <Sun className="w-4 h-4 text-amber-400" />
+          ) : (
+            <Moon className="w-4 h-4 text-brand-500" />
+          )}
+        </button>
+      </div>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute bottom-full left-2 mb-2 z-50 glass rounded-2xl shadow-2xl p-3 border border-surface-border w-64 animate-scale-in">
+            {/* Mode Switcher inside Popover */}
+            <div className="mb-3 pb-2.5 border-b border-surface-border">
+              <div className="flex items-center justify-between mb-1.5 px-1">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-content-muted">
+                  Appearance
+                </span>
+                <span className="text-[10px] text-brand-400 font-medium capitalize">
+                  {currentMode} Mode
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5 p-1 bg-surface-base rounded-xl border border-surface-border">
+                <button
+                  type="button"
+                  onClick={() => setMode("dark")}
+                  className={cn(
+                    "flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-medium transition-all",
+                    currentMode === "dark"
+                      ? "bg-surface-elevated text-content-primary shadow-sm border border-surface-border"
+                      : "text-content-muted hover:text-content-primary"
+                  )}
+                >
+                  <Moon className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Dark</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode("light")}
+                  className={cn(
+                    "flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-medium transition-all",
+                    currentMode === "light"
+                      ? "bg-surface-elevated text-content-primary shadow-sm border border-surface-border"
+                      : "text-content-muted hover:text-content-primary"
+                  )}
+                >
+                  <Sun className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Light</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Color Profiles */}
+            <div className="flex items-center justify-between mb-2 px-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-content-muted flex items-center gap-1">
+                <Palette className="w-3 h-3 text-brand-400" /> Color Accent
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              {COLOR_PROFILES.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => {
+                    setTheme(p.id);
+                    setOpen(false);
+                  }}
+                  className={cn(
+                    "flex flex-col items-center p-2 rounded-xl border transition-all text-center group",
+                    p.id === currentTheme
+                      ? "bg-brand-500/15 border-brand-500 shadow-sm scale-105"
+                      : "bg-surface-elevated/60 border-transparent hover:border-surface-border"
+                  )}
+                >
+                  <div
+                    className="w-4 h-4 rounded-full mb-1 shadow-sm transition-transform group-hover:scale-110 ring-1 ring-white/10"
+                    style={{ backgroundColor: p.dotColor }}
+                  />
+                  <span className="text-[10px] font-semibold text-content-primary truncate w-full">
+                    {p.name}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function Sidebar({ onClose }: { onClose?: () => void }) {
   const router = useRouter();
   const { user, logout } = useAuthStore();
+  const { currentMode, setMode } = useThemeStore();
 
   async function handleLogout() {
     await logout();
@@ -73,17 +199,62 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
       <Link
         href="/library"
         onClick={onClose}
-        className="flex items-center gap-3 px-5 mb-8 group shrink-0"
+        className="flex items-center gap-3 px-5 mb-4 group shrink-0"
       >
-        <div className="w-8 h-8 rounded-lg bg-gradient-brand shadow-brand flex items-center justify-center shrink-0 group-hover:shadow-glow transition-shadow duration-300">
+        <div className="w-9 h-9 rounded-xl bg-gradient-brand shadow-brand flex items-center justify-center shrink-0 group-hover:shadow-glow transition-all duration-300">
           <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M8 5v14l11-7z" />
           </svg>
         </div>
-        <span className="text-base font-bold text-content-primary tracking-tight transition-opacity duration-200 md:opacity-0 md:group-hover/sidebar:opacity-100 lg:opacity-100 whitespace-nowrap">
-          Watch Party
-        </span>
+        <div className="flex flex-col transition-opacity duration-200 md:opacity-0 md:group-hover/sidebar:opacity-100 lg:opacity-100 whitespace-nowrap">
+          <span className="text-base font-bold text-content-primary tracking-tight leading-none">
+            Watch Party
+          </span>
+          <span className="text-[10px] text-content-muted tracking-wider uppercase font-semibold mt-1">
+            Binge2gether
+          </span>
+        </div>
       </Link>
+
+      {/* Prominent Sidebar Dark/Light Mode Pill Switcher */}
+      <div className="px-3 mb-6 shrink-0">
+        <div className="flex items-center justify-between p-1 bg-surface-elevated/70 rounded-xl border border-surface-border">
+          <button
+            type="button"
+            onClick={() => setMode("dark")}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all",
+              currentMode === "dark"
+                ? "bg-brand-500 text-white shadow-sm"
+                : "text-content-muted hover:text-content-primary"
+            )}
+            title="Dark Mode"
+            id="sidebar-dark-mode-btn"
+          >
+            <Moon className="w-3.5 h-3.5 text-amber-300" />
+            <span className="transition-opacity duration-200 md:opacity-0 md:group-hover/sidebar:opacity-100 lg:opacity-100">
+              Dark
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("light")}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all",
+              currentMode === "light"
+                ? "bg-brand-500 text-white shadow-sm"
+                : "text-content-muted hover:text-content-primary"
+            )}
+            title="Light Mode"
+            id="sidebar-light-mode-btn"
+          >
+            <Sun className="w-3.5 h-3.5 text-amber-200" />
+            <span className="transition-opacity duration-200 md:opacity-0 md:group-hover/sidebar:opacity-100 lg:opacity-100">
+              Light
+            </span>
+          </button>
+        </div>
+      </div>
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto no-scrollbar space-y-6 px-3" aria-label="Main navigation">
@@ -99,22 +270,28 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
         </div>
 
         {/* Manage section */}
-        {((user?.role === "level2" || user?.role === "super_admin" || user?.role === "super_admin") && (CREATOR_NAV_ITEMS.length > 0 || ADMIN_NAV_ITEMS.length > 0)) && (
+        {((user?.role === "level2" || user?.role === "super_admin") &&
+          (CREATOR_NAV_ITEMS.length > 0 || ADMIN_NAV_ITEMS.length > 0)) && (
           <div>
             <h2 className="sidebar-label px-2 mb-2 transition-opacity duration-200 md:opacity-0 md:group-hover/sidebar:opacity-100 lg:opacity-100">
               MANAGE
             </h2>
             <div className="space-y-1">
-              {(user?.role === "level2" || user?.role === "super_admin") && CREATOR_NAV_ITEMS.map((item) => (
-                <NavLink key={item.href} item={item} onClick={onClose} />
-              ))}
-              {user?.role === "super_admin" && ADMIN_NAV_ITEMS.map((item) => (
-                <NavLink key={item.href} item={item} onClick={onClose} />
-              ))}
+              {(user?.role === "level2" || user?.role === "super_admin") &&
+                CREATOR_NAV_ITEMS.map((item) => (
+                  <NavLink key={item.href} item={item} onClick={onClose} />
+                ))}
+              {user?.role === "super_admin" &&
+                ADMIN_NAV_ITEMS.map((item) => (
+                  <NavLink key={item.href} item={item} onClick={onClose} />
+                ))}
             </div>
           </div>
         )}
       </nav>
+
+      {/* Theme Quick Selector */}
+      <QuickThemeSelector />
 
       {/* User section */}
       <div className="border-t border-surface-border pt-4 px-3 shrink-0">
@@ -133,12 +310,16 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
             <div className="flex-1 min-w-0 transition-opacity duration-200 md:opacity-0 md:group-hover/sidebar:opacity-100 lg:opacity-100">
               <p className="text-sm font-medium text-content-primary truncate">{user.username}</p>
               <div className="mt-0.5">
-                <span className={cn(
-                  "inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider",
-                  user.role === "super_admin" ? "bg-brand-500/20 text-brand-400" :
-                  user.role === "level2" ? "bg-indigo-500/20 text-indigo-400" :
-                  "bg-surface-elevated text-content-muted"
-                )}>
+                <span
+                  className={cn(
+                    "inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider",
+                    user.role === "super_admin"
+                      ? "bg-brand-500/20 text-brand-400"
+                      : user.role === "level2"
+                      ? "bg-indigo-500/20 text-indigo-400"
+                      : "bg-surface-elevated text-content-muted"
+                  )}
+                >
                   {user.role.replace("_", " ")}
                 </span>
               </div>
@@ -160,14 +341,94 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
   );
 }
 
+function MobileBottomNav() {
+  const pathname = usePathname();
+  const { user } = useAuthStore();
+
+  const isLibraryActive = pathname?.startsWith("/library");
+  const isRoomsActive = pathname?.startsWith("/rooms");
+  const isProfileActive = pathname?.startsWith("/profile");
+  const isStorageActive = pathname?.startsWith("/admin/settings/storage");
+
+  return (
+    <nav 
+      className="md:hidden fixed bottom-0 inset-x-0 z-40 backdrop-blur-2xl bg-surface-base/90 border-t border-surface-border px-3 py-2 flex items-center justify-around shadow-2xl safe-area-bottom"
+      aria-label="Mobile bottom navigation"
+    >
+      <Link
+        href="/library"
+        className={cn(
+          "flex flex-col items-center justify-center gap-1 py-1 px-3 rounded-xl transition-all",
+          isLibraryActive ? "text-brand-400" : "text-content-muted hover:text-content-primary"
+        )}
+      >
+        <Library className="w-5 h-5" />
+        <span className="text-[10px] font-semibold">Library</span>
+        {isLibraryActive && (
+          <span className="w-1 h-1 rounded-full bg-brand-400 -mt-0.5 shadow-sm" />
+        )}
+      </Link>
+
+      <Link
+        href="/rooms"
+        className={cn(
+          "flex flex-col items-center justify-center gap-1 py-1 px-3 rounded-xl transition-all",
+          isRoomsActive ? "text-brand-400" : "text-content-muted hover:text-content-primary"
+        )}
+      >
+        <Tv2 className="w-5 h-5" />
+        <span className="text-[10px] font-semibold">Rooms</span>
+        {isRoomsActive && (
+          <span className="w-1 h-1 rounded-full bg-brand-400 -mt-0.5 shadow-sm" />
+        )}
+      </Link>
+
+      {(user?.role === "level2" || user?.role === "super_admin") && (
+        <Link
+          href="/admin/settings/storage"
+          className={cn(
+            "flex flex-col items-center justify-center gap-1 py-1 px-3 rounded-xl transition-all",
+            isStorageActive ? "text-brand-400" : "text-content-muted hover:text-content-primary"
+          )}
+        >
+          <Settings className="w-5 h-5" />
+          <span className="text-[10px] font-semibold">Storage</span>
+          {isStorageActive && (
+            <span className="w-1 h-1 rounded-full bg-brand-400 -mt-0.5 shadow-sm" />
+          )}
+        </Link>
+      )}
+
+      <Link
+        href="/profile"
+        className={cn(
+          "flex flex-col items-center justify-center gap-1 py-1 px-3 rounded-xl transition-all",
+          isProfileActive ? "text-brand-400" : "text-content-muted hover:text-content-primary"
+        )}
+      >
+        <UserIcon className="w-5 h-5" />
+        <span className="text-[10px] font-semibold">Profile</span>
+        {isProfileActive && (
+          <span className="w-1 h-1 rounded-full bg-brand-400 -mt-0.5 shadow-sm" />
+        )}
+      </Link>
+    </nav>
+  );
+}
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
-  // Room pages need the full viewport — no padding/scrolling wrapper
+  const { currentMode, toggleMode } = useThemeStore();
+
+  // Room pages and movie detail pages have custom full viewport / bottom action bars
   const isRoomPage = pathname?.startsWith("/room/");
-  
+  const isMoviePage = pathname?.startsWith("/movie/");
+  const hideMobileNav = isRoomPage || isMoviePage;
+
   const getPageTitle = () => {
     if (pathname?.startsWith("/library")) return "Library";
+    if (pathname?.startsWith("/movie/")) return "Movie Details";
     if (pathname?.startsWith("/rooms")) return "Rooms";
     if (pathname?.startsWith("/admin/settings")) return "Settings";
     if (pathname?.startsWith("/admin/users")) return "Users";
@@ -181,7 +442,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <div className="hidden md:flex flex-col border-r border-surface-border bg-surface-base w-16 lg:w-[256px] hover:w-[256px] transition-[width] duration-300 ease-out z-40 group/sidebar shrink-0 absolute lg:relative h-full">
         <Sidebar />
       </div>
-      
+
       {/* Spacer for absolute sidebar on tablet */}
       <div className="hidden md:block lg:hidden w-16 shrink-0 h-full border-r border-transparent" aria-hidden="true" />
 
@@ -215,19 +476,51 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Main content area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-        {/* Mobile top bar — hidden on room pages (room has its own header) */}
+        {/* Universal top bar — hidden on room pages */}
         {!isRoomPage && (
-          <header className="md:hidden flex items-center gap-3 px-4 h-14 border-b border-surface-border bg-surface-base shrink-0 z-10">
-            <button
-              onClick={() => setMobileOpen(true)}
-              className="btn-ghost p-2 -ml-2 rounded-full"
-              aria-label="Open navigation"
-              id="mobile-nav-toggle"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-            <div className="flex-1 flex items-center justify-center -ml-6 pointer-events-none">
-              <span className="text-base font-bold text-content-primary">{getPageTitle()}</span>
+          <header className="flex items-center justify-between px-4 md:px-6 h-14 border-b border-surface-border bg-surface-base/90 backdrop-blur-md shrink-0 z-10">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setMobileOpen(true)}
+                className="md:hidden btn-ghost p-2 -ml-2 rounded-full"
+                aria-label="Open navigation"
+                id="mobile-nav-toggle"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+              <span className="text-base font-bold text-content-primary tracking-tight">{getPageTitle()}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {/* Prominent Desktop + Mobile Sun/Moon Mode Toggle */}
+              <button
+                onClick={toggleMode}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface-elevated hover:bg-surface-elevated/80 border border-surface-border hover:border-brand-500/30 text-content-secondary hover:text-content-primary transition-all text-xs font-semibold shadow-sm cursor-pointer"
+                title={currentMode === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"}
+                aria-label="Toggle dark/light mode"
+                id="topbar-mode-toggle"
+              >
+                {currentMode === "dark" ? (
+                  <>
+                    <Sun className="w-4 h-4 text-amber-400" />
+                    <span className="hidden sm:inline font-medium">Light Mode</span>
+                  </>
+                ) : (
+                  <>
+                    <Moon className="w-4 h-4 text-indigo-400" />
+                    <span className="hidden sm:inline font-medium">Dark Mode</span>
+                  </>
+                )}
+              </button>
+
+              <Link
+                href="/profile"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-surface-elevated/50 hover:bg-surface-elevated border border-surface-border text-brand-400 hover:text-brand-300 text-xs font-medium transition-all"
+                title="Theme and colors"
+                aria-label="Profile and theme"
+              >
+                <Palette className="w-4 h-4" />
+                <span className="hidden sm:inline text-content-secondary">Theme</span>
+              </Link>
             </div>
           </header>
         )}
@@ -241,12 +534,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         ) : (
           <main
             id="main-content"
-            className="flex-1 overflow-y-auto p-6 md:p-8"
+            className={cn(
+              "flex-1 overflow-y-auto p-4 sm:p-6 md:p-8",
+              hideMobileNav ? "pb-24 md:pb-8" : "pb-24 md:pb-8"
+            )}
             tabIndex={-1}
           >
             {children}
           </main>
         )}
+
+        {/* Mobile Bottom Navigation Bar (Hidden on Room page and Movie details) */}
+        {!hideMobileNav && <MobileBottomNav />}
       </div>
     </div>
   );
