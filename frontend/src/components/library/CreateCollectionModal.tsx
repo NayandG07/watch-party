@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Loader2, Library as LibraryIcon, Users, Check, Search, UserCheck, Lock, Globe } from "lucide-react";
+import { X, Loader2, Library as LibraryIcon, Users, Check, Search, Lock, Globe } from "lucide-react";
 import api from "@/lib/api";
 import { Library } from "@/types";
 import { cn } from "@/lib/utils";
