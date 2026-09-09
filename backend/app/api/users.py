@@ -71,10 +71,12 @@ async def update_user(
     if "role" in update_data:
         stmt = text(
             "UPDATE auth.users "
-            "SET raw_app_meta_data = COALESCE(raw_app_meta_data, '{}'::jsonb) || jsonb_build_object('role', :role) "
+            "SET raw_app_meta_data = COALESCE(raw_app_meta_data, '{}'::jsonb) || jsonb_build_object('role', CAST(:role AS text)) "
             "WHERE id = :id"
         )
-        await db.execute(stmt, {"role": update_data["role"], "id": user_id})
+        role_val = update_data["role"]
+        role_str = role_val.value if hasattr(role_val, "value") else str(role_val)
+        await db.execute(stmt, {"role": role_str, "id": user_id})
 
     await db.commit()
     await db.refresh(user)
