@@ -186,7 +186,6 @@ function QuickThemeSelector() {
 function Sidebar({ onClose }: { onClose?: () => void }) {
   const router = useRouter();
   const { user, logout } = useAuthStore();
-  const { currentMode, setMode } = useThemeStore();
 
   async function handleLogout() {
     await logout();
@@ -215,46 +214,6 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
           </span>
         </div>
       </Link>
-
-      {/* Prominent Sidebar Dark/Light Mode Pill Switcher */}
-      <div className="px-3 mb-6 shrink-0">
-        <div className="flex items-center justify-between p-1 bg-surface-elevated/70 rounded-xl border border-surface-border">
-          <button
-            type="button"
-            onClick={() => setMode("dark")}
-            className={cn(
-              "flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all",
-              currentMode === "dark"
-                ? "bg-brand-500 text-white shadow-sm"
-                : "text-content-muted hover:text-content-primary"
-            )}
-            title="Dark Mode"
-            id="sidebar-dark-mode-btn"
-          >
-            <Moon className="w-3.5 h-3.5 text-amber-300" />
-            <span className="transition-opacity duration-200 md:opacity-0 md:group-hover/sidebar:opacity-100 lg:opacity-100">
-              Dark
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("light")}
-            className={cn(
-              "flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all",
-              currentMode === "light"
-                ? "bg-brand-500 text-white shadow-sm"
-                : "text-content-muted hover:text-content-primary"
-            )}
-            title="Light Mode"
-            id="sidebar-light-mode-btn"
-          >
-            <Sun className="w-3.5 h-3.5 text-amber-200" />
-            <span className="transition-opacity duration-200 md:opacity-0 md:group-hover/sidebar:opacity-100 lg:opacity-100">
-              Light
-            </span>
-          </button>
-        </div>
-      </div>
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto no-scrollbar space-y-6 px-3" aria-label="Main navigation">
@@ -419,7 +378,6 @@ function MobileBottomNav() {
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
-  const { currentMode, toggleMode } = useThemeStore();
 
   // Room pages and movie detail pages have custom full viewport / bottom action bars
   const isRoomPage = pathname?.startsWith("/room/");
@@ -489,38 +447,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 <Menu className="w-5 h-5" />
               </button>
               <span className="text-base font-bold text-content-primary tracking-tight">{getPageTitle()}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              {/* Prominent Desktop + Mobile Sun/Moon Mode Toggle */}
-              <button
-                onClick={toggleMode}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface-elevated hover:bg-surface-elevated/80 border border-surface-border hover:border-brand-500/30 text-content-secondary hover:text-content-primary transition-all text-xs font-semibold shadow-sm cursor-pointer"
-                title={currentMode === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"}
-                aria-label="Toggle dark/light mode"
-                id="topbar-mode-toggle"
-              >
-                {currentMode === "dark" ? (
-                  <>
-                    <Sun className="w-4 h-4 text-amber-400" />
-                    <span className="hidden sm:inline font-medium">Light Mode</span>
-                  </>
-                ) : (
-                  <>
-                    <Moon className="w-4 h-4 text-indigo-400" />
-                    <span className="hidden sm:inline font-medium">Dark Mode</span>
-                  </>
-                )}
-              </button>
-
-              <Link
-                href="/profile"
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-surface-elevated/50 hover:bg-surface-elevated border border-surface-border text-brand-400 hover:text-brand-300 text-xs font-medium transition-all"
-                title="Theme and colors"
-                aria-label="Profile and theme"
-              >
-                <Palette className="w-4 h-4" />
-                <span className="hidden sm:inline text-content-secondary">Theme</span>
-              </Link>
             </div>
           </header>
         )}
